@@ -257,6 +257,7 @@ message LayerParameter {
     HINGE_LOSS = 28;
     IM2COL = 11;
     IMAGE_DATA = 12;
+    IDX21HOT = 1200;
     INFOGAIN_LOSS = 13;
     INNER_PRODUCT = 14;
     LRN = 15;
@@ -318,6 +319,7 @@ message LayerParameter {
   optional HDF5DataParameter hdf5_data_param = 13;
   optional HDF5OutputParameter hdf5_output_param = 14;
   optional HingeLossParameter hinge_loss_param = 29;
+  optional Idx2OneHotParameter idx21hot_param = 1200;
   optional ImageDataParameter image_data_param = 15;
   optional InfogainLossParameter infogain_loss_param = 16;
   optional InnerProductParameter inner_product_param = 17;
@@ -524,6 +526,13 @@ message HingeLossParameter {
   }
   // Specify the Norm to use L1 or L2
   optional Norm norm = 1 [default = L1];
+}
+
+// Message that stores parameters Idx2OneHotLayer
+message Idx2OneHotParameter {
+  // Specify the output dimension -- should be one greater than the largest
+  // possible index in the input blob.
+  optional uint32 dim = 1;
 }
 
 // Message that stores parameters used by ImageDataLayer
