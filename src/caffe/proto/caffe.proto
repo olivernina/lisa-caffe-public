@@ -245,6 +245,7 @@ message LayerParameter {
     CONTRASTIVE_LOSS = 37;
     CONVOLUTION = 4;
     DATA = 5;
+    DIAG_INNER_PRODUCT = 1001;
     DROPOUT = 6;
     DUMMY_DATA = 32;
     EUCLIDEAN_LOSS = 7;
@@ -309,6 +310,7 @@ message LayerParameter {
   optional ContrastiveLossParameter contrastive_loss_param = 40;
   optional ConvolutionParameter convolution_param = 10;
   optional DataParameter data_param = 11;
+  optional DiagInnerProductParameter diag_inner_product_param = 101;
   optional DropoutParameter dropout_param = 12;
   optional DummyDataParameter dummy_data_param = 26;
   optional EltwiseParameter eltwise_param = 24;
@@ -447,6 +449,11 @@ message DataParameter {
   // DEPRECATED. See TransformationParameter. Specify if we want to randomly mirror
   // data.
   optional bool mirror = 6 [default = false];
+}
+
+// Message that stores parameters used by DiagInnerProductLayer
+message DiagInnerProductParameter {
+  optional FillerParameter weight_filler = 1; // The filler for the weight
 }
 
 // Message that stores parameters used by DropoutLayer
