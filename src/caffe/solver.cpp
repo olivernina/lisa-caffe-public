@@ -151,6 +151,7 @@ void Solver<Dtype>::InitTestNets() {
     LOG(INFO)
         << "Creating test net (#" << i << ") specified by " << sources[i];
     test_nets_[i].reset(new Net<Dtype>(net_params[i]));
+    test_nets_[i]->set_debug_info(param_.debug_info());
   }
 
   // Setup test_net_reset_ -- default to not resetting any test nets.
