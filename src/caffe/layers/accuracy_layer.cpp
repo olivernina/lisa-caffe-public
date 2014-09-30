@@ -35,11 +35,21 @@ void AccuracyLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   Dtype accuracy = 0;
   const Dtype* bottom_data = bottom[0]->cpu_data();
   const Dtype* bottom_label = bottom[1]->cpu_data();
+  const Dtype* weights = NULL;
+  if (bottom.size() > 2) {
+    weights = bottom[2]->cpu_data();
+  }
   int num = bottom[0]->num();
   int dim = bottom[0]->count() / bottom[0]->num();
   vector<Dtype> maxval(top_k_+1);
   vector<int> max_id(top_k_+1);
+  Dtype weight = 1;
+  Dtype total_weight = 0;
   for (int i = 0; i < num; ++i) {
+    if (weights) {
+      weight = weights[i];
+      total_weight += weight;
+    }
     // Top-k accuracy
     std::vector<std::pair<Dtype, int> > bottom_data_vector;
     for (int j = 0; j < dim; ++j) {
@@ -52,14 +62,17 @@ void AccuracyLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     // check if true label is in top k predictions
     for (int k = 0; k < top_k_; k++) {
       if (bottom_data_vector[k].second == static_cast<int>(bottom_label[i])) {
-        ++accuracy;
+        accuracy += weight;
         break;
       }
     }
   }
+  if (!weights) {
+    total_weight = num;
+  }
 
   // LOG(INFO) << "Accuracy: " << accuracy;
-  top[0]->mutable_cpu_data()[0] = accuracy / num;
+  top[0]->mutable_cpu_data()[0] = accuracy / total_weight;
   // Accuracy layer should not be used as a loss function.
 }
 

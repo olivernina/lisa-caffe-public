@@ -23,6 +23,7 @@ class SoftmaxWithLossLayerTest : public MultiDeviceTest<TypeParam> {
   SoftmaxWithLossLayerTest()
       : blob_bottom_data_(new Blob<Dtype>(10, 5, 2, 3)),
         blob_bottom_label_(new Blob<Dtype>(10, 1, 2, 3)),
+        blob_bottom_loss_weight_(new Blob<Dtype>(10, 1, 1, 1)),
         blob_top_loss_(new Blob<Dtype>()) {
     // fill the values
     FillerParameter filler_param;
@@ -35,14 +36,20 @@ class SoftmaxWithLossLayerTest : public MultiDeviceTest<TypeParam> {
     }
     blob_bottom_vec_.push_back(blob_bottom_label_);
     blob_top_vec_.push_back(blob_top_loss_);
+    filler_param.set_min(0);
+    filler_param.set_max(5);
+    UniformFiller<Dtype> loss_weight_filler(filler_param);
+    loss_weight_filler.Fill(blob_bottom_loss_weight_);
   }
   virtual ~SoftmaxWithLossLayerTest() {
     delete blob_bottom_data_;
     delete blob_bottom_label_;
+    delete blob_bottom_loss_weight_;
     delete blob_top_loss_;
   }
   Blob<Dtype>* const blob_bottom_data_;
   Blob<Dtype>* const blob_bottom_label_;
+  Blob<Dtype>* const blob_bottom_loss_weight_;
   Blob<Dtype>* const blob_top_loss_;
   vector<Blob<Dtype>*> blob_bottom_vec_;
   vector<Blob<Dtype>*> blob_top_vec_;
@@ -57,6 +64,17 @@ TYPED_TEST(SoftmaxWithLossLayerTest, TestGradient) {
   layer_param.add_loss_weight(3);
   SoftmaxWithLossLayer<Dtype> layer(layer_param);
   GradientChecker<Dtype> checker(1e-2, 1e-2, 1701);
+  checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
+      this->blob_top_vec_, 0);
+}
+
+TYPED_TEST(SoftmaxWithLossLayerTest, TestGradientWithLossWeightBlob) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter layer_param;
+  layer_param.add_loss_weight(3);
+  SoftmaxWithLossLayer<Dtype> layer(layer_param);
+  GradientChecker<Dtype> checker(1e-2, 1e-2, 1701);
+  this->blob_bottom_vec_.push_back(this->blob_bottom_loss_weight_);
   checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
       this->blob_top_vec_, 0);
 }
