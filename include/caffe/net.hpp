@@ -93,6 +93,20 @@ class Net {
 
   /// @brief Updates the network weights based on the diff values computed.
   void Update();
+  /**
+   * @brief Accumulates weight diffs of shared blobs into the owner's diff.
+   *
+   * Note: this is called by Net::Update, and thus should normally not be
+   * called manually.
+   */
+  void AccumulateSharedWeightDiffs();
+  /**
+   * @brief Shares weight data of owner blobs with shared blobs.
+   *
+   * Note: this is called by Net::Init, and thus should normally not be
+   * called manually.
+   */
+  void ShareWeightData();
 
   /**
    * @brief For an already initialized net, implicitly copies (i.e., using no
@@ -141,6 +155,7 @@ class Net {
   /// @brief returns the parameter learning rate multipliers
   inline vector<float>& params_lr() { return params_lr_; }
   inline vector<float>& params_weight_decay() { return params_weight_decay_; }
+  inline vector<int>& param_owners() { return param_owners_; }
   const map<string, int>& param_names_index() { return param_names_index_; }
   /// @brief Input and output blob numbers
   inline int num_inputs() { return net_input_blobs_.size(); }

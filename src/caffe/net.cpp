@@ -161,6 +161,7 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
     for (int top_id = 0; top_id < top_vecs_[layer_id].size(); ++top_id) {
       const string& blob_name = blob_names_[top_id_vecs_[layer_id][top_id]];
       if (layers_[layer_id]->loss(top_id) ||
+          layers_[layer_id]->layer_param().has_external_diff() ||
           (blobs_under_loss.find(blob_name) != blobs_under_loss.end())) {
         layer_contributes_loss = true;
         break;
@@ -217,6 +218,8 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
     layer_names_index_[layer_names_[layer_id]] = layer_id;
   }
   GetLearningRateAndWeightDecay();
+  // Handle shared weights.
+  ShareWeightData();
   LOG(INFO) << "Network initialization done.";
   LOG(INFO) << "Memory required for data: " << memory_used_ * sizeof(Dtype);
   // Don't display debug info by default.
@@ -459,8 +462,6 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
       CHECK_EQ(this_blob->width(), owner_blob->width())
           << "Shared parameter blobs must have the same width.";
     }
-    layers_[layer_id]->blobs()[param_id]->ShareData(
-        *layers_[owner_layer_id]->blobs()[owner_param_id]);
   }
 }
 
@@ -781,6 +782,27 @@ void Net<Dtype>::ToProto(NetParameter* param, bool write_diff) {
 template <typename Dtype>
 void Net<Dtype>::Update() {
   // First, accumulate the diffs of any shared parameters into their owner's
+  // diff.
+  AccumulateSharedWeightDiffs();
+  // Now, update the owned parameters.
+  for (int i = 0; i < params_.size(); ++i) {
+    if (param_owners_[i] >= 0) { continue; }
+    if (debug_info_) { UpdateDebugInfo(i); }
+    params_[i]->Update();
+  }
+}
+
+template <typename Dtype>
+void Net<Dtype>::ShareWeightData() {
+  for (int i = 0; i < params_.size(); ++i) {
+    if (param_owners_[i] < 0) { continue; }
+    params_[i]->ShareData(*params_[param_owners_[i]]);
+  }
+}
+
+template <typename Dtype>
+void Net<Dtype>::AccumulateSharedWeightDiffs() {
+  // Accumulate the diffs of any shared parameters into their owner's
   // diff. (Assumes that the learning rate, weight decay, etc. have already been
   // accounted for in the current diff.)
   for (int i = 0; i < params_.size(); ++i) {
@@ -807,12 +829,6 @@ void Net<Dtype>::Update() {
     default:
       LOG(FATAL) << "Unknown caffe mode: " << Caffe::mode();
     }
-  }
-  // Now, update the owned parameters.
-  for (int i = 0; i < params_.size(); ++i) {
-    if (param_owners_[i] >= 0) { continue; }
-    if (debug_info_) { UpdateDebugInfo(i); }
-    params_[i]->Update();
   }
 }
 
