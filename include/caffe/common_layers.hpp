@@ -10,6 +10,7 @@
 #include "caffe/data_layers.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/loss_layers.hpp"
+#include "caffe/net.hpp"
 #include "caffe/neuron_layers.hpp"
 #include "caffe/proto/caffe.pb.h"
 
@@ -353,6 +354,58 @@ class InnerProductLayer : public Layer<Dtype> {
   int N_;
   bool bias_term_;
   Blob<Dtype> bias_multiplier_;
+};
+
+/**
+ * @brief Does an LSTM thingie.
+ *
+ * TODO(dox): thorough documentation for Forward, Backward, and proto params.
+ */
+template <typename Dtype>
+class LSTMLayer : public Layer<Dtype> {
+ public:
+  explicit LSTMLayer(const LayerParameter& param)
+      : Layer<Dtype>(param) {}
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline LayerParameter_LayerType type() const {
+    return LayerParameter_LayerType_LSTM;
+  }
+  virtual inline int ExactNumBottomBlobs() const { return 2; }
+  virtual inline int ExactNumTopBlobs() const { return 1; }
+
+ protected:
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  string int_to_str(const int t);
+
+  /// @brief A Net to implement the LSTM functionality.
+  shared_ptr<Net<Dtype> > lstm_;
+
+  /// @brief The hidden and output dimension.
+  int hidden_dim_;
+  /// @brief The number of examples to process simultaneously.
+  int buffer_size_;
+  /// @brief The number of timesteps to backprop through: num / buffer_size.
+  int T_;
+
+  Blob<Dtype>* h_input_blob_;
+  Blob<Dtype>* c_input_blob_;
+  vector<Blob<Dtype>*> flush_input_blobs_;
+  vector<Blob<Dtype>*> input_blobs_;
+  vector<Blob<Dtype>*> output_blobs_;
+  Blob<Dtype>* h_output_blob_;
+  Blob<Dtype>* c_output_blob_;
 };
 
 /**

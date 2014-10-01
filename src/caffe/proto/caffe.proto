@@ -261,6 +261,7 @@ message LayerParameter {
     INFOGAIN_LOSS = 13;
     INNER_PRODUCT = 14;
     LRN = 15;
+    LSTM = 1000;
     MEMORY_DATA = 29;
     MULTINOMIAL_LOGISTIC_LOSS = 16;
     MVN = 34;
@@ -305,6 +306,10 @@ message LayerParameter {
   // to each top blob.
   repeated float loss_weight = 35;
 
+  // Set to true to indicate the layer may have a non-zero "external" diff that
+  // needs to be backpropagated.
+  optional bool has_external_diff = 999 [default = false];
+
   optional AccuracyParameter accuracy_param = 27;
   optional ArgMaxParameter argmax_param = 23;
   optional ConcatParameter concat_param = 9;
@@ -324,6 +329,7 @@ message LayerParameter {
   optional InfogainLossParameter infogain_loss_param = 16;
   optional InnerProductParameter inner_product_param = 17;
   optional LRNParameter lrn_param = 18;
+  optional LSTMParameter lstm_param = 100;
   optional MemoryDataParameter memory_data_param = 22;
   optional MVNParameter mvn_param = 34;
   optional PoolingParameter pooling_param = 19;
@@ -595,6 +601,22 @@ message LRNParameter {
   }
   optional NormRegion norm_region = 4 [default = ACROSS_CHANNELS];
   optional float k = 5 [default = 1.];
+}
+
+// Message that stores parameters used by LSTMLayer
+message LSTMParameter {
+  // The dimension of the LSTM's internal data and output representation --
+  // must be explicitly set to non-zero.
+  optional uint32 hidden_dim = 1 [default = 0];
+  // The number of sequences to process simultaneously.
+  // Set to a value >1 for better efficiency at the cost of memory.
+  optional uint32 buffer_size = 2 [default = 1];
+
+  optional FillerParameter weight_filler = 3; // The filler for the weight
+  optional FillerParameter bias_filler = 4; // The filler for the bias
+
+  // Whether to enable displaying debug_info in the LSTM.
+  optional bool lstm_debug_info = 5 [default = false];
 }
 
 // Message that stores parameters used by MemoryDataLayer
