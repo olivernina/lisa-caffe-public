@@ -1,3 +1,5 @@
+// Copyright 2014 BVLC and contributors.
+
 #include <leveldb/db.h>
 #include <stdint.h>
 
@@ -11,6 +13,8 @@
 #include "caffe/util/io.hpp"
 #include "caffe/util/math_functions.hpp"
 #include "caffe/util/rng.hpp"
+
+using std::string;
 
 namespace caffe {
 
@@ -35,6 +39,17 @@ DataLayer<Dtype>::~DataLayer<Dtype>() {
 template <typename Dtype>
 void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
+  if (top.size() > 1) {
+    this->output_labels_ = true;
+  } else {
+    this->output_labels_ = false;
+  }
+  if (top.size() > 2) {
+    this->output_clip_markers_ = true;
+  } else {
+    this->output_clip_markers_ = false;
+  }
+  this->video_id_ = 0;
   // Initialize the DB and rand_skip.
   Reset();
 
@@ -68,14 +83,65 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     this->transformed_data_.Reshape(1, datum.channels(),
       datum.height(), datum.width());
   }
+
+  //video
+  int clip_length_ = this->layer_param_.data_param().clip_length();
+  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH) {
+    CHECK_EQ(0, this->layer_param_.data_param().batch_size() % clip_length_)
+        << "If using fixed length clips, the batch size must be an exact "
+        << "multiple of the clip length to avoid adding unnecessary padding. "
+        << "Consider setting batch_size = " << clip_length_ *
+          (this->layer_param_.data_param().batch_size() / clip_length_);
+  }
+
+
+  if (this->layer_param_.data_param().clip_order() == DataParameter_ClipOrder_FRAME_MAJOR) {
+    top[0]->set_frame_major_clip_length(clip_length_);
+    CHECK_EQ(this->layer_param_.data_param().clip_mode(), DataParameter_ClipMode_FIXED_LENGTH)
+        << "FRAME_MAJOR clip_order requires FIXED_LENGTH clip_mode.";
+  } else {
+    top[0]->set_frame_major_clip_length(0);
+  }
   LOG(INFO) << "output data size: " << top[0]->num() << ","
       << top[0]->channels() << "," << top[0]->height() << ","
       << top[0]->width();
   // label
   if (this->output_labels_) {
-    top[1]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
-    this->prefetch_label_.Reshape(this->layer_param_.data_param().batch_size(),
-        1, 1, 1);
+    if (this->layer_param_.data_param().clip_collapse_labels()) {  //this->clip_collapse_labels_
+      CHECK_EQ(this->layer_param_.data_param().clip_mode(), DataParameter_ClipMode_FIXED_LENGTH)
+          << "clip_collapse_labels requires fixed_length clip_mode.";
+      const int collapsed_label_num = this->layer_param_.data_param().batch_size() / clip_length_;
+      top[1]->Reshape(collapsed_label_num, 1, 1, 1);
+      this->prefetch_label_.Reshape(collapsed_label_num, 1, 1, 1);
+    } else {
+      top[1]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
+      this->prefetch_label_.Reshape(
+          this->layer_param_.data_param().batch_size(), 1, 1, 1);
+    }
+  }
+  if (this->output_clip_markers_) {
+    top[2]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
+    this->prefetch_clip_markers_.Reshape(
+        this->layer_param_.data_param().batch_size(), 1, 1, 1);
+  }
+  // datum size
+  this->datum_channels_ = datum.channels();
+  this->datum_height_ = datum.height();
+  this->datum_width_ = datum.width();
+  this->datum_size_ = datum.channels() * datum.height() * datum.width();
+
+  if (this->output_clip_markers_) {
+    const int count = this->prefetch_clip_markers_.count();
+    Dtype* prefetch_clip_markers = this->prefetch_clip_markers_.mutable_cpu_data();
+    if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH) {
+    // Prefill markers for fixed length batch size, as they'll never change.
+      for (int i = 0; i < count; ++i) {
+        prefetch_clip_markers[i] =
+            (i % clip_length_ > 0) ? CLIP_CONTINUE : CLIP_BEGIN;
+      }
+    } else {
+      caffe_set(count, Dtype(PADDING), prefetch_clip_markers);
+    }
   }
 }
 
@@ -86,9 +152,12 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   CHECK(this->transformed_data_.count());
   Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
   Dtype* top_label = NULL;  // suppress warnings about uninitialized variables
-
+  Dtype* top_clip_markers = NULL;
   if (this->output_labels_) {
     top_label = this->prefetch_label_.mutable_cpu_data();
+  }
+  if (this->output_clip_markers_) {
+    top_clip_markers = this->prefetch_clip_markers_.mutable_cpu_data();
   }
   const int batch_size = this->layer_param_.data_param().batch_size();
 

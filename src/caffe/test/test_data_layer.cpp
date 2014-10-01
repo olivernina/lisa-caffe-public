@@ -1,3 +1,5 @@
+// Copyright 2014 BVLC and contributors.
+
 #include <string>
 #include <vector>
 
@@ -24,6 +26,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
       : backend_(DataParameter_DB_LEVELDB),
         blob_top_data_(new Blob<Dtype>()),
         blob_top_label_(new Blob<Dtype>()),
+        blob_top_clip_markers_(new Blob<Dtype>()),
         seed_(1701) {}
   virtual void SetUp() {
     filename_.reset(new string());
@@ -318,6 +321,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
   shared_ptr<string> filename_;
   Blob<Dtype>* const blob_top_data_;
   Blob<Dtype>* const blob_top_label_;
+  Blob<Dtype>* const blob_top_clip_markers_;
   vector<Blob<Dtype>*> blob_bottom_vec_;
   vector<Blob<Dtype>*> blob_top_vec_;
   int seed_;
