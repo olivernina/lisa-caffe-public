@@ -461,6 +461,77 @@ message DataParameter {
   // DEPRECATED. See TransformationParameter. Specify if we want to randomly mirror
   // data.
   optional bool mirror = 6 [default = false];
+
+  // Variables for sequential outputs ("clips").
+  // Specify the length of the clip.  A clip of length 1, the default, is an
+  // image.
+  optional uint32 clip_length = 100 [default = 1];
+
+  // clip_length_mode specifies how to handle video data with different
+  // clip lengths.
+  //
+  // FIXED_LENGTH, the default, outputs crops of a fixed length.
+  // If clip_allow_pad is not set, Caffe will crash on clips shorter than
+  // clip_length.  If clip_allow_crop is not set, Caffe will crash on clips
+  // longer than clip_length.
+  //
+  // VARIBLE means ignore clip_length and do not add padding -- potentially
+  // outputting clips of unequal length.
+  enum ClipMode {
+    FIXED_LENGTH = 0;
+    VARIABLE = 1;
+  }
+  optional ClipMode clip_mode = 101 [default = FIXED_LENGTH];
+  enum ClipPadCropMode {
+    RANDOM = 0;
+    START = 1;
+    CENTER = 2;
+    END = 3;
+  }
+  // If clip_mode == FIXED_LENGTH, specify whether to allow LevelDB inputs with
+  // length shorter than clip_length.  A clip of shorter length will be placed
+  // at a random starting point in the output clip such that the entire clip
+  // fits into the slot of size clip_length, and the rest (padding) fill be
+  // filled with the value specified by clip_pad_value (by default 0).
+  optional bool clip_allow_pad = 102 [default = false];
+  optional float clip_pad_value = 103 [default = 0];
+  optional ClipPadCropMode clip_pad_mode = 104 [default = RANDOM];
+  // If clip_mode == FIXED_LENGTH, specify whether to allow LevelDB inputs
+  // with length longer than clip_length.  A clip of longer length will be
+  // randomly cropped to clip_length.
+  optional bool clip_allow_crop = 105 [default = false];
+  optional ClipPadCropMode clip_crop_mode = 106 [default = RANDOM];
+  // CLIP_MAJOR mode outputs clips one at a time, outputting (clip0,frame0),
+  // then (clip0, frame1), ..., then (clip0, frameN), then (clip1, frame0), ...
+  // This is the more intuitive output mode.  FRAME_MAJOR requires fixed length
+  // clips as it outputs the first frame of every clip first: (clip0, frame0),
+  // (clip1, frame0), (clip2, frame0), ..., (clipM, frame0), (clip0, frame1),
+  // ...  This ordering is required for input to the RecurrentInnerProductLayer
+  // as it makes processing more efficient. 
+  enum ClipOrder {
+    CLIP_MAJOR = 0;
+    FRAME_MAJOR = 1;
+  }
+  optional ClipOrder clip_order = 107 [default = CLIP_MAJOR];
+  // Whether or not to collapse all the duplicate labels for a single clip into
+  // a single output.  Therefore, the "num" of the label will be (1/clip_length)
+  // of the data's "num", for a fixed-length clip.
+  optional bool clip_collapse_labels = 108 [default = false];
+  //allows for subsampling video frames
+  optional int32 clip_sub_sample = 109 [default = 1];
+
+  enum IterType {
+    iter = 0;
+    get = 1;
+  }
+  optional IterType iter_type = 110 [default = iter]; 
+
+  //should change to be elements of leveldb
+  optional int32 max_train_item = 111 [default = 0];  
+  optional int32 max_test_item = 112 [default = 0];
+
+
+
 }
 
 // Message that stores parameters used by DiagInnerProductLayer

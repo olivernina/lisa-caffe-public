@@ -51,6 +51,13 @@ class BaseDataLayer : public Layer<Dtype> {
   DataTransformer<Dtype> data_transformer_;
   Caffe::Phase phase_;
   bool output_labels_;
+
+  int video_id_;
+  bool output_clip_markers_;
+  DataParameter_ClipMode clip_mode_;
+  int clip_length_;
+  DataParameter_ClipOrder clip_order_;
+  bool clip_collapse_labels_;
 };
 
 template <typename Dtype>
@@ -79,6 +86,7 @@ class BasePrefetchingDataLayer :
  protected:
   Blob<Dtype> prefetch_data_;
   Blob<Dtype> prefetch_label_;
+  Blob<Dtype> prefetch_clip_markers_;
   Blob<Dtype> transformed_data_;
 };
 
@@ -98,7 +106,9 @@ class DataLayer : public BasePrefetchingDataLayer<Dtype> {
   }
   virtual inline int ExactNumBottomBlobs() const { return 0; }
   virtual inline int MinTopBlobs() const { return 1; }
-  virtual inline int MaxTopBlobs() const { return 2; }
+  virtual inline int MaxTopBlobs() const { return 3; }
+
+  enum ClipMarker { CLIP_BEGIN, CLIP_CONTINUE, PADDING };
 
  protected:
   virtual void InternalThreadEntry();
