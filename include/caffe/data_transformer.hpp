@@ -79,7 +79,7 @@ class DataTransformer {
    *    This is destination blob, it will contain as many images as the
    *    input blob. It can be part of top blob's data.
    */
-  void Transform(Blob<Dtype>* input_blob, Blob<Dtype>* transformed_blob);
+  void Transform(Blob<Dtype>* input_blob, Blob<Dtype>* transformed_blob, bool calc_off = true);
 
  protected:
    /**
@@ -101,6 +101,8 @@ class DataTransformer {
   Caffe::Phase phase_;
   Blob<Dtype> data_mean_;
   vector<Dtype> mean_values_;
+  int h_off_;
+  int w_off_;
 };
 
 }  // namespace caffe

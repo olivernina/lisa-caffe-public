@@ -162,6 +162,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   const int batch_size = this->layer_param_.data_param().batch_size();
 
   for (int item_id = 0; item_id < batch_size; ++item_id) {
+    bool first_video = true;
     // get a blob
     Datum datum;
     switch (this->layer_param_.data_param().backend()) {
@@ -182,7 +183,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     // Apply data transformations (mirror, scale, crop...)
     int offset = this->prefetch_data_.offset(item_id);
     this->transformed_data_.set_cpu_data(top_data + offset);
-    this->data_transformer_.Transform(datum, &(this->transformed_data_));
+    this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video);
     if (this->output_labels_) {
       top_label[item_id] = datum.label();
     }

@@ -13,7 +13,6 @@
 namespace caffe {
 
 template<typename Dtype>
-<<<<<<< HEAD
 DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param)
     : param_(param) {
   phase_ = Caffe::phase();
@@ -83,7 +82,7 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
     height = crop_size;
     width = crop_size;
     // We only do random crop when we do training.
-    if (phase_ == Caffe::TRAIN) {
+    if (phase_ == Caffe::TRAIN && calc_off) {
       h_off = Rand(datum_height - crop_size + 1);
       w_off = Rand(datum_width - crop_size + 1);
     } else {

@@ -39,7 +39,35 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
   // Fill the LevelDB with data: if unique_pixels, each pixel is unique but
   // all images are the same; else each image is unique but all pixels within
   // an image are the same.
-  void FillLevelDB(const bool unique_pixels) {
+//  void FillLevelDB(const bool unique_pixels) {
+//    backend_ = DataParameter_DB_LEVELDB;
+//    LOG(INFO) << "Using temporary leveldb " << *filename_;
+//    leveldb::DB* db;
+//    leveldb::Options options;
+//    options.error_if_exists = true;
+//    options.create_if_missing = true;
+//    leveldb::Status status =
+//        leveldb::DB::Open(options, filename_->c_str(), &db);
+//    CHECK(status.ok());
+//    for (int i = 0; i < 5; ++i) {
+//      Datum datum;
+//      datum.set_label(i);
+//      datum.set_channels(2);
+//      datum.set_height(3);
+//      datum.set_width(4);
+//      std::string* data = datum.mutable_data();
+//      for (int j = 0; j < 24; ++j) {
+//        int datum = unique_pixels ? j : i;
+//        data->push_back(static_cast<uint8_t>(datum));
+//      }
+//      stringstream ss;
+//      ss << i;
+//      db->Put(leveldb::WriteOptions(), ss.str(), datum.SerializeAsString());
+//    }
+//    delete db;
+//  }
+  void FillLevelDB(const bool unique_pixels, const int clip_length = 1,
+                   const int num_clips = 5) {
     backend_ = DataParameter_DB_LEVELDB;
     LOG(INFO) << "Using temporary leveldb " << *filename_;
     leveldb::DB* db;
@@ -49,20 +77,26 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     leveldb::Status status =
         leveldb::DB::Open(options, filename_->c_str(), &db);
     CHECK(status.ok());
-    for (int i = 0; i < 5; ++i) {
-      Datum datum;
-      datum.set_label(i);
-      datum.set_channels(2);
-      datum.set_height(3);
-      datum.set_width(4);
-      std::string* data = datum.mutable_data();
-      for (int j = 0; j < 24; ++j) {
-        int datum = unique_pixels ? j : i;
-        data->push_back(static_cast<uint8_t>(datum));
+    int count = 0;
+    char key_cstr[17];
+    for (int i = 0; i < num_clips; ++i) {
+      for (int frame_id = 0; frame_id < clip_length; ++frame_id) {
+        Datum datum;
+        datum.set_label(i);
+        datum.set_frames(clip_length);
+        datum.set_channels(2);
+        datum.set_height(3);
+        datum.set_width(4);
+        std::string* data = datum.mutable_data();
+        datum.set_current_frame(frame_id);  //need to check with jeff
+        for (int j = 0; j < 24; ++j) {
+          int datum = (unique_pixels ? j : i) + (10 * frame_id);
+          data->push_back(static_cast<uint8_t>(datum));
+        }
+        int n = sprintf(key_cstr, "%08d%08d", i, frame_id);
+        db->Put(leveldb::WriteOptions(), string(key_cstr), datum.SerializeAsString());
+        ++count;
       }
-      stringstream ss;
-      ss << i;
-      db->Put(leveldb::WriteOptions(), ss.str(), datum.SerializeAsString());
     }
     delete db;
   }
