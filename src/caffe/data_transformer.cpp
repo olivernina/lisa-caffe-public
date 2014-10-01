@@ -13,6 +13,7 @@
 namespace caffe {
 
 template<typename Dtype>
+<<<<<<< HEAD
 DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param)
     : param_(param) {
   phase_ = Caffe::phase();
@@ -38,7 +39,7 @@ DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param)
 
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(const Datum& datum,
-                                       Dtype* transformed_data) {
+                                       Dtype* transformed_data, bool calc_off) {
   const string& data = datum.data();
   const int datum_channels = datum.channels();
   const int datum_height = datum.height();
