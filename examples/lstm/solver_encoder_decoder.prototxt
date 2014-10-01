@@ -1,0 +1,21 @@
+net: "train_val_encoder_decoder.prototxt"
+test_iter: 200
+test_state: { stage: 'test-on-train' }
+test_iter: 200
+test_state: { stage: 'test-on-test' }
+test_interval: 2000
+test_net_reset: true
+base_lr: 0.01
+lr_policy: "step"
+gamma: 0.5
+stepsize: 20000
+display: 1
+max_iter: 450000
+momentum: 0.9
+weight_decay: 0.0005
+snapshot: 20000
+snapshot_prefix: "snapshots/single_layer_lstm_encoder_decoder"
+solver_mode: GPU
+device_id: 0
+# debug_info: true
+random_seed: 1701

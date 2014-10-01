@@ -1,2 +1,3 @@
 train_batches/
 val_batches/
+logs/

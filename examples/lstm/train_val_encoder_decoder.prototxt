@@ -1,0 +1,200 @@
+name: "CaffeNet"
+
+# input data
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "data"
+  top: "stage_indicators"
+  top: "targets"
+  top: "cont"
+  hdf5_data_param {
+    source: "./train_batches/hdf5_chunk_list.txt"
+    batch_size: 240
+  }
+  include: { phase: TRAIN }
+}
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "data"
+  top: "stage_indicators"
+  top: "targets"
+  top: "cont"
+  hdf5_data_param {
+    source: "./val_batches/hdf5_chunk_list.txt"
+    batch_size: 240
+  }
+  include: { phase: TEST stage: "test-on-test" }
+}
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "data"
+  top: "stage_indicators"
+  top: "targets"
+  top: "cont"
+  hdf5_data_param {
+    source: "./train_batches/hdf5_chunk_list.txt"
+    batch_size: 240
+  }
+  include: { phase: TEST stage: "test-on-train" }
+}
+
+# convert indexed input data to one-hot
+layers {
+  name: "one_hot_data"
+  type: IDX21HOT
+  bottom: "data"
+  top: "one_hot_data"
+  idx21hot_param {
+    dim: 11
+  }
+}
+
+# concatenate encoder/decoder indicators to input data
+layers {
+  name: "concat"
+  type: CONCAT
+  bottom: "one_hot_data"
+  bottom: "stage_indicators"
+  top: "one_hot_and_stage_indicators"
+}
+
+layers {
+  name: "lstm1"
+  type: LSTM
+  bottom: "one_hot_and_stage_indicators"
+  bottom: "cont"
+  top: "lstm1"
+  lstm_param {
+    hidden_dim: 3000
+    buffer_size: 8
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+# layers {
+#   name: "lstm2"
+#   type: LSTM
+#   bottom: "lstm1"
+#   bottom: "cont"
+#   top: "lstm2"
+#   lstm_param {
+#     hidden_dim: 1500
+#     buffer_size: 8
+#     weight_filler {
+#       type: "uniform"
+#       min: -0.08
+#       max: 0.08
+#     }
+#     bias_filler {
+#       type: "constant"
+#       value: 0
+#     }
+#   }
+# }
+# layers {
+#   name: "lstm3"
+#   type: LSTM
+#   bottom: "lstm2"
+#   bottom: "cont"
+#   top: "lstm3"
+#   lstm_param {
+#     hidden_dim: 1500
+#     buffer_size: 8
+#     weight_filler {
+#       type: "uniform"
+#       min: -0.08
+#       max: 0.08
+#     }
+#     bias_filler {
+#       type: "constant"
+#       value: 0
+#     }
+#   }
+# }
+# layers {
+#   name: "lstm4"
+#   type: LSTM
+#   bottom: "lstm3"
+#   bottom: "cont"
+#   top: "lstm4"
+#   lstm_param {
+#     hidden_dim: 1500
+#     buffer_size: 8
+#     weight_filler {
+#       type: "uniform"
+#       min: -0.08
+#       max: 0.08
+#     }
+#     bias_filler {
+#       type: "constant"
+#       value: 0
+#     }
+#   }
+# }
+layers {
+  name: "predict"
+  type: INNER_PRODUCT
+  bottom: "lstm1"
+  top: "predict"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 11
+    weight_filler {
+      type: "gaussian"
+      std: 0.1
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layers {
+  name: "accuracy"
+  type: ACCURACY
+  bottom: "predict"
+  bottom: "targets"
+  bottom: "stage_indicators"
+  top: "accuracy"
+}
+layers {
+  name: "cross_entropy_loss"
+  type: SOFTMAX_LOSS
+  bottom: "predict"
+  bottom: "targets"
+  bottom: "stage_indicators"
+  top: "cross_entropy_loss"
+  loss_weight: 0
+}
+layers {
+  type: SPLIT
+  bottom: "cross_entropy_loss"
+  top: "cross_entropy_loss_copy"
+  top: "loss"
+  loss_weight: 0
+  loss_weight: 1
+}
+# perplexity = 2 ^ (log_2(e) * L), where L is the cross-entropy loss
+layers {
+  name: "perplexity"
+  type: EXP
+  bottom: "cross_entropy_loss_copy"
+  top: "perplexity"
+  exp_param {
+    base: 2
+    scale: 1.44269504089 # ~= log_2(e)
+  }
+}
