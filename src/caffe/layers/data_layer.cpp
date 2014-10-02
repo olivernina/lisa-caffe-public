@@ -156,6 +156,9 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   const Dtype pad_value = this->layer_param_.data_param().clip_pad_value();
   const int sub_sample = this->layer_param_.data_param().clip_sub_sample();
   const bool clip_collapse_labels = this->clip_collapse_labels_;
+  int collapsed_label_id = 0;
+  const int label_num = this->prefetch_label_.num();
+
   if (this->output_labels_) {
     top_label = this->prefetch_label_.mutable_cpu_data();
   }
@@ -171,6 +174,8 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   }
   CHECK_GE(max_video,0)  << "Need to have more videos than 0.";
 
+
+  //should refactor this in a smart way
   std::string value;
   for (int item_id = 0; item_id < batch_size; ) {
     bool first_video = true;
@@ -212,53 +217,118 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     const int out_frame_size =
         this->datum_channels_ * (this->layer_param_.transform_param().crop_size() ? pow(this->layer_param_.transform_param().crop_size(), 2) : (this->datum_height_ * this->datum_width_));
  
-     switch (this->layer_param_.data_param().clip_mode()) {
-       case DataParameter_ClipMode_VARIABLE:
-         CHECK_LE(num_frames, batch_size) << "Clip longer than batch size.";
-         // If using this entire clip would put us past the maximum batch size,
-         // fill the rest of the batch with padding.
-         if (item_id + num_frames > batch_size) {
-           const int remaining_items = batch_size - item_id;
-           const int remaining_data_size = remaining_items * out_frame_size;
-           offset_data = &top_data[item_id * out_frame_size];
-           caffe_set(remaining_data_size, pad_value, offset_data);
-           if (this->output_labels_) {
-             caffe_set(remaining_items, pad_value, &top_label[item_id]);
-           } 
-           if (this->output_clip_markers_) {
-             caffe_set(remaining_items, Dtype(DataLayer<Dtype>::PADDING),
-                       &top_clip_markers[item_id]);
-           }
-         }
-         output_length = num_frames;
-         break;
-       case DataParameter_ClipMode_FIXED_LENGTH:
-         input_offset = this->input_offset(num_frames, sub_sample);
-         output_offset = this->output_offset(num_frames, sub_sample);
-         output_length = this->clip_length_*sub_sample;          
-         break;
-       default:
-         LOG(FATAL) << "Unknown clip mode: "
-                    << DataParameter_ClipMode_Name(this->clip_mode_);
-     }
-
-    // Apply data transformations (mirror, scale, crop...).  Use predetermined h_off and w_off.  
-    // False indicates that we will not recalculate these values.
-    int offset = this->prefetch_data_.offset(item_id);
-    this->transformed_data_.set_cpu_data(top_data + offset);
-    this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video);
-    first_video = false;
-
-    if (this->output_labels_) {
-      top_label[item_id] = datum.label();
+    switch (this->layer_param_.data_param().clip_mode()) {
+      case DataParameter_ClipMode_VARIABLE:
+        CHECK_LE(num_frames, batch_size) << "Clip longer than batch size.";
+        // If using this entire clip would put us past the maximum batch size,
+        // fill the rest of the batch with padding.
+        if (item_id + num_frames > batch_size) {
+          const int remaining_items = batch_size - item_id;
+          const int remaining_data_size = remaining_items * out_frame_size;
+          offset_data = &top_data[item_id * out_frame_size];
+          caffe_set(remaining_data_size, pad_value, offset_data);
+          if (this->output_labels_) {
+            caffe_set(remaining_items, pad_value, &top_label[item_id]);
+          } 
+          if (this->output_clip_markers_) {
+            caffe_set(remaining_items, Dtype(DataLayer<Dtype>::PADDING),
+                      &top_clip_markers[item_id]);
+          }
+        }
+        output_length = num_frames;
+        break;
+      case DataParameter_ClipMode_FIXED_LENGTH:
+        input_offset = this->input_offset(num_frames, sub_sample);
+        output_offset = this->output_offset(num_frames, sub_sample);
+        output_length = this->layer_param_.data_param().clip_length()*sub_sample;          
+        break;
+      default:
+        LOG(FATAL) << "Unknown clip mode: "
+                   << DataParameter_ClipMode_Name(this->clip_mode_);
     }
+ 
+    for (int out_frame_id = 0; out_frame_id < output_length;
+        out_frame_id += sub_sample, ++item_id) {
+      if (out_frame_id < output_offset ||
+          out_frame_id >= output_offset + num_frames) {
+        // This is a padding frame of a fixed-length clip; fill it as such.
+        Dtype* top_data_frame = &top_data[item_id * out_frame_size];
+        caffe_set(out_frame_size, pad_value, top_data_frame);
+        if (this->output_labels_) {
+          if (clip_collapse_labels) {
+            if (out_frame_id == 0) {
+              CHECK_LT(collapsed_label_id, label_num);
+              top_label[collapsed_label_id] = datum.label();
+              ++collapsed_label_id;
+            }
+          } else {
+            top_label[item_id] = datum.label();
+          }
+        }
+        if (this->output_clip_markers_) {
+          top_clip_markers[item_id] = Dtype(DataLayer<Dtype>::PADDING);
+        }
+        continue;
+      }
 
+      const int frame_id = out_frame_id - output_offset + input_offset;
+      if (output_length < num_frames) {
+        CHECK_LT(frame_id, num_frames);
+      }
+
+      if (frame_id != 0){ //if frame_id is zero than the frame loaded currently is the frame we want
+        switch (this->layer_param_.data_param().backend()) {
+          case DataParameter_DB_LEVELDB:
+          length_key = snprintf(my_key, 17, "%08d%08d", this->video_id_, frame_id); //should not be minus 1 here???
+          db_->Get(leveldb::ReadOptions(), my_key, &value);
+          datum.ParseFromString(value);
+          break;
+        case DataParameter_DB_LMDB:
+          CHECK_EQ(mdb_cursor_get(mdb_cursor_, &mdb_key_,
+                  &mdb_value_, MDB_GET_CURRENT), MDB_SUCCESS);
+          datum.ParseFromArray(mdb_value_.mv_data,
+              mdb_value_.mv_size);
+          break;
+        default:
+          LOG(FATAL) << "Unknown database backend";
+        }
+      }
+      current_frame = datum.current_frame();
+      const string& data = datum.data(); //let's see if this gives us the right answer...
+      if (DataParameter_DB_LEVELDB){
+        CHECK_EQ(frame_id, current_frame) << "LMDB? " << DataParameter_DB_LMDB;
+        CHECK_GE(frame_id, 0);
+        CHECK_LT(frame_id, num_frames);
+      }
+      // Apply data transformations (mirror, scale, crop...).  Use predetermined h_off and w_off.  
+      // False indicates that we will not recalculate these values.
+      int offset = this->prefetch_data_.offset(item_id);
+      this->transformed_data_.set_cpu_data(top_data + offset);
+      this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video);
+      first_video = false;
+
+      if (this->output_labels_) {
+        if (clip_collapse_labels) {
+          if (out_frame_id == 0) {
+            CHECK_LT(collapsed_label_id, label_num);
+            top_label[collapsed_label_id] = datum.label();
+            ++collapsed_label_id;
+          }
+        } else {
+          top_label[item_id] = datum.label();
+        }
+      }
+      if (this->output_clip_markers_) {
+        top_clip_markers[item_id] = (out_frame_id == output_offset) ?
+            DataLayer<Dtype>::CLIP_BEGIN : DataLayer<Dtype>::CLIP_CONTINUE;
+      } 
+    } //for (out_frame_id = 0; out_frame_id < output_length) 
     // go to the next iter
     switch (this->layer_param_.data_param().backend()) {
     case DataParameter_DB_LEVELDB:
 //      iter_->Next();
 //      if (!iter_->Valid()) {
-//        // We have reached the end. Restart from the first.
+        // We have reached the end. Restart from the first.
 //        DLOG(INFO) << "Restarting data prefetching from start.";
 //        iter_->SeekToFirst();
 //      }
@@ -275,7 +345,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     default:
       LOG(FATAL) << "Unknown database backend";
     }
-    ++item_id;
+    //++item_id;
     ++this->video_id_;
   }  // while (item_id < batch_size)
 }
