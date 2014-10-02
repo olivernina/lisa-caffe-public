@@ -154,6 +154,8 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(5);
+    data_param->set_max_train_item(5);
+    data_param->set_max_test_item(5);
     data_param->set_source(filename_->c_str());
     data_param->set_backend(backend_);
 
@@ -193,6 +195,8 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
 
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(5);
+    data_param->set_max_train_item(5);
+    data_param->set_max_test_item(5);
     data_param->set_source(filename_->c_str());
     data_param->set_backend(backend_);
 
@@ -243,6 +247,8 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(5);
+    data_param->set_max_train_item(5);
+    data_param->set_max_test_item(5);
     data_param->set_source(filename_->c_str());
     data_param->set_backend(backend_);
 
@@ -297,6 +303,8 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(5);
+    data_param->set_max_train_item(5);
+    data_param->set_max_test_item(5);
     data_param->set_source(filename_->c_str());
     data_param->set_backend(backend_);
 

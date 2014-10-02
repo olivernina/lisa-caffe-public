@@ -529,8 +529,8 @@ message DataParameter {
   optional IterType iter_type = 110 [default = iter]; 
 
   //should change to be elements of leveldb
-  optional int32 max_train_item = 111 [default = 0];  
-  optional int32 max_test_item = 112 [default = 0];
+  optional int32 max_train_item = 111 [default = 1];  
+  optional int32 max_test_item = 112 [default = 1];
 
 
 
