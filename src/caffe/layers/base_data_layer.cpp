@@ -62,13 +62,82 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
   JoinPrefetchThread();
   DLOG(INFO) << "Thread joined";
   // Copy the data
-  caffe_copy(prefetch_data_.count(), prefetch_data_.cpu_data(),
-             top[0]->mutable_cpu_data());
-  DLOG(INFO) << "Prefetch copied";
+
+  int dim;
+  int num_clips;
+  const Dtype* prefetch_data = prefetch_data_.cpu_data();
+  Dtype* top_data = top[0]->mutable_cpu_data();
+  Dtype* top_label = NULL;
+  const Dtype* prefetch_label = NULL;
   if (this->output_labels_) {
-    caffe_copy(prefetch_label_.count(), prefetch_label_.cpu_data(),
-               top[1]->mutable_cpu_data());
+    prefetch_label = prefetch_label_.cpu_data();
+    top_label = top[1]->mutable_cpu_data();
   }
+  Dtype* top_clip_markers = NULL;
+  const Dtype* prefetch_clip_markers = NULL;
+  if (this->output_clip_markers_) {
+    prefetch_clip_markers = prefetch_clip_markers_.cpu_data();
+    top_clip_markers = top[2]->mutable_cpu_data();
+  }
+
+  switch(this->layer_param_.data_param().clip_order()) {
+  case DataParameter_ClipOrder_CLIP_MAJOR:
+    caffe_copy(prefetch_data_.count(), prefetch_data_.cpu_data(),
+               top[0]->mutable_cpu_data());
+    if (this->output_labels_) {
+      caffe_copy(prefetch_label_.count(), prefetch_label_.cpu_data(),
+                 top[1]->mutable_cpu_data());
+    }
+    if (this->output_clip_markers_) {
+      caffe_copy(prefetch_clip_markers_.count(), prefetch_label_.cpu_data(),
+                 top[2]->mutable_cpu_data());
+    }
+    break;
+  case DataParameter_ClipOrder_FRAME_MAJOR:
+    dim = prefetch_data_.count() / prefetch_data_.num();
+    CHECK_GT(this->layer_param_.data_param().clip_length(), 0);
+    num_clips = prefetch_data_.num() / this->layer_param_.data_param().clip_length();
+    caffe_copy(prefetch_data_.count(), prefetch_data_.cpu_data(),
+               top[0]->mutable_cpu_data());
+    for (int frame_id = 0; frame_id < this->layer_param_.data_param().clip_length(); ++frame_id) {
+      for (int clip_id = 0; clip_id < num_clips; ++clip_id) {
+        // prefetch_id: the usual clip-major index.
+        const int prefetch_id = clip_id * this->layer_param_.data_param().clip_length() + frame_id;
+        // top_id: the frame-major index.
+        const int top_id = frame_id * num_clips + clip_id;
+        caffe_copy(dim, &prefetch_data[prefetch_id * dim],
+                   &top_data[top_id * dim]);
+        if (this->output_labels_) {
+          if (this->clip_collapse_labels_ && frame_id == 0) {
+            top_label[top_id] = prefetch_label[top_id];
+          } else if (!this->clip_collapse_labels_) {
+            top_label[top_id] = prefetch_label[prefetch_id];
+          }
+        }
+        if (this->output_clip_markers_) {
+          top_clip_markers[top_id] = prefetch_clip_markers[prefetch_id];
+        }
+      }
+    }
+    
+
+
+
+//    if (this->output_labels_) {
+//      caffe_copy(prefetch_label_.count(), prefetch_label_.cpu_data(),
+//                 top[1]->mutable_cpu_data());
+//    }
+//    if (this->output_clip_markers_) {
+//      caffe_copy(prefetch_clip_markers_.count(), prefetch_label_.cpu_data(),
+//                 top[2]->mutable_cpu_data());
+//    }
+    break;
+  default:
+    LOG(FATAL) << "Unknown clip order: " << this->layer_param_.data_param().clip_order();
+
+  }
+
+
   // Start a new prefetch thread
   DLOG(INFO) << "CreatePrefetchThread";
   CreatePrefetchThread();
