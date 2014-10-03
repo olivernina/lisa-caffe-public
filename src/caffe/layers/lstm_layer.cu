@@ -14,24 +14,21 @@ void LSTMLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   // Setup the LSTM inputs.
   const int count = bottom[0]->count();
+  const int num = bottom[0]->num();
   const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
   const Dtype* bottom_data = bottom[0]->gpu_data();
   const Dtype* flush_bottom_data = bottom[1]->gpu_data();
   const Dtype* hidden_output_data = h_output_blob_->gpu_data();
   const Dtype* cell_output_data = c_output_blob_->gpu_data();
   Dtype* input_data = x_input_blob_->mutable_gpu_data();
-  Dtype* flush_input_data;
+  Dtype* flush_input_data = flush_input_blob_->mutable_gpu_data();
   Dtype* hidden_input_data = h_input_blob_->mutable_gpu_data();
   Dtype* cell_input_data = c_input_blob_->mutable_gpu_data();
 
   caffe_copy(count, bottom_data, input_data);
+  caffe_copy(num, flush_bottom_data, flush_input_data);
   caffe_copy(hidden_timestep_dim, cell_output_data, cell_input_data);
   caffe_copy(hidden_timestep_dim, hidden_output_data, hidden_input_data);
-  for (int t = 0; t < T_; ++t) {
-    flush_input_data = flush_input_blobs_[t]->mutable_gpu_data();
-    caffe_copy(buffer_size_, flush_bottom_data + t * buffer_size_,
-               flush_input_data);
-  }
 
   // Hacky fix for test time... reshare all the shared blobs.
   // TODO: somehow make this work non-hackily.

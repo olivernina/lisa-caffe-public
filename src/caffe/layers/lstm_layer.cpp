@@ -83,7 +83,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   T_ = bottom[0]->num() / buffer_size_;
   LOG(INFO) << "Initializing LSTM: assuming input batch contains "
             << T_ << " timesteps of " << buffer_size_ << " streams.";
-  flush_input_blobs_.clear();
   output_blobs_.clear();
   NetParameter net_param;
   net_param.set_force_backward(true);
@@ -92,6 +91,11 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   net_param.add_input_dim(bottom[0]->channels());
   net_param.add_input_dim(bottom[0]->height());
   net_param.add_input_dim(bottom[0]->width());
+  net_param.add_input("flush");
+  net_param.add_input_dim(bottom[0]->num());
+  net_param.add_input_dim(1);
+  net_param.add_input_dim(1);
+  net_param.add_input_dim(1);
   string ts = int_to_str(0);
   net_param.add_input("c_" + ts);
   net_param.add_input_dim(buffer_size_);
@@ -103,6 +107,10 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   net_param.add_input_dim(hidden_dim_);
   net_param.add_input_dim(1);
   net_param.add_input_dim(1);
+
+  LayerParameter* flush_slice_param = net_param.add_layers();
+  flush_slice_param->CopyFrom(slice_param);
+  flush_slice_param->add_bottom("flush");
 
   {
     LayerParameter* w_xi_param = net_param.add_layers();
@@ -157,16 +165,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     string tm1s = int_to_str(t - 1);
     string ts = int_to_str(t);
 
+    flush_slice_param->add_top("flush_" + tm1s);
+
     w_xi_slice_param->add_top("W_{xi} x_" + ts + " + b_i");
     w_xf_slice_param->add_top("W_{xf} x_" + ts + " + b_f");
     w_xc_slice_param->add_top("W_{xc} x_" + ts + " + b_c");
     w_xo_slice_param->add_top("W_{xo} x_" + ts + " + b_o");
-
-    net_param.add_input("flush_" + tm1s);
-    net_param.add_input_dim(buffer_size_);
-    net_param.add_input_dim(1);
-    net_param.add_input_dim(1);
-    net_param.add_input_dim(1);
 
     // Add layers to flush the hidden and cell state, when beginning a new clip.
     {
@@ -390,22 +394,19 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   lstm_->set_debug_info(this->layer_param_.lstm_param().lstm_debug_info());
 
   x_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("x").get());
+  flush_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("flush").get());
   h_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_0").get());
   c_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_0").get());
   for (int t = 1; t <= T_; ++t) {
-    string tm1s = int_to_str(t - 1);
     string ts = int_to_str(t);
-    flush_input_blobs_.push_back(CHECK_NOTNULL(
-        lstm_->blob_by_name("flush_" + tm1s).get()));
     output_blobs_.push_back(CHECK_NOTNULL(
         lstm_->blob_by_name("o_" + ts).get()));
   }
   h_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_" + ts).get());
   c_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_" + ts).get());
 
-  // Should have one input for each timestep (delta_{t-1}),
-  // plus the input data x and the hidden state inputs h_0 and c_0.
-  CHECK_EQ(T_ + 3, lstm_->input_blobs().size());
+  // Should have x, flush, h_0, and c_0.
+  CHECK_EQ(4, lstm_->input_blobs().size());
   // Should have one output for each timestep (o_t), plus the final hidden state
   // outputs h_T and c_T.
   CHECK_EQ(T_ + 2, lstm_->output_blobs().size());
@@ -437,6 +438,7 @@ void LSTMLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   // Setup the LSTM inputs.
   const int count = bottom[0]->count();
+  const int num = bottom[0]->num();
   const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
   DCHECK_EQ(hidden_timestep_dim, c_input_blob_->count());
   DCHECK_EQ(hidden_timestep_dim, c_output_blob_->count());
@@ -447,19 +449,14 @@ void LSTMLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   const Dtype* hidden_output_data = h_output_blob_->cpu_data();
   const Dtype* cell_output_data = c_output_blob_->cpu_data();
   Dtype* input_data = x_input_blob_->mutable_cpu_data();
-  Dtype* flush_input_data;
+  Dtype* flush_input_data = flush_input_blob_->mutable_cpu_data();
   Dtype* hidden_input_data = h_input_blob_->mutable_cpu_data();
   Dtype* cell_input_data = c_input_blob_->mutable_cpu_data();
 
   caffe_copy(count, bottom_data, input_data);
+  caffe_copy(num, flush_bottom_data, flush_input_data);
   caffe_copy(hidden_timestep_dim, cell_output_data, cell_input_data);
   caffe_copy(hidden_timestep_dim, hidden_output_data, hidden_input_data);
-  for (int t = 0; t < T_; ++t) {
-    DCHECK_EQ(buffer_size_, flush_input_blobs_[t]->count());
-    flush_input_data = flush_input_blobs_[t]->mutable_cpu_data();
-    caffe_copy(buffer_size_, flush_bottom_data + t * buffer_size_,
-               flush_input_data);
-  }
 
   // Hacky fix for test time... reshare all the shared blobs.
   // TODO: somehow make this work non-hackily.

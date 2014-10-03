@@ -402,7 +402,7 @@ class LSTMLayer : public Layer<Dtype> {
   Blob<Dtype>* h_input_blob_;
   Blob<Dtype>* c_input_blob_;
   Blob<Dtype>* x_input_blob_;
-  vector<Blob<Dtype>*> flush_input_blobs_;
+  Blob<Dtype>* flush_input_blob_;
   vector<Blob<Dtype>*> output_blobs_;
   Blob<Dtype>* h_output_blob_;
   Blob<Dtype>* c_output_blob_;
