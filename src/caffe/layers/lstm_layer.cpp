@@ -425,6 +425,20 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   this->param_propagate_down_.resize(this->blobs_.size(), true);
   CHECK_EQ(15, this->blobs_.size());
+
+  const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
+  Dtype* hidden_output_diff = h_output_blob_->mutable_cpu_diff();
+  Dtype* cell_output_diff = c_output_blob_->mutable_cpu_diff();
+  CHECK_EQ(hidden_timestep_dim, h_output_blob_->count());
+  caffe_set(hidden_timestep_dim, Dtype(0), hidden_output_diff);
+  CHECK_EQ(hidden_timestep_dim, c_output_blob_->count());
+  caffe_set(hidden_timestep_dim, Dtype(0), cell_output_diff);
+
+  x_input_blob_->ShareData(*bottom[0]);
+  x_input_blob_->ShareDiff(*bottom[0]);
+  flush_input_blob_->ShareData(*bottom[1]);
+  h_output_blob_->ShareData(*h_input_blob_);
+  c_output_blob_->ShareData(*c_input_blob_);
 }
 
 template <typename Dtype>
@@ -436,28 +450,6 @@ void LSTMLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 void LSTMLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
-  // Setup the LSTM inputs.
-  const int count = bottom[0]->count();
-  const int num = bottom[0]->num();
-  const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
-  DCHECK_EQ(hidden_timestep_dim, c_input_blob_->count());
-  DCHECK_EQ(hidden_timestep_dim, c_output_blob_->count());
-  DCHECK_EQ(hidden_timestep_dim, h_input_blob_->count());
-  DCHECK_EQ(hidden_timestep_dim, h_output_blob_->count());
-  const Dtype* bottom_data = bottom[0]->cpu_data();
-  const Dtype* flush_bottom_data = bottom[1]->cpu_data();
-  const Dtype* hidden_output_data = h_output_blob_->cpu_data();
-  const Dtype* cell_output_data = c_output_blob_->cpu_data();
-  Dtype* input_data = x_input_blob_->mutable_cpu_data();
-  Dtype* flush_input_data = flush_input_blob_->mutable_cpu_data();
-  Dtype* hidden_input_data = h_input_blob_->mutable_cpu_data();
-  Dtype* cell_input_data = c_input_blob_->mutable_cpu_data();
-
-  caffe_copy(count, bottom_data, input_data);
-  caffe_copy(num, flush_bottom_data, flush_input_data);
-  caffe_copy(hidden_timestep_dim, cell_output_data, cell_input_data);
-  caffe_copy(hidden_timestep_dim, hidden_output_data, hidden_input_data);
-
   // Hacky fix for test time... reshare all the shared blobs.
   // TODO: somehow make this work non-hackily.
   if (Caffe::phase() == Caffe::TEST) {
@@ -491,22 +483,9 @@ void LSTMLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     caffe_copy(output_timestep_dim, top_diff + t * output_timestep_dim,
                output_diff);
   }
-  const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
-  Dtype* hidden_output_diff = h_output_blob_->mutable_cpu_diff();
-  Dtype* cell_output_diff = c_output_blob_->mutable_cpu_diff();
-  CHECK_EQ(hidden_timestep_dim, h_output_blob_->count());
-  caffe_set(hidden_timestep_dim, Dtype(0), hidden_output_diff);
-  CHECK_EQ(hidden_timestep_dim, c_output_blob_->count());
-  caffe_set(hidden_timestep_dim, Dtype(0), cell_output_diff);
 
   lstm_->Backward();
   lstm_->AccumulateSharedWeightDiffs();
-
-  if (!propagate_down[0]) { return; }
-  const int count = bottom[0]->count();
-  const Dtype* input_diff = x_input_blob_->cpu_diff();
-  Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
-  caffe_copy(count, input_diff, bottom_diff);
 }
 
 #ifdef CPU_ONLY
