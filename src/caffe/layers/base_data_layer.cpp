@@ -99,8 +99,8 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     dim = prefetch_data_.count() / prefetch_data_.num();
     CHECK_GT(this->layer_param_.data_param().clip_length(), 0);
     num_clips = prefetch_data_.num() / this->layer_param_.data_param().clip_length();
-    caffe_copy(prefetch_data_.count(), prefetch_data_.cpu_data(),
-               top[0]->mutable_cpu_data());
+//    caffe_copy(prefetch_data_.count(), prefetch_data_.cpu_data(),
+//               top[0]->mutable_cpu_data());
     for (int frame_id = 0; frame_id < this->layer_param_.data_param().clip_length(); ++frame_id) {
       for (int clip_id = 0; clip_id < num_clips; ++clip_id) {
         // prefetch_id: the usual clip-major index.
@@ -110,9 +110,9 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
         caffe_copy(dim, &prefetch_data[prefetch_id * dim],
                    &top_data[top_id * dim]);
         if (this->output_labels_) {
-          if (this->clip_collapse_labels_ && frame_id == 0) {
+        if (this->layer_param_.data_param().clip_collapse_labels() && frame_id == 0) {
             top_label[top_id] = prefetch_label[top_id];
-          } else if (!this->clip_collapse_labels_) {
+          } else if (!this->layer_param_.data_param().clip_collapse_labels()) {
             top_label[top_id] = prefetch_label[prefetch_id];
           }
         }

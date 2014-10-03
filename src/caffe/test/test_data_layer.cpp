@@ -339,6 +339,9 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_max_test_item(batch_size);
     data_param->set_clip_sub_sample(sub_sample);
     const Dtype scale = 1;
+    TransformationParameter* transform_param =
+        param.mutable_transform_param();
+    transform_param->set_scale(scale);
     data_param->set_scale(scale);
     data_param->set_source(this->filename_->c_str());
     DataLayer<Dtype> layer(param);
@@ -453,6 +456,10 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_max_test_item(batch_size);
     data_param->set_clip_sub_sample(sub_sample);
     const Dtype scale = 3;
+    TransformationParameter* transform_param =
+        param.mutable_transform_param();
+    transform_param->set_scale(scale);
+     
     data_param->set_scale(scale);
     data_param->set_source(this->filename_->c_str());
     DataLayer<Dtype> layer(param);
@@ -488,9 +495,9 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
         Dtype expected_value = (i < pad_start) ?
             (scale * (clip_index % batch_size + (i % clip_length) * 10*sub_sample)) : 0;
         for (int j = 0; j < 24; ++j) {
-//          EXPECT_EQ(expected_value,
-//              this->blob_top_data_->cpu_data()[i * 24 + j])
-//              << "debug: iter " << iter << " i " << i << " j " << j;
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j])
+              << "debug: iter " << iter << " i " << i << " j " << j;
         }
         if (i % clip_length == clip_length - 1) { ++clip_index; }
       }
@@ -499,8 +506,8 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
            ((i % clip_length) ? DataLayer<Dtype>::CLIP_CONTINUE :
                                 DataLayer<Dtype>::CLIP_BEGIN) :
            DataLayer<Dtype>::PADDING;
-//        EXPECT_EQ(expected_value, this->blob_top_clip_markers_->cpu_data()[i])
-//            << "debug: iter " << iter << " i " << i;
+        EXPECT_EQ(expected_value, this->blob_top_clip_markers_->cpu_data()[i])
+            << "debug: iter " << iter << " i " << i;
       }
     }
   }
@@ -516,11 +523,13 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     const Dtype pad_value = 27281;
     data_param->set_clip_pad_value(pad_value);
     const Dtype scale = 3;
-    data_param->set_scale(scale);
+    TransformationParameter* transform_param =
+        param.mutable_transform_param();
+    transform_param->set_scale(scale);
     data_param->set_source(this->filename_->c_str());
     DataLayer<Dtype> layer(param);
     this->blob_top_vec_.push_back(this->blob_top_clip_markers_);
-    layer.SetUp(this->blob_bottom_vec_, &this->blob_top_vec_);
+    layer.SetUp(blob_bottom_vec_, blob_top_vec_);
     EXPECT_EQ(this->blob_top_data_->num(), batch_size);
     EXPECT_EQ(this->blob_top_data_->channels(), 2);
     EXPECT_EQ(this->blob_top_data_->height(), 3);
@@ -627,6 +636,16 @@ TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsCollapsedLabelsSubSample) {
   int sub_sample = 2;
   this->TestReadFixedLengthClipsCollapsedLabels(clip_length, batch_size, sub_sample);
 }
+
+TYPED_TEST(DataLayerTest, TestReadFixedLengthClips) {
+  Caffe::set_phase(Caffe::TRAIN);
+  const bool unique_pixels = false;  // all pixels the same; images different
+  const int clip_length = 3;
+  const int batch_size = 5;
+  this->FillLevelDB(unique_pixels, clip_length, batch_size);
+  this->TestReadFixedLengthClips(clip_length, batch_size);
+}
+
 // Test that the sequence of random crops is consistent when using
 // Caffe::set_random_seed.
 TYPED_TEST(DataLayerTest, TestReadCropTrainSequenceSeededLevelDB) {

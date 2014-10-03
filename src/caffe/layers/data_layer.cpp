@@ -348,7 +348,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     //++item_id;
     ++this->video_id_;
   }  // while (item_id < batch_size)
-}
+} 
 
 template <typename Dtype>
 void DataLayer<Dtype>::Reset() {
