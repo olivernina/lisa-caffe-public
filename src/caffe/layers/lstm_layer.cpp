@@ -70,6 +70,10 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   LayerParameter tanh_param;
   tanh_param.set_type(LayerParameter_LayerType_TANH);
 
+  LayerParameter slice_param;
+  slice_param.set_type(LayerParameter_LayerType_SLICE);
+  slice_param.mutable_slice_param()->set_slice_dim(0);
+
   LayerParameter split_param;
   split_param.set_type(LayerParameter_LayerType_SPLIT);
 
@@ -79,11 +83,15 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   T_ = bottom[0]->num() / buffer_size_;
   LOG(INFO) << "Initializing LSTM: assuming input batch contains "
             << T_ << " timesteps of " << buffer_size_ << " streams.";
-  input_blobs_.clear();
   flush_input_blobs_.clear();
   output_blobs_.clear();
   NetParameter net_param;
   net_param.set_force_backward(true);
+  net_param.add_input("x");
+  net_param.add_input_dim(bottom[0]->num());
+  net_param.add_input_dim(bottom[0]->channels());
+  net_param.add_input_dim(bottom[0]->height());
+  net_param.add_input_dim(bottom[0]->width());
   string ts = int_to_str(0);
   net_param.add_input("c_" + ts);
   net_param.add_input_dim(buffer_size_);
@@ -95,20 +103,70 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   net_param.add_input_dim(hidden_dim_);
   net_param.add_input_dim(1);
   net_param.add_input_dim(1);
+
+  {
+    LayerParameter* w_xi_param = net_param.add_layers();
+    w_xi_param->CopyFrom(biased_hidden_param);
+    w_xi_param->add_bottom("x");
+    w_xi_param->add_param("W_{xi}");
+    w_xi_param->add_param("b_i");
+    w_xi_param->add_top("W_{xi} x + b_i");
+  }
+  LayerParameter* w_xi_slice_param = net_param.add_layers();
+  w_xi_slice_param->CopyFrom(slice_param);
+  w_xi_slice_param->add_bottom("W_{xi} x + b_i");
+
+  {
+    LayerParameter* w_xf_param = net_param.add_layers();
+    w_xf_param->CopyFrom(biased_hidden_param);
+    w_xf_param->add_bottom("x");
+    w_xf_param->add_param("W_{xf}");
+    w_xf_param->add_param("b_f");
+    w_xf_param->add_top("W_{xf} x + b_f");
+  }
+  LayerParameter* w_xf_slice_param = net_param.add_layers();
+  w_xf_slice_param->CopyFrom(slice_param);
+  w_xf_slice_param->add_bottom("W_{xf} x + b_f");
+
+  {
+    LayerParameter* w_xc_param = net_param.add_layers();
+    w_xc_param->CopyFrom(biased_hidden_param);
+    w_xc_param->add_bottom("x");
+    w_xc_param->add_param("W_{xc}");
+    w_xc_param->add_param("b_c");
+    w_xc_param->add_top("W_{xc} x + b_c");
+  }
+  LayerParameter* w_xc_slice_param = net_param.add_layers();
+  w_xc_slice_param->CopyFrom(slice_param);
+  w_xc_slice_param->add_bottom("W_{xc} x + b_c");
+
+  {
+    LayerParameter* w_xo_param = net_param.add_layers();
+    w_xo_param->CopyFrom(biased_hidden_param);
+    w_xo_param->add_bottom("x");
+    w_xo_param->add_param("W_{xo}");
+    w_xo_param->add_param("b_o");
+    w_xo_param->add_top("W_{xo} x + b_o");
+  }
+  LayerParameter* w_xo_slice_param = net_param.add_layers();
+  w_xo_slice_param->CopyFrom(slice_param);
+  w_xo_slice_param->add_bottom("W_{xo} x + b_o");
+
   string tm1s;
   for (int t = 1; t <= T_; ++t) {
     string tm1s = int_to_str(t - 1);
     string ts = int_to_str(t);
+
+    w_xi_slice_param->add_top("W_{xi} x_" + ts + " + b_i");
+    w_xf_slice_param->add_top("W_{xf} x_" + ts + " + b_f");
+    w_xc_slice_param->add_top("W_{xc} x_" + ts + " + b_c");
+    w_xo_slice_param->add_top("W_{xo} x_" + ts + " + b_o");
+
     net_param.add_input("flush_" + tm1s);
     net_param.add_input_dim(buffer_size_);
     net_param.add_input_dim(1);
     net_param.add_input_dim(1);
     net_param.add_input_dim(1);
-    net_param.add_input("x_" + ts);
-    net_param.add_input_dim(buffer_size_);
-    net_param.add_input_dim(bottom[0]->channels());
-    net_param.add_input_dim(bottom[0]->height());
-    net_param.add_input_dim(bottom[0]->width());
 
     // Add layers to flush the hidden and cell state, when beginning a new clip.
     {
@@ -134,14 +192,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     // ]
     //
     // (b_i computed in the W_{xi} InnerProductLayer, W_{ci} diagonal)
-    {
-      LayerParameter* w_xi_param = net_param.add_layers();
-      w_xi_param->CopyFrom(biased_hidden_param);
-      w_xi_param->add_bottom("x_" + ts);
-      w_xi_param->add_param("W_{xi}");
-      w_xi_param->add_param("b_i");
-      w_xi_param->add_top("W_{xi} x_" + ts + " + b_i");
-    }
     {
       LayerParameter* w_hi_param = net_param.add_layers();
       w_hi_param->CopyFrom(hidden_param);
@@ -179,14 +229,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     // ]
     //
     // (b_f computed in the W_{xf} InnerProductLayer, W_{cf} diagonal)
-    {
-      LayerParameter* w_xf_param = net_param.add_layers();
-      w_xf_param->CopyFrom(biased_hidden_param);
-      w_xf_param->add_bottom("x_" + ts);
-      w_xf_param->add_param("W_{xf}");
-      w_xf_param->add_param("b_f");
-      w_xf_param->add_top("W_{xf} x_" + ts + " + b_f");
-    }
     {
       LayerParameter* w_hf_param = net_param.add_layers();
       w_hf_param->CopyFrom(hidden_param);
@@ -230,14 +272,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       c_t_term_1_param->add_bottom("f_" + ts);
       c_t_term_1_param->add_bottom("c_" + tm1s + "_flushed");
       c_t_term_1_param->add_top("c_" + ts + "_term_1");
-    }
-    {
-      LayerParameter* w_xc_param = net_param.add_layers();
-      w_xc_param->CopyFrom(biased_hidden_param);
-      w_xc_param->add_bottom("x_" + ts);
-      w_xc_param->add_param("W_{xc}");
-      w_xc_param->add_param("b_c");
-      w_xc_param->add_top("W_{xc} x_" + ts + " + b_c");
     }
     {
       LayerParameter* w_hc_param = net_param.add_layers();
@@ -293,14 +327,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     // ]
     //
     // (b_c computed in the W_{xc} InnerProductLayer, W_{co} diagonal)
-    {
-      LayerParameter* w_xo_param = net_param.add_layers();
-      w_xo_param->CopyFrom(biased_hidden_param);
-      w_xo_param->add_bottom("x_" + ts);
-      w_xo_param->add_param("W_{xo}");
-      w_xo_param->add_param("b_o");
-      w_xo_param->add_top("W_{xo} x_" + ts + " + b_o");
-    }
     {
       LayerParameter* w_ho_param = net_param.add_layers();
       w_ho_param->CopyFrom(hidden_param);
@@ -363,12 +389,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   lstm_->set_debug_info(this->layer_param_.lstm_param().lstm_debug_info());
 
+  x_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("x").get());
   h_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_0").get());
   c_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_0").get());
   for (int t = 1; t <= T_; ++t) {
     string tm1s = int_to_str(t - 1);
     string ts = int_to_str(t);
-    input_blobs_.push_back(CHECK_NOTNULL(lstm_->blob_by_name("x_" + ts).get()));
     flush_input_blobs_.push_back(CHECK_NOTNULL(
         lstm_->blob_by_name("flush_" + tm1s).get()));
     output_blobs_.push_back(CHECK_NOTNULL(
@@ -377,9 +403,9 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   h_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_" + ts).get());
   c_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_" + ts).get());
 
-  // Should have two inputs for each timestep (x_t and delta_{t-1}),
-  // plus the hidden state inputs h_0 and c_0.
-  CHECK_EQ(2 * T_ + 2, lstm_->input_blobs().size());
+  // Should have one input for each timestep (delta_{t-1}),
+  // plus the input data x and the hidden state inputs h_0 and c_0.
+  CHECK_EQ(T_ + 3, lstm_->input_blobs().size());
   // Should have one output for each timestep (o_t), plus the final hidden state
   // outputs h_T and c_T.
   CHECK_EQ(T_ + 2, lstm_->output_blobs().size());
@@ -410,24 +436,26 @@ template <typename Dtype>
 void LSTMLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   // Setup the LSTM inputs.
-  const int num = bottom[0]->num();
-  const int dim = bottom[0]->count() / num;
+  const int count = bottom[0]->count();
+  const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
+  DCHECK_EQ(hidden_timestep_dim, c_input_blob_->count());
+  DCHECK_EQ(hidden_timestep_dim, c_output_blob_->count());
+  DCHECK_EQ(hidden_timestep_dim, h_input_blob_->count());
+  DCHECK_EQ(hidden_timestep_dim, h_output_blob_->count());
   const Dtype* bottom_data = bottom[0]->cpu_data();
   const Dtype* flush_bottom_data = bottom[1]->cpu_data();
   const Dtype* hidden_output_data = h_output_blob_->cpu_data();
   const Dtype* cell_output_data = c_output_blob_->cpu_data();
-  Dtype* input_data;
+  Dtype* input_data = x_input_blob_->mutable_cpu_data();
   Dtype* flush_input_data;
   Dtype* hidden_input_data = h_input_blob_->mutable_cpu_data();
   Dtype* cell_input_data = c_input_blob_->mutable_cpu_data();
-  const int hidden_timestep_dim = buffer_size_ * dim;
+
+  caffe_copy(count, bottom_data, input_data);
   caffe_copy(hidden_timestep_dim, cell_output_data, cell_input_data);
   caffe_copy(hidden_timestep_dim, hidden_output_data, hidden_input_data);
-  const int input_timestep_dim = buffer_size_ * dim;
   for (int t = 0; t < T_; ++t) {
-    input_data = input_blobs_[t]->mutable_cpu_data();
-    caffe_copy(input_timestep_dim, bottom_data + t * input_timestep_dim,
-               input_data);
+    DCHECK_EQ(buffer_size_, flush_input_blobs_[t]->count());
     flush_input_data = flush_input_blobs_[t]->mutable_cpu_data();
     caffe_copy(buffer_size_, flush_bottom_data + t * buffer_size_,
                flush_input_data);
@@ -478,17 +506,10 @@ void LSTMLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   lstm_->AccumulateSharedWeightDiffs();
 
   if (!propagate_down[0]) { return; }
-  const Dtype* input_diff;
+  const int count = bottom[0]->count();
+  const Dtype* input_diff = x_input_blob_->cpu_diff();
   Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
-  const int num = bottom[0]->num();
-  const int dim = bottom[0]->count() / num;
-  const int input_timestep_dim = buffer_size_ * dim;
-  for (int t = 0; t < T_; ++t) {
-    CHECK_EQ(input_timestep_dim, input_blobs_[t]->count());
-    input_diff = input_blobs_[t]->cpu_diff();
-    caffe_copy(input_timestep_dim, input_diff,
-               bottom_diff + t * input_timestep_dim);
-  }
+  caffe_copy(count, input_diff, bottom_diff);
 }
 
 #ifdef CPU_ONLY

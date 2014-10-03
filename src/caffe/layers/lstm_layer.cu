@@ -13,24 +13,21 @@ template <typename Dtype>
 void LSTMLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   // Setup the LSTM inputs.
-  const int num = bottom[0]->num();
-  const int dim = bottom[0]->count() / num;
+  const int count = bottom[0]->count();
+  const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
   const Dtype* bottom_data = bottom[0]->gpu_data();
   const Dtype* flush_bottom_data = bottom[1]->gpu_data();
   const Dtype* hidden_output_data = h_output_blob_->gpu_data();
   const Dtype* cell_output_data = c_output_blob_->gpu_data();
-  Dtype* input_data;
+  Dtype* input_data = x_input_blob_->mutable_gpu_data();
   Dtype* flush_input_data;
   Dtype* hidden_input_data = h_input_blob_->mutable_gpu_data();
   Dtype* cell_input_data = c_input_blob_->mutable_gpu_data();
-  const int hidden_timestep_dim = buffer_size_ * dim;
+
+  caffe_copy(count, bottom_data, input_data);
   caffe_copy(hidden_timestep_dim, cell_output_data, cell_input_data);
   caffe_copy(hidden_timestep_dim, hidden_output_data, hidden_input_data);
-  const int input_timestep_dim = buffer_size_ * dim;
   for (int t = 0; t < T_; ++t) {
-    input_data = input_blobs_[t]->mutable_gpu_data();
-    caffe_copy(input_timestep_dim, bottom_data + t * input_timestep_dim,
-               input_data);
     flush_input_data = flush_input_blobs_[t]->mutable_gpu_data();
     caffe_copy(buffer_size_, flush_bottom_data + t * buffer_size_,
                flush_input_data);
@@ -81,17 +78,10 @@ void LSTMLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   lstm_->AccumulateSharedWeightDiffs();
 
   if (!propagate_down[0]) { return; }
-  const Dtype* input_diff;
+  const int count = bottom[0]->count();
+  const Dtype* input_diff = x_input_blob_->gpu_diff();
   Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
-  const int num = bottom[0]->num();
-  const int dim = bottom[0]->count() / num;
-  const int input_timestep_dim = buffer_size_ * dim;
-  for (int t = 0; t < T_; ++t) {
-    CHECK_EQ(input_timestep_dim, input_blobs_[t]->count());
-    input_diff = input_blobs_[t]->gpu_diff();
-    caffe_copy(input_timestep_dim, input_diff,
-               bottom_diff + t * input_timestep_dim);
-  }
+  caffe_copy(count, input_diff, bottom_diff);
 }
 
 INSTANTIATE_CLASS(LSTMLayer);
