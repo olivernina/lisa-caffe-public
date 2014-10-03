@@ -85,12 +85,14 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     caffe_copy(prefetch_data_.count(), prefetch_data_.cpu_data(),
                top[0]->mutable_cpu_data());
     if (this->output_labels_) {
-      caffe_copy(prefetch_label_.count(), prefetch_label_.cpu_data(),
+      caffe_copy(prefetch_label_.num(), prefetch_label_.cpu_data(),
                  top[1]->mutable_cpu_data());
     }
     if (this->output_clip_markers_) {
-      caffe_copy(prefetch_clip_markers_.count(), prefetch_label_.cpu_data(),
-                 top[2]->mutable_cpu_data());
+      //caffe_copy(prefetch_clip_markers_.count(), prefetch_label_.cpu_data(),
+      //           top[2]->mutable_cpu_data());
+      caffe_copy(prefetch_data_.num(), prefetch_clip_markers_.cpu_data(),
+	         top[2]->mutable_cpu_data());
     }
     break;
   case DataParameter_ClipOrder_FRAME_MAJOR:
@@ -119,10 +121,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
         }
       }
     }
-    
-
-
-
+    break;
 //    if (this->output_labels_) {
 //      caffe_copy(prefetch_label_.count(), prefetch_label_.cpu_data(),
 //                 top[1]->mutable_cpu_data());
@@ -131,7 +130,6 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
 //      caffe_copy(prefetch_clip_markers_.count(), prefetch_label_.cpu_data(),
 //                 top[2]->mutable_cpu_data());
 //    }
-    break;
   default:
     LOG(FATAL) << "Unknown clip order: " << this->layer_param_.data_param().clip_order();
 

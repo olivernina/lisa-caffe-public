@@ -155,7 +155,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   Dtype* top_clip_markers = NULL;
   const Dtype pad_value = this->layer_param_.data_param().clip_pad_value();
   const int sub_sample = this->layer_param_.data_param().clip_sub_sample();
-  const bool clip_collapse_labels = this->clip_collapse_labels_;
+  const bool clip_collapse_labels = this->layer_param_.data_param().clip_collapse_labels();
   int collapsed_label_id = 0;
   const int label_num = this->prefetch_label_.num();
 
