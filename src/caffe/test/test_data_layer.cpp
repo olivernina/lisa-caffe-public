@@ -574,6 +574,256 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     }
   }
 
+  void TestReadActuallyVariableLengthClips(int num_test_sample) {
+    LayerParameter param;
+    DataParameter* data_param = param.mutable_data_param();
+    const int batch_size = 10;
+    data_param->set_batch_size(batch_size);
+    data_param->set_clip_mode(DataParameter_ClipMode_VARIABLE);
+    data_param->set_max_train_item(num_test_sample);
+    data_param->set_max_test_item(num_test_sample);
+    const Dtype pad_value = 27281;
+    data_param->set_clip_pad_value(pad_value);
+    const Dtype scale = 1;
+    TransformationParameter* transform_param =
+        param.mutable_transform_param();
+    transform_param->set_scale(scale);
+    data_param->set_source(this->filename_->c_str());
+    DataLayer<Dtype> layer(param);
+    this->blob_top_vec_.push_back(this->blob_top_clip_markers_);
+    layer.SetUp(blob_bottom_vec_, blob_top_vec_);
+    EXPECT_EQ(this->blob_top_data_->num(), 10);
+    EXPECT_EQ(this->blob_top_data_->channels(), 2);
+    EXPECT_EQ(this->blob_top_data_->height(), 3);
+    EXPECT_EQ(this->blob_top_data_->width(), 4);
+    EXPECT_EQ(this->blob_top_label_->num(), 10);
+    EXPECT_EQ(this->blob_top_label_->channels(), 1);
+    EXPECT_EQ(this->blob_top_label_->height(), 1);
+    EXPECT_EQ(this->blob_top_label_->width(), 1);
+    EXPECT_EQ(this->blob_top_clip_markers_->num(), 10);
+    EXPECT_EQ(this->blob_top_clip_markers_->channels(), 1);
+    EXPECT_EQ(this->blob_top_clip_markers_->height(), 1);
+    EXPECT_EQ(this->blob_top_clip_markers_->width(), 1);
+
+    Dtype expected_value;
+    for (int iter = 0; iter < 10; ++iter) {
+      layer.Forward(blob_bottom_vec_, blob_top_vec_);
+      expected_value = 5;
+      for (int i = 0; i < 4; ++i) {
+        EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i]);
+        EXPECT_EQ((i == 0) ? DataLayer<Dtype>::CLIP_BEGIN :
+                             DataLayer<Dtype>::CLIP_CONTINUE,
+                  this->blob_top_clip_markers_->cpu_data()[i]);
+        for (int j = 0; j < 24; ++j) {
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j]);
+        }
+      }
+      expected_value = 8;
+      for (int i = 4; i < 5; ++i) {
+        EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i]);
+        EXPECT_EQ((i == 4) ? DataLayer<Dtype>::CLIP_BEGIN :
+                             DataLayer<Dtype>::CLIP_CONTINUE,
+                  this->blob_top_clip_markers_->cpu_data()[i]);
+        for (int j = 0; j < 24; ++j) {
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j]);
+        }
+      }
+      expected_value = 4;
+      for (int i = 5; i < 7; ++i) {
+        EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i]);
+        EXPECT_EQ((i == 5) ? DataLayer<Dtype>::CLIP_BEGIN :
+                             DataLayer<Dtype>::CLIP_CONTINUE,
+                  this->blob_top_clip_markers_->cpu_data()[i]);
+        for (int j = 0; j < 24; ++j) {
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j]);
+        }
+      }
+      expected_value = pad_value;
+      for (int i = 7; i < 10; ++i) {
+        EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i]);
+        EXPECT_EQ(DataLayer<Dtype>::PADDING,
+                  this->blob_top_clip_markers_->cpu_data()[i]);
+        for (int j = 0; j < 24; ++j) {
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j]);
+        }
+      }
+
+      layer.Forward(blob_bottom_vec_, blob_top_vec_);
+      expected_value = 1;
+      for (int i = 0; i < 9; ++i) {
+        EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i]);
+        EXPECT_EQ((i == 0) ? DataLayer<Dtype>::CLIP_BEGIN :
+                             DataLayer<Dtype>::CLIP_CONTINUE,
+                  this->blob_top_clip_markers_->cpu_data()[i]);
+        for (int j = 0; j < 24; ++j) {
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j]);
+        }
+      }
+      expected_value = pad_value;
+      for (int i = 9; i < 10; ++i) {
+        EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i]);
+        EXPECT_EQ(DataLayer<Dtype>::PADDING,
+                  this->blob_top_clip_markers_->cpu_data()[i]);
+        for (int j = 0; j < 24; ++j) {
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j]);
+        }
+      }
+
+      layer.Forward(blob_bottom_vec_, blob_top_vec_);
+      expected_value = 10;
+      for (int i = 0; i < 4; ++i) {
+        EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i]);
+        EXPECT_EQ((i == 0) ? DataLayer<Dtype>::CLIP_BEGIN :
+                             DataLayer<Dtype>::CLIP_CONTINUE,
+                  this->blob_top_clip_markers_->cpu_data()[i]);
+        for (int j = 0; j < 24; ++j) {
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j]);
+        }
+      }
+      expected_value = 7;
+      for (int i = 4; i < 7; ++i) {
+        EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i]);
+        EXPECT_EQ((i == 4) ? DataLayer<Dtype>::CLIP_BEGIN :
+                             DataLayer<Dtype>::CLIP_CONTINUE,
+                  this->blob_top_clip_markers_->cpu_data()[i]);
+        for (int j = 0; j < 24; ++j) {
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j]);
+        }
+      }
+      expected_value = pad_value;
+      for (int i = 7; i < 10; ++i) {
+        EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i]);
+        EXPECT_EQ(DataLayer<Dtype>::PADDING,
+                  this->blob_top_clip_markers_->cpu_data()[i]);
+        for (int j = 0; j < 24; ++j) {
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j]);
+        }
+      }
+    }
+  }
+
+  void TestReadFixedLengthPaddedClips(const int clip_length,
+                                      const int batch_size) {
+    LayerParameter param;
+    DataParameter* data_param = param.mutable_data_param();
+    data_param->set_batch_size(batch_size);
+    data_param->set_clip_length(clip_length);
+    data_param->set_clip_mode(DataParameter_ClipMode_FIXED_LENGTH);
+    data_param->set_clip_allow_pad(true);
+    data_param->set_clip_pad_mode(DataParameter_ClipPadCropMode_END);
+    data_param->set_max_train_item(batch_size);
+    data_param->set_max_test_item(batch_size);
+    const Dtype pad_value = 27281;
+    data_param->set_clip_pad_value(pad_value);
+    const Dtype scale = 3;
+    TransformationParameter* transform_param =
+        param.mutable_transform_param();
+    transform_param->set_scale(scale);
+    data_param->set_source(this->filename_->c_str());
+    DataLayer<Dtype> layer(param);
+    this->blob_top_vec_.push_back(this->blob_top_clip_markers_);
+    layer.SetUp(blob_bottom_vec_, blob_top_vec_);
+    EXPECT_EQ(this->blob_top_data_->num(), 6);
+    EXPECT_EQ(this->blob_top_data_->channels(), 2);
+    EXPECT_EQ(this->blob_top_data_->height(), 3);
+    EXPECT_EQ(this->blob_top_data_->width(), 4);
+    EXPECT_EQ(this->blob_top_label_->num(), 6);
+    EXPECT_EQ(this->blob_top_label_->channels(), 1);
+    EXPECT_EQ(this->blob_top_label_->height(), 1);
+    EXPECT_EQ(this->blob_top_label_->width(), 1);
+    EXPECT_EQ(this->blob_top_clip_markers_->num(), 6);
+    EXPECT_EQ(this->blob_top_clip_markers_->channels(), 1);
+    EXPECT_EQ(this->blob_top_clip_markers_->height(), 1);
+    EXPECT_EQ(this->blob_top_clip_markers_->width(), 1);
+
+    int clip_index = 0;
+    for (int iter = 0; iter < 10; ++iter) {
+      layer.Forward(blob_bottom_vec_, blob_top_vec_);
+      const int prepad_end = 0;
+      const int postpad_start = 3;
+      const int clip_start_index = clip_index;
+      for (int i = 0; i < batch_size; ++i) {
+        const Dtype expected_value = (clip_index % batch_size);
+        EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i])
+            << "debug: iter " << iter << " i " << i;
+        if (i % clip_length == clip_length - 1) { ++clip_index; }
+      }
+      clip_index = clip_start_index;
+      for (int i = 0; i < batch_size; ++i) {
+        const int frame_id = i % clip_length;
+        const Dtype expected_value =
+            (frame_id > prepad_end && frame_id < postpad_start) ?
+            (scale * (clip_index % batch_size + ((i - 1) % clip_length) * 10)) :
+            pad_value;
+        for (int j = 0; j < 24; ++j) {
+          EXPECT_EQ(expected_value,
+              this->blob_top_data_->cpu_data()[i * 24 + j])
+              << "debug: iter " << iter << " i " << i << " j " << j;
+        }
+        if (i % clip_length == clip_length - 1) { ++clip_index; }
+      }
+      for (int i = 0; i < batch_size; ++i) {
+        const int frame_id = i % clip_length;
+        const typename DataLayer<Dtype>::ClipMarker& expected_value =
+           (frame_id > prepad_end && frame_id < postpad_start) ?
+           (((i - 1) % clip_length == 0) ? DataLayer<Dtype>::CLIP_BEGIN :
+                                           DataLayer<Dtype>::CLIP_CONTINUE) :
+           DataLayer<Dtype>::PADDING;
+        EXPECT_EQ(expected_value, this->blob_top_clip_markers_->cpu_data()[i])
+            << "debug: iter " << iter << " i " << i;
+      }
+    }
+  }
+
+  void LevelDBAppendVariableLengthClip(const int id, int clip_length, int value,
+      leveldb::DB* db) {
+    for (int frame_id = 0; frame_id < clip_length; ++frame_id) {
+      Datum datum;
+      char key_cstr[17];
+      datum.set_label(value);  
+      datum.set_frames(clip_length);
+      datum.set_channels(2);
+      datum.set_height(3);
+      datum.set_width(4);
+      datum.set_current_frame(frame_id);
+      std::string* data = datum.mutable_data();
+      for (int j = 0; j < 24; ++j) {
+        uint8_t item = static_cast<uint8_t>(value);
+        data->push_back(item);
+      }
+      int n = sprintf(key_cstr, "%08d%08d",id,frame_id);
+      db->Put(leveldb::WriteOptions(), string(key_cstr), datum.SerializeAsString());
+    }
+  }
+
+  void FillLevelDBVariableLengthClips() {
+    LOG(INFO) << "Using temporary leveldb " << *filename_;
+    leveldb::DB* db;
+    leveldb::Options options;
+    options.error_if_exists = true;
+    options.create_if_missing = true;
+    leveldb::Status status =
+        leveldb::DB::Open(options, filename_->c_str(), &db);
+    CHECK(status.ok());
+    int id = 0;
+    LevelDBAppendVariableLengthClip(id++, 4, 5, db);
+    LevelDBAppendVariableLengthClip(id++, 1, 8, db);
+    LevelDBAppendVariableLengthClip(id++, 2, 4, db);
+    LevelDBAppendVariableLengthClip(id++, 9, 1, db);
+    LevelDBAppendVariableLengthClip(id++, 4, 10, db);
+    LevelDBAppendVariableLengthClip(id++, 3, 7, db);
+    delete db;
+  }
+
   virtual ~DataLayerTest() { delete blob_top_data_; delete blob_top_label_; }
 
   DataParameter_DB backend_;
@@ -644,6 +894,22 @@ TYPED_TEST(DataLayerTest, TestReadFixedLengthClips) {
   const int batch_size = 5;
   this->FillLevelDB(unique_pixels, clip_length, batch_size);
   this->TestReadFixedLengthClips(clip_length, batch_size);
+}
+
+TYPED_TEST(DataLayerTest, TestReadActuallyVariableLengthClips) {
+  this->FillLevelDBVariableLengthClips();
+  const int sub_sample = 6;
+  this->TestReadActuallyVariableLengthClips(sub_sample);
+}
+
+TYPED_TEST(DataLayerTest, TestReadFixedLengthPaddedClips) {
+  Caffe::set_phase(Caffe::TRAIN);
+  const bool unique_pixels = false;  // all pixels the same; images different
+  const int clip_length = 3;
+  const int input_clip_length = 2;
+  const int batch_size = 6;
+  this->FillLevelDB(unique_pixels, input_clip_length, batch_size);
+  this->TestReadFixedLengthPaddedClips(clip_length, batch_size);
 }
 
 // Test that the sequence of random crops is consistent when using
