@@ -116,6 +116,7 @@ class Blob {
    * shared_ptr calls its destructor when reset with the "=" operator.
    */
   void ShareData(const Blob& other);
+  void ShareDataAt(const Blob& other, const int offset);
   /**
    * @brief Set the diff_ shared_ptr to point to the SyncedMemory holding the
    *        diff_ of Blob other -- useful in Layer&s which simply perform a copy
@@ -125,10 +126,15 @@ class Blob {
    * shared_ptr calls its destructor when reset with the "=" operator.
    */
   void ShareDiff(const Blob& other);
+  void ShareDiffAt(const Blob& other, const int offset);
 
  protected:
   shared_ptr<SyncedMemory> data_;
+  int data_offset_;
+
   shared_ptr<SyncedMemory> diff_;
+  int diff_offset_;
+
   int num_;
   int channels_;
   int height_;

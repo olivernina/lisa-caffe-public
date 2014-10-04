@@ -20,7 +20,9 @@ void Blob<Dtype>::Reshape(const int num, const int channels, const int height,
   if (count_ > capacity_) {
     capacity_ = count_;
     data_.reset(new SyncedMemory(capacity_ * sizeof(Dtype)));
+    data_offset_ = 0;
     diff_.reset(new SyncedMemory(capacity_ * sizeof(Dtype)));
+    diff_offset_ = 0;
   }
 }
 
@@ -40,7 +42,7 @@ Blob<Dtype>::Blob(const int num, const int channels, const int height,
 template <typename Dtype>
 const Dtype* Blob<Dtype>::cpu_data() const {
   CHECK(data_);
-  return (const Dtype*)data_->cpu_data();
+  return static_cast<const Dtype*>(data_->cpu_data()) + data_offset_;
 }
 
 template <typename Dtype>
@@ -52,43 +54,43 @@ void Blob<Dtype>::set_cpu_data(Dtype* data) {
 template <typename Dtype>
 const Dtype* Blob<Dtype>::gpu_data() const {
   CHECK(data_);
-  return (const Dtype*)data_->gpu_data();
+  return static_cast<const Dtype*>(data_->gpu_data()) + data_offset_;
 }
 
 template <typename Dtype>
 const Dtype* Blob<Dtype>::cpu_diff() const {
   CHECK(diff_);
-  return (const Dtype*)diff_->cpu_data();
+  return static_cast<const Dtype*>(diff_->cpu_data()) + diff_offset_;
 }
 
 template <typename Dtype>
 const Dtype* Blob<Dtype>::gpu_diff() const {
   CHECK(diff_);
-  return (const Dtype*)diff_->gpu_data();
+  return static_cast<const Dtype*>(diff_->gpu_data()) + diff_offset_;
 }
 
 template <typename Dtype>
 Dtype* Blob<Dtype>::mutable_cpu_data() {
   CHECK(data_);
-  return static_cast<Dtype*>(data_->mutable_cpu_data());
+  return static_cast<Dtype*>(data_->mutable_cpu_data()) + data_offset_;
 }
 
 template <typename Dtype>
 Dtype* Blob<Dtype>::mutable_gpu_data() {
   CHECK(data_);
-  return static_cast<Dtype*>(data_->mutable_gpu_data());
+  return static_cast<Dtype*>(data_->mutable_gpu_data()) + data_offset_;
 }
 
 template <typename Dtype>
 Dtype* Blob<Dtype>::mutable_cpu_diff() {
   CHECK(diff_);
-  return static_cast<Dtype*>(diff_->mutable_cpu_data());
+  return static_cast<Dtype*>(diff_->mutable_cpu_data()) + diff_offset_;
 }
 
 template <typename Dtype>
 Dtype* Blob<Dtype>::mutable_gpu_diff() {
   CHECK(diff_);
-  return static_cast<Dtype*>(diff_->mutable_gpu_data());
+  return static_cast<Dtype*>(diff_->mutable_gpu_data()) + diff_offset_;
 }
 
 template <typename Dtype>
@@ -98,9 +100,23 @@ void Blob<Dtype>::ShareData(const Blob& other) {
 }
 
 template <typename Dtype>
+void Blob<Dtype>::ShareDataAt(const Blob& other, const int offset) {
+  CHECK_LE(count_, other.count() - offset);
+  data_ = other.data();
+  data_offset_ = offset;
+}
+
+template <typename Dtype>
 void Blob<Dtype>::ShareDiff(const Blob& other) {
   CHECK_EQ(count_, other.count());
   diff_ = other.diff();
+}
+
+template <typename Dtype>
+void Blob<Dtype>::ShareDiffAt(const Blob& other, const int offset) {
+  CHECK_LE(count_, other.count() - offset);
+  diff_ = other.diff();
+  diff_offset_ = offset;
 }
 
 // The "update" method is used for parameter blobs in a Net, which are stored
