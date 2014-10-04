@@ -113,49 +113,39 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   flush_slice_param->add_bottom("flush");
 
   {
-    LayerParameter* w_xi_param = net_param.add_layers();
-    w_xi_param->CopyFrom(biased_hidden_param);
-    w_xi_param->add_bottom("x");
-    w_xi_param->add_param("W_{xi}");
-    w_xi_param->add_param("b_i");
-    w_xi_param->add_top("W_{xi} x + b_i");
+    LayerParameter* w_x_param = net_param.add_layers();
+    w_x_param->CopyFrom(biased_hidden_param);
+    w_x_param->add_bottom("x");
+    w_x_param->add_param("W_{x*}");
+    w_x_param->add_param("b_*");
+    w_x_param->add_top("W_{x*} x + b_*");
+    InnerProductParameter* inner_product_param =
+        w_x_param->mutable_inner_product_param();
+    inner_product_param->set_num_output(4 * inner_product_param->num_output());
   }
+  {
+    LayerParameter* w_x_slice_param = net_param.add_layers();
+    w_x_slice_param->CopyFrom(slice_param);
+    w_x_slice_param->mutable_slice_param()->set_slice_dim(1);
+    w_x_slice_param->add_bottom("W_{x*} x + b_*");
+    w_x_slice_param->add_top("W_{xi} x + b_i");
+    w_x_slice_param->add_top("W_{xf} x + b_f");
+    w_x_slice_param->add_top("W_{xc} x + b_c");
+    w_x_slice_param->add_top("W_{xo} x + b_o");
+  }
+
   LayerParameter* w_xi_slice_param = net_param.add_layers();
   w_xi_slice_param->CopyFrom(slice_param);
   w_xi_slice_param->add_bottom("W_{xi} x + b_i");
 
-  {
-    LayerParameter* w_xf_param = net_param.add_layers();
-    w_xf_param->CopyFrom(biased_hidden_param);
-    w_xf_param->add_bottom("x");
-    w_xf_param->add_param("W_{xf}");
-    w_xf_param->add_param("b_f");
-    w_xf_param->add_top("W_{xf} x + b_f");
-  }
   LayerParameter* w_xf_slice_param = net_param.add_layers();
   w_xf_slice_param->CopyFrom(slice_param);
   w_xf_slice_param->add_bottom("W_{xf} x + b_f");
 
-  {
-    LayerParameter* w_xc_param = net_param.add_layers();
-    w_xc_param->CopyFrom(biased_hidden_param);
-    w_xc_param->add_bottom("x");
-    w_xc_param->add_param("W_{xc}");
-    w_xc_param->add_param("b_c");
-    w_xc_param->add_top("W_{xc} x + b_c");
-  }
   LayerParameter* w_xc_slice_param = net_param.add_layers();
   w_xc_slice_param->CopyFrom(slice_param);
   w_xc_slice_param->add_bottom("W_{xc} x + b_c");
 
-  {
-    LayerParameter* w_xo_param = net_param.add_layers();
-    w_xo_param->CopyFrom(biased_hidden_param);
-    w_xo_param->add_bottom("x");
-    w_xo_param->add_param("W_{xo}");
-    w_xo_param->add_param("b_o");
-    w_xo_param->add_top("W_{xo} x + b_o");
-  }
   LayerParameter* w_xo_slice_param = net_param.add_layers();
   w_xo_slice_param->CopyFrom(slice_param);
   w_xo_slice_param->add_bottom("W_{xo} x + b_o");
@@ -424,7 +414,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
 
   this->param_propagate_down_.resize(this->blobs_.size(), true);
-  CHECK_EQ(15, this->blobs_.size());
+  CHECK_EQ(9, this->blobs_.size());
 
   const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
   Dtype* hidden_output_diff = h_output_blob_->mutable_cpu_diff();
