@@ -234,6 +234,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
             caffe_set(remaining_items, Dtype(DataLayer<Dtype>::PADDING),
                       &top_clip_markers[item_id]);
           }
+          return; 
         }
         output_length = num_frames;
         break;
@@ -258,14 +259,17 @@ void DataLayer<Dtype>::InternalThreadEntry() {
           if (clip_collapse_labels) {
             if (out_frame_id == 0) {
               CHECK_LT(collapsed_label_id, label_num);
+              CHECK_LT(collapsed_label_id, batch_size);
               top_label[collapsed_label_id] = datum.label();
               ++collapsed_label_id;
             }
           } else {
+            CHECK_LT(item_id, batch_size);
             top_label[item_id] = datum.label();
           }
         }
         if (this->output_clip_markers_) {
+          CHECK_LT(item_id, batch_size);
           top_clip_markers[item_id] = Dtype(DataLayer<Dtype>::PADDING);
         }
         continue;
@@ -302,6 +306,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       }
       // Apply data transformations (mirror, scale, crop...).  Use predetermined h_off and w_off.  
       // False indicates that we will not recalculate these values.
+      CHECK_LT(item_id, batch_size);
       int offset = this->prefetch_data_.offset(item_id);
       this->transformed_data_.set_cpu_data(top_data + offset);
       this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video);
