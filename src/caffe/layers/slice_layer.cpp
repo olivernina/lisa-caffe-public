@@ -46,6 +46,9 @@ void SliceLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       slices.push_back(num_ - prev);
       for (int i = 0; i < top.size(); ++i) {
         top[i]->Reshape(slices[i], channels_, height_, width_);
+        const int slice_offset = bottom[0]->offset(slice_point_[i]);
+        top[i]->ShareDataAt(*bottom[0], slice_offset);
+        top[i]->ShareDiffAt(*bottom[0], slice_offset);
         count_ += top[i]->count();
       }
     } else {
@@ -70,6 +73,11 @@ void SliceLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     for (int i = 0; i < top.size(); ++i) {
       top[i]->Reshape(num_, channels_, height_, width_);
       count_ += top[i]->count();
+      if (slice_dim_ == 0) {
+        const int slice_offset = bottom[0]->offset(num_ * i);
+        top[i]->ShareDataAt(*bottom[0], slice_offset);
+        top[i]->ShareDiffAt(*bottom[0], slice_offset);
+      }
     }
   }
   CHECK_EQ(count_, bottom[0]->count());
@@ -78,18 +86,11 @@ void SliceLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 void SliceLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
-  const Dtype* bottom_data = bottom[0]->mutable_cpu_data();
   if (slice_dim_ == 0) {
-    int offset_num = 0;
-    for (int i = 0; i < top.size(); ++i) {
-      Blob<Dtype>* blob = top[i];
-      Dtype* top_data = blob->mutable_cpu_data();
-      caffe_copy(blob->count(), bottom_data + bottom[0]->offset(offset_num),
-                 top_data);
-      offset_num += blob->num();
-    }
+    return;
   } else if (slice_dim_ == 1) {
     int offset_channel = 0;
+    const Dtype* bottom_data = bottom[0]->mutable_cpu_data();
     for (int i = 0; i < top.size(); ++i) {
       Blob<Dtype>* blob = top[i];
       Dtype* top_data = blob->mutable_cpu_data();
@@ -107,18 +108,11 @@ template <typename Dtype>
 void SliceLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   if (!propagate_down[0]) { return; }
-  Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
   if (slice_dim_ == 0) {
-    int offset_num = 0;
-    for (int i = 0; i < top.size(); ++i) {
-      Blob<Dtype>* blob = top[i];
-      const Dtype* top_diff = blob->cpu_diff();
-      caffe_copy(blob->count(), top_diff,
-                 bottom_diff + bottom[0]->offset(offset_num));
-      offset_num += blob->num();
-    }
+    return;
   } else if (slice_dim_ == 1) {
     int offset_channel = 0;
+    Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
     for (int i = 0; i < top.size(); ++i) {
       Blob<Dtype>* blob = top[i];
       const Dtype* top_diff = blob->cpu_diff();
