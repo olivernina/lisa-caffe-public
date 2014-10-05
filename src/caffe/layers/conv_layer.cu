@@ -56,13 +56,14 @@ void ConvolutionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   const Dtype* weight = NULL;
   Dtype* weight_diff = NULL;
-  if (this->param_propagate_down_[0]) {
+  if (this->param_propagate_down_[0] && !this->param_accum_down_[0]) {
     weight = this->blobs_[0]->gpu_data();
     weight_diff = this->blobs_[0]->mutable_gpu_diff();
     caffe_gpu_set(this->blobs_[0]->count(), Dtype(0), weight_diff);
   }
   Dtype* bias_diff = NULL;
-  if (bias_term_ && this->param_propagate_down_[1]) {
+  if (bias_term_ && this->param_propagate_down_[1] &&
+      !this->param_accum_down_[1]) {
     bias_diff = this->blobs_[1]->mutable_gpu_diff();
     caffe_gpu_set(this->blobs_[1]->count(), Dtype(0), bias_diff);
   }

@@ -485,7 +485,6 @@ void LSTMLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   }
 
   lstm_->Backward();
-  lstm_->AccumulateSharedWeightDiffs();
 }
 
 #ifdef CPU_ONLY

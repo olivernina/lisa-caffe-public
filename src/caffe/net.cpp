@@ -430,6 +430,7 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
     if (param_size) {
       param_names_index_[param_name] = net_param_id;
     }
+    layers_[layer_id]->set_param_accum_down(param_id, false);
   } else {
     // Named param blob with name we've seen before: share params
     const int owner_net_param_id = param_names_index_[param_name];
@@ -462,6 +463,7 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
       CHECK_EQ(this_blob->width(), owner_blob->width())
           << "Shared parameter blobs must have the same width.";
     }
+    layers_[layer_id]->set_param_accum_down(param_id, true);
   }
 }
 
@@ -781,10 +783,7 @@ void Net<Dtype>::ToProto(NetParameter* param, bool write_diff) {
 
 template <typename Dtype>
 void Net<Dtype>::Update() {
-  // First, accumulate the diffs of any shared parameters into their owner's
-  // diff.
-  AccumulateSharedWeightDiffs();
-  // Now, update the owned parameters.
+  // Update only the owned parameters.
   for (int i = 0; i < params_.size(); ++i) {
     if (param_owners_[i] >= 0) { continue; }
     if (debug_info_) { UpdateDebugInfo(i); }
@@ -797,38 +796,7 @@ void Net<Dtype>::ShareWeightData() {
   for (int i = 0; i < params_.size(); ++i) {
     if (param_owners_[i] < 0) { continue; }
     params_[i]->ShareData(*params_[param_owners_[i]]);
-  }
-}
-
-template <typename Dtype>
-void Net<Dtype>::AccumulateSharedWeightDiffs() {
-  // Accumulate the diffs of any shared parameters into their owner's
-  // diff. (Assumes that the learning rate, weight decay, etc. have already been
-  // accounted for in the current diff.)
-  for (int i = 0; i < params_.size(); ++i) {
-    if (param_owners_[i] < 0) { continue; }
-    if (debug_info_) { UpdateDebugInfo(i); }
-    const int count = params_[i]->count();
-    const Dtype* this_diff;
-    Dtype* owner_diff;
-    switch (Caffe::mode()) {
-    case Caffe::CPU:
-      this_diff = params_[i]->cpu_diff();
-      owner_diff = params_[param_owners_[i]]->mutable_cpu_diff();
-      caffe_add(count, this_diff, owner_diff, owner_diff);
-      break;
-#ifndef CPU_ONLY
-    case Caffe::GPU:
-      this_diff = params_[i]->gpu_diff();
-      owner_diff = params_[param_owners_[i]]->mutable_gpu_diff();
-      caffe_gpu_add(count, this_diff, owner_diff, owner_diff);
-      break;
-#else
-      NO_GPU;
-#endif
-    default:
-      LOG(FATAL) << "Unknown caffe mode: " << Caffe::mode();
-    }
+    params_[i]->ShareDiff(*params_[param_owners_[i]]);
   }
 }
 

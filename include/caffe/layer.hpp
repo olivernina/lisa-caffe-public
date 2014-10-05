@@ -299,6 +299,17 @@ class Layer {
     param_propagate_down_[param_id] = value;
   }
 
+  inline bool param_accum_down(const int param_id) {
+    return (param_accum_down_.size() > param_id) ?
+        param_accum_down_[param_id] : false;
+  }
+
+  inline void set_param_accum_down(const int param_id, const bool value) {
+    if (param_accum_down_.size() <= param_id) {
+      param_accum_down_.resize(param_id + 1, true);
+    }
+    param_accum_down_[param_id] = value;
+  }
 
  protected:
   /** The protobuf that stores the layer parameters */
@@ -307,6 +318,8 @@ class Layer {
   vector<shared_ptr<Blob<Dtype> > > blobs_;
   /** Vector indicating whether to compute the diff of each param blob. */
   vector<bool> param_propagate_down_;
+  /** Vector indicating whether to accumulate the diff of each param blob. */
+  vector<bool> param_accum_down_;
 
   /** The vector that indicates whether each top blob has a non-zero weight in
    *  the objective function. */

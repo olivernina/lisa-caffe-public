@@ -94,13 +94,6 @@ class Net {
   /// @brief Updates the network weights based on the diff values computed.
   void Update();
   /**
-   * @brief Accumulates weight diffs of shared blobs into the owner's diff.
-   *
-   * Note: this is called by Net::Update, and thus should normally not be
-   * called manually.
-   */
-  void AccumulateSharedWeightDiffs();
-  /**
    * @brief Shares weight data of owner blobs with shared blobs.
    *
    * Note: this is called by Net::Init, and thus should normally not be

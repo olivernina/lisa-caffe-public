@@ -47,7 +47,6 @@ void LSTMLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   }
 
   lstm_->Backward();
-  lstm_->AccumulateSharedWeightDiffs();
 }
 
 INSTANTIATE_CLASS(LSTMLayer);
