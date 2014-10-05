@@ -26,22 +26,12 @@ void DiagInnerProductLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   if (this->param_propagate_down_[0]) {
     const Dtype* top_diff = top[0]->gpu_diff();
     const Dtype* bottom_data = bottom[0]->gpu_data();
-    Dtype* weight_diff_buffer = NULL;
+    Dtype* weight_diff_buffer = weight_diff_buffer_.mutable_gpu_data();
     Dtype* weight_diff = this->blobs_[0]->mutable_gpu_diff();
-    bool diff_initialized = false;
     for (int i = 0; i < top[0]->num(); ++i) {
-      if (!diff_initialized) {
-        caffe_gpu_mul(dim_,
-            bottom_data + i * dim_, top_diff + i * dim_, weight_diff);
-        diff_initialized = true;
-      } else {
-        if (weight_diff_buffer == NULL) {
-          weight_diff_buffer = weight_diff_buffer_.mutable_gpu_data();
-        }
-        caffe_gpu_mul(dim_,
-            bottom_data + i * dim_, top_diff + i * dim_, weight_diff_buffer);
-        caffe_gpu_axpy(dim_, Dtype(1), weight_diff_buffer, weight_diff);
-      }
+      caffe_gpu_mul(dim_, bottom_data + i * dim_,
+                top_diff + i * dim_, weight_diff_buffer);
+      caffe_gpu_axpy(dim_, Dtype(1), weight_diff_buffer, weight_diff);
     }
   }
   if (propagate_down[0]) {

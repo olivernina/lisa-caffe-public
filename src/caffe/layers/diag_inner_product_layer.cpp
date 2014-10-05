@@ -53,22 +53,12 @@ void DiagInnerProductLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   if (this->param_propagate_down_[0]) {
     const Dtype* top_diff = top[0]->cpu_diff();
     const Dtype* bottom_data = bottom[0]->cpu_data();
-    Dtype* weight_diff_buffer = NULL;
+    Dtype* weight_diff_buffer = weight_diff_buffer_.mutable_cpu_data();
     Dtype* weight_diff = this->blobs_[0]->mutable_cpu_diff();
-    bool diff_initialized = false;
     for (int i = 0; i < top[0]->num(); ++i) {
-      if (!diff_initialized) {
-        caffe_mul(dim_,
-            bottom_data + i * dim_, top_diff + i * dim_, weight_diff);
-        diff_initialized = true;
-      } else {
-        if (weight_diff_buffer == NULL) {
-          weight_diff_buffer = weight_diff_buffer_.mutable_cpu_data();
-        }
-        caffe_mul(dim_,
-            bottom_data + i * dim_, top_diff + i * dim_, weight_diff_buffer);
-        caffe_axpy(dim_, Dtype(1), weight_diff_buffer, weight_diff);
-      }
+      caffe_mul(dim_, bottom_data + i * dim_,
+                top_diff + i * dim_, weight_diff_buffer);
+      caffe_axpy(dim_, Dtype(1), weight_diff_buffer, weight_diff);
     }
   }
   if (propagate_down[0]) {
