@@ -86,11 +86,16 @@ void SliceLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 void SliceLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
+  const Dtype* bottom_data = bottom[0]->mutable_cpu_data();
   if (slice_dim_ == 0) {
-    return;
+    int offset_num = 0;
+    for (int i = 0; i < top.size(); ++i) {
+      Blob<Dtype>* blob = top[i];
+      CHECK_EQ(blob->cpu_data(), bottom_data + bottom[0]->offset(offset_num));
+      offset_num += blob->num();
+    }
   } else if (slice_dim_ == 1) {
     int offset_channel = 0;
-    const Dtype* bottom_data = bottom[0]->mutable_cpu_data();
     for (int i = 0; i < top.size(); ++i) {
       Blob<Dtype>* blob = top[i];
       Dtype* top_data = blob->mutable_cpu_data();
@@ -108,11 +113,16 @@ template <typename Dtype>
 void SliceLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   if (!propagate_down[0]) { return; }
+  Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
   if (slice_dim_ == 0) {
-    return;
+    int offset_num = 0;
+    for (int i = 0; i < top.size(); ++i) {
+      Blob<Dtype>* blob = top[i];
+      CHECK_EQ(blob->cpu_diff(), bottom_diff + bottom[0]->offset(offset_num));
+      offset_num += blob->num();
+    }
   } else if (slice_dim_ == 1) {
     int offset_channel = 0;
-    Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
     for (int i = 0; i < top.size(); ++i) {
       Blob<Dtype>* blob = top[i];
       const Dtype* top_diff = blob->cpu_diff();
