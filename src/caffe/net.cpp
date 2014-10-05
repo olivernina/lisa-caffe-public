@@ -430,7 +430,6 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
     if (param_size) {
       param_names_index_[param_name] = net_param_id;
     }
-    layers_[layer_id]->set_param_accum_down(param_id, false);
   } else {
     // Named param blob with name we've seen before: share params
     const int owner_net_param_id = param_names_index_[param_name];
@@ -463,7 +462,6 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
       CHECK_EQ(this_blob->width(), owner_blob->width())
           << "Shared parameter blobs must have the same width.";
     }
-    layers_[layer_id]->set_param_accum_down(param_id, true);
   }
 }
 

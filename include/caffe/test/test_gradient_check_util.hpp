@@ -82,9 +82,11 @@ void GradientChecker<Dtype>::CheckGradientSingle(Layer<Dtype>* layer,
   }
   // First, figure out what blobs we need to check against.
   vector<Blob<Dtype>*> blobs_to_check;
+  vector<bool> reset(false);
   vector<bool> propagate_down(bottom.size(), check_bottom < 0);
   for (int i = 0; i < layer->blobs().size(); ++i) {
     blobs_to_check.push_back(layer->blobs()[i].get());
+    reset[blobs_to_check.size() - 1] = true;
   }
   if (check_bottom < 0) {
     for (int i = 0; i < bottom.size(); ++i) {
@@ -102,6 +104,13 @@ void GradientChecker<Dtype>::CheckGradientSingle(Layer<Dtype>* layer,
   layer->Forward(bottom, top);
   // Get additional loss from the objective
   GetObjAndGradient(*layer, top, top_id, top_data_id);
+  for (int i = 0; i < blobs_to_check.size(); ++i) {
+    if (!reset[i]) { continue; }
+    Blob<Dtype>* blob = blobs_to_check[i];
+    const int count = blob->count();
+    Dtype* data = blob->mutable_cpu_diff();
+    caffe_set(count, Dtype(0), data);
+  }
   layer->Backward(top, propagate_down, bottom);
   // Store computed gradients for all checked blobs
   vector<shared_ptr<Blob<Dtype> > >

@@ -89,7 +89,6 @@ void ConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
   // Propagate gradients to the parameters (as directed by backward pass).
   this->param_propagate_down_.resize(this->blobs_.size(), true);
-  this->param_accum_down_.resize(this->blobs_.size(), false);
 }
 
 template <typename Dtype>
@@ -183,16 +182,12 @@ void ConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   const Dtype* weight = NULL;
   Dtype* weight_diff = NULL;
-  if (this->param_propagate_down_[0] && !this->param_accum_down_[0]) {
-    weight = this->blobs_[0]->cpu_data();
+  if (this->param_propagate_down_[0]) {
     weight_diff = this->blobs_[0]->mutable_cpu_diff();
-    caffe_set(this->blobs_[0]->count(), Dtype(0), weight_diff);
   }
   Dtype* bias_diff = NULL;
-  if (bias_term_ && this->param_propagate_down_[1] &&
-      !this->param_accum_down_[1]) {
+  if (bias_term_ && this->param_propagate_down_[1]) {
     bias_diff = this->blobs_[1]->mutable_cpu_diff();
-    caffe_set(this->blobs_[1]->count(), Dtype(0), bias_diff);
   }
   const int weight_offset = M_ * K_;
   const int col_offset = K_ * N_;
@@ -205,8 +200,7 @@ void ConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       for (int n = 0; n < num_; ++n) {
         caffe_cpu_gemv<Dtype>(CblasNoTrans, num_output_, N_,
             1., top_diff + top[0]->offset(n),
-            bias_multiplier_.cpu_data(), 1.,
-            bias_diff);
+            bias_multiplier_.cpu_data(), 1., bias_diff);
       }
     }
     if (this->param_propagate_down_[0] || propagate_down[i]) {
