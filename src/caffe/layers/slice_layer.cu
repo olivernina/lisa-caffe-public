@@ -14,7 +14,9 @@ void SliceLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     int offset_num = 0;
     for (int i = 0; i < top.size(); ++i) {
       Blob<Dtype>* blob = top[i];
-      CHECK_EQ(blob->gpu_data(), bottom_data + bottom[0]->offset(offset_num));
+      Dtype* top_data = blob->mutable_gpu_data();
+      caffe_copy(blob->count(), bottom_data + bottom[0]->offset(offset_num),
+                 top_data);
       offset_num += blob->num();
     }
   } else if (slice_dim_ == 1) {
@@ -41,7 +43,9 @@ void SliceLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     int offset_num = 0;
     for (int i = 0; i < top.size(); ++i) {
       Blob<Dtype>* blob = top[i];
-      CHECK_EQ(blob->gpu_diff(), bottom_diff + bottom[0]->offset(offset_num));
+      const Dtype* top_diff = blob->gpu_diff();
+      caffe_copy(blob->count(), top_diff,
+                 bottom_diff + bottom[0]->offset(offset_num));
       offset_num += blob->num();
     }
   } else if (slice_dim_ == 1) {
