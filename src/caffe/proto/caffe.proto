@@ -482,6 +482,7 @@ message DataParameter {
   enum ClipMode {
     FIXED_LENGTH = 0;
     VARIABLE = 1;
+    LSTM = 2;
   }
   optional ClipMode clip_mode = 101 [default = FIXED_LENGTH];
   enum ClipPadCropMode {

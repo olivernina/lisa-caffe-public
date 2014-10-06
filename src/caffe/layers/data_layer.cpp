@@ -50,6 +50,13 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     this->output_clip_markers_ = false;
   }
   this->video_id_ = 0;
+
+  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH) {
+    this->sLSTM_ = this->layer_param_.data_param().batch_size() / this->layer_param_.data_param().clip_length(); 
+  }
+  else {
+    this->sLSTM = 1;
+  }
   // Initialize the DB and rand_skip.
   Reset();
 
@@ -57,7 +64,7 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   Datum datum;
   switch (this->layer_param_.data_param().backend()) {
   case DataParameter_DB_LEVELDB:
-    datum.ParseFromString(iter_->value().ToString());
+    datum.ParseFromString(iter_[0]->value().ToString());
     break;
   case DataParameter_DB_LMDB:
     datum.ParseFromArray(mdb_value_.mv_data, mdb_value_.mv_size);
@@ -86,7 +93,7 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   //video
   int clip_length_ = this->layer_param_.data_param().clip_length();
-  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH) {
+  if (this->layer_param_.data_param().clip_mode() == (DataParameter_ClipMode_FIXED_LENGTH || DataParameter_ClipMode_LSTM)) {
     CHECK_EQ(0, this->layer_param_.data_param().batch_size() % clip_length_)
         << "If using fixed length clips, the batch size must be an exact "
         << "multiple of the clip length to avoid adding unnecessary padding. "
@@ -187,8 +194,8 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     int length_key;
     switch (this->layer_param_.data_param().backend()) {
     case DataParameter_DB_LEVELDB:
-      CHECK(iter_);
-      CHECK(iter_->Valid());
+      CHECK(iter_[0]);
+      CHECK(iter_[0]->Valid());
       if (this->video_id_ > max_video){
         this->video_id_ = 0;
       }
@@ -371,8 +378,23 @@ void DataLayer<Dtype>::Reset() {
                        << this->layer_param_.data_param().source() << std::endl
                        << status.ToString();
     db_.reset(db_temp);
-    iter_.reset(db_->NewIterator(leveldb::ReadOptions()));
-    iter_->SeekToFirst();
+
+
+   //adding a few extra variables for debugging
+
+
+   iter_.resize(this->sLSTM_);
+
+    for (int i = 0; i < this->sLSTM_; i++){
+      iter_[i].reset(db_->NewIterator(leveldb::ReadOptions()));
+      iter_[i]->SeekToFirst();
+    }
+
+//OLD CODE:
+//    iter_.reset(db_->NewIterator(leveldb::ReadOptions()));
+//    iter_->SeekToFirst();
+
+
     }
     break;
   case DataParameter_DB_LMDB:
@@ -405,9 +427,9 @@ void DataLayer<Dtype>::Reset() {
     while (skip-- > 0) {
       switch (this->layer_param_.data_param().backend()) {
       case DataParameter_DB_LEVELDB:
-        iter_->Next();
-        if (!iter_->Valid()) {
-          iter_->SeekToFirst();
+        iter_[0]->Next();
+        if (!iter_[0]->Valid()) {
+          iter_[0]->SeekToFirst();
         }
         break;
       case DataParameter_DB_LMDB:

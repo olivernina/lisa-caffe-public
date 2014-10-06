@@ -53,6 +53,8 @@ class BaseDataLayer : public Layer<Dtype> {
   bool output_labels_;
 
   int video_id_;
+  //sLSTM needs a more descriptive name.  used in lstms, number of samples processed at a time to determine the gradient
+  int sLSTM_;
   bool output_clip_markers_;
   DataParameter_ClipMode clip_mode_;
   int clip_length_;
@@ -114,8 +116,9 @@ class DataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual void InternalThreadEntry();
 
   // LEVELDB
-  shared_ptr<leveldb::DB> db_;
-  shared_ptr<leveldb::Iterator> iter_;
+  shared_ptr<leveldb::DB > db_; 
+  //shared_ptr<leveldb::Iterator> iter_;
+  vector<shared_ptr<leveldb::Iterator> >iter_;
   // LMDB
   MDB_env* mdb_env_;
   MDB_dbi mdb_dbi_;
