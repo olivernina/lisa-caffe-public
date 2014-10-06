@@ -51,11 +51,11 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
   this->video_id_ = 0;
 
-  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH) {
-    this->sLSTM_ = this->layer_param_.data_param().batch_size() / this->layer_param_.data_param().clip_length(); 
+  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
+    this->sLSTM_ = this->layer_param_.data_param().slstm(); 
   }
   else {
-    this->sLSTM = 1;
+    this->sLSTM_ = 1;
   }
   // Initialize the DB and rand_skip.
   Reset();
@@ -93,7 +93,7 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   //video
   int clip_length_ = this->layer_param_.data_param().clip_length();
-  if (this->layer_param_.data_param().clip_mode() == (DataParameter_ClipMode_FIXED_LENGTH || DataParameter_ClipMode_LSTM)) {
+  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH || this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
     CHECK_EQ(0, this->layer_param_.data_param().batch_size() % clip_length_)
         << "If using fixed length clips, the batch size must be an exact "
         << "multiple of the clip length to avoid adding unnecessary padding. "
@@ -183,23 +183,38 @@ void DataLayer<Dtype>::InternalThreadEntry() {
 
 
   //should refactor this in a smart way
+  int iter_index = 0;
   std::string value;
+  int frame_id;
   for (int item_id = 0; item_id < batch_size; ) {
     bool first_video = true;
     // get a blob
     Datum datum;
+    bool continuing_video = false;
+    if (this->transfer_frame_ids_[iter_index] > 0) {
+      continuing_video = true;
+      first_video = false;  //need to figure out way to transfer w_off and h_off neatly
+    }
     // Read in first blob from video to initialize everything.
     char my_key[17];
-    const int first_frame = 0;
+    int first_frame;
+    int current_video;
+    if (continuing_video){
+      first_frame = this->transfer_frame_ids_[iter_index];
+      current_video = this->transfer_video_ids_[iter_index];
+    } else {
+      first_frame = 0;
+      current_video = this->video_id_;
+    }
     int length_key;
     switch (this->layer_param_.data_param().backend()) {
     case DataParameter_DB_LEVELDB:
-      CHECK(iter_[0]);
-      CHECK(iter_[0]->Valid());
+      CHECK(iter_[iter_index]);
+      CHECK(iter_[iter_index]->Valid());
       if (this->video_id_ > max_video){
         this->video_id_ = 0;
       }
-      length_key = snprintf(my_key, 17, "%08d%08d", this->video_id_, first_frame);
+      length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
       db_->Get(leveldb::ReadOptions(), my_key, &value);
       datum.ParseFromString(value);
       //datum.ParseFromString(iter_->value().ToString());
@@ -223,6 +238,8 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     Dtype* offset_data;
     const int out_frame_size =
         this->datum_channels_ * (this->layer_param_.transform_param().crop_size() ? pow(this->layer_param_.transform_param().crop_size(), 2) : (this->datum_height_ * this->datum_width_));
+
+    int remaining_items;
  
     switch (this->layer_param_.data_param().clip_mode()) {
       case DataParameter_ClipMode_VARIABLE:
@@ -230,7 +247,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
         // If using this entire clip would put us past the maximum batch size,
         // fill the rest of the batch with padding.
         if (item_id + num_frames > batch_size) {
-          const int remaining_items = batch_size - item_id;
+          remaining_items = batch_size - item_id;
           const int remaining_data_size = remaining_items * out_frame_size;
           offset_data = &top_data[item_id * out_frame_size];
           caffe_set(remaining_data_size, pad_value, offset_data);
@@ -243,20 +260,40 @@ void DataLayer<Dtype>::InternalThreadEntry() {
           }
           return; 
         }
-        output_length = num_frames;
+        output_length = num_frames*sub_sample; 
         break;
       case DataParameter_ClipMode_FIXED_LENGTH:
         input_offset = this->input_offset(num_frames, sub_sample);
         output_offset = this->output_offset(num_frames, sub_sample);
         output_length = this->layer_param_.data_param().clip_length()*sub_sample;          
         break;
+      case DataParameter_ClipMode_LSTM:
+//        // output_length should just be the minimum of the two:
+//		//1) space left in row of data matrix
+//		//2) number of frames in video
+//        //need to use remaining items IN ROW!
+        remaining_items = (this->sLSTM_ * ((item_id/batch_size)+1)) - item_id;
+        if (this->layer_param_.data_param().lstm_clip() && (num_frames > this->layer_param_.data_param().lstm_clip_length())) {
+            if (!continuing_video) {
+              input_offset = this->input_offset(num_frames, sub_sample);
+              output_offset = this->output_offset(num_frames, sub_sample);
+              output_length = this->layer_param_.data_param().clip_length()*sub_sample;
+            } else {
+              LOG(FATAL) << "Can't handle continuing video with fixed length LSTM mode.";
+            }
+        } else {
+            output_length = (num_frames - current_frame) *sub_sample;
+        }
+        output_length = std::min(remaining_items*sub_sample, output_length);
+        break;       
       default:
         LOG(FATAL) << "Unknown clip mode: "
                    << DataParameter_ClipMode_Name(this->clip_mode_);
     }
- 
-    for (int out_frame_id = 0; out_frame_id < output_length;
+    //frame loop
+    for (int out_frame_id = current_frame; out_frame_id < output_length;
         out_frame_id += sub_sample, ++item_id) {
+      //if needed, switch to next db pointer
       if (out_frame_id < output_offset ||
           out_frame_id >= output_offset + num_frames) {
         // This is a padding frame of a fixed-length clip; fill it as such.
@@ -282,7 +319,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
         continue;
       }
 
-      const int frame_id = out_frame_id - output_offset + input_offset;
+      frame_id = out_frame_id - output_offset + input_offset;
       if (output_length < num_frames) {
         CHECK_LT(frame_id, num_frames);
       }
@@ -290,7 +327,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       if (frame_id != 0){ //if frame_id is zero than the frame loaded currently is the frame we want
         switch (this->layer_param_.data_param().backend()) {
           case DataParameter_DB_LEVELDB:
-          length_key = snprintf(my_key, 17, "%08d%08d", this->video_id_, frame_id); //should not be minus 1 here???
+          length_key = snprintf(my_key, 17, "%08d%08d", current_video, frame_id); //should not be minus 1 here???
           db_->Get(leveldb::ReadOptions(), my_key, &value);
           datum.ParseFromString(value);
           break;
@@ -314,9 +351,14 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       // Apply data transformations (mirror, scale, crop...).  Use predetermined h_off and w_off.  
       // False indicates that we will not recalculate these values.
       CHECK_LT(item_id, batch_size);
+<<<<<<< HEAD
       int offset = this->prefetch_data_.offset(item_id);
       this->transformed_data_.set_cpu_data(top_data + offset);
       this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video);
+=======
+      LOG(ERROR) << "current video is: " << current_video;
+      this->data_transformer_.Transform(item_id, datum, this->mean_, top_data, first_video);
+>>>>>>> Code added for ClipMode_LSTM - unit tests do not pass.
       first_video = false;
 
       if (this->output_labels_) {
@@ -336,6 +378,15 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       } 
     } //for (out_frame_id = 0; out_frame_id < output_length) 
     // go to the next iter
+    if (item_id + 1 < this->sLSTM_ * ((item_id / batch_size)+1)) {
+      //keep track of which frame we want to start on at iter_index with next batch
+      this->transfer_frame_ids_[iter_index] = frame_id + sub_sample;
+      this->transfer_video_ids_[iter_index] = this->video_id_; 
+      iter_index += 1;
+    } else {
+      this->transfer_frame_ids_[iter_index] = 0;
+    }    
+    
     switch (this->layer_param_.data_param().backend()) {
     case DataParameter_DB_LEVELDB:
 //      iter_->Next();
@@ -344,6 +395,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
 //        DLOG(INFO) << "Restarting data prefetching from start.";
 //        iter_->SeekToFirst();
 //      }
+        //need to check if we need to switch db_iter
       break;
     case DataParameter_DB_LMDB:
       if (mdb_cursor_get(mdb_cursor_, &mdb_key_,
@@ -358,7 +410,12 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       LOG(FATAL) << "Unknown database backend";
     }
     //++item_id;
-    ++this->video_id_;
+    if (!continuing_video) {
+      ++this->video_id_;
+    }
+
+
+      
   }  // while (item_id < batch_size)
 } 
 
@@ -384,10 +441,14 @@ void DataLayer<Dtype>::Reset() {
 
 
    iter_.resize(this->sLSTM_);
+   this->transfer_frame_ids_.resize(this->sLSTM_);
+   this->transfer_video_ids_.resize(this->sLSTM_);
 
     for (int i = 0; i < this->sLSTM_; i++){
       iter_[i].reset(db_->NewIterator(leveldb::ReadOptions()));
       iter_[i]->SeekToFirst();
+      this->transfer_frame_ids_[i] = 0;  //all frames equal zero....
+      this->transfer_video_ids_[i] = 0;  //all frames equal zero....
     }
 
 //OLD CODE:

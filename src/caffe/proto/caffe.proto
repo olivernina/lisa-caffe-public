@@ -533,8 +533,12 @@ message DataParameter {
   optional int32 max_train_item = 111 [default = 1];  
   optional int32 max_test_item = 112 [default = 1];
 
-
-
+  //These are special options for the LSTM ClipMode.  LSTM_clip=true indicates that
+  //no more than LSTM_clip_length frames will be stored from each video.  sLSTM is th
+  //number of rows in an sT matrix where s is samples and T is time.
+  optional bool LSTM_clip = 113 [default = false]; 
+  optional int32 LSTM_clip_length = 114 [default = 1];
+  optional int32 sLSTM = 115 [default = 1];
 }
 
 // Message that stores parameters used by DiagInnerProductLayer
