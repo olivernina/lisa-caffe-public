@@ -199,6 +199,9 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     char my_key[17];
     int first_frame;
     int current_video;
+    if (this->video_id_ > max_video){
+      this->video_id_ = 0;
+    }
     if (continuing_video){
       first_frame = this->transfer_frame_ids_[iter_index];
       current_video = this->transfer_video_ids_[iter_index];
@@ -211,9 +214,6 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     case DataParameter_DB_LEVELDB:
       CHECK(iter_[iter_index]);
       CHECK(iter_[iter_index]->Valid());
-      if (this->video_id_ > max_video){
-        this->video_id_ = 0;
-      }
       length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
       db_->Get(leveldb::ReadOptions(), my_key, &value);
       datum.ParseFromString(value);
@@ -351,14 +351,9 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       // Apply data transformations (mirror, scale, crop...).  Use predetermined h_off and w_off.  
       // False indicates that we will not recalculate these values.
       CHECK_LT(item_id, batch_size);
-<<<<<<< HEAD
       int offset = this->prefetch_data_.offset(item_id);
       this->transformed_data_.set_cpu_data(top_data + offset);
       this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video);
-=======
-      LOG(ERROR) << "current video is: " << current_video;
-      this->data_transformer_.Transform(item_id, datum, this->mean_, top_data, first_video);
->>>>>>> Code added for ClipMode_LSTM - unit tests do not pass.
       first_video = false;
 
       if (this->output_labels_) {
@@ -380,8 +375,13 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     // go to the next iter
     if (item_id + 1 < this->sLSTM_ * ((item_id / batch_size)+1)) {
       //keep track of which frame we want to start on at iter_index with next batch
-      this->transfer_frame_ids_[iter_index] = frame_id + sub_sample;
-      this->transfer_video_ids_[iter_index] = this->video_id_; 
+      if (frame_id + sub_sample < this->layer_param_.data_param().clip_length()) {
+        this->transfer_frame_ids_[iter_index] = 0;
+        this->transfer_video_ids_[iter_index] = this->video_id_+1; 
+      } else {
+        this->transfer_frame_ids_[iter_index] = frame_id + sub_sample;
+        this->transfer_video_ids_[iter_index] = this->video_id_; 
+      }
       iter_index += 1;
     } else {
       this->transfer_frame_ids_[iter_index] = 0;
@@ -441,14 +441,10 @@ void DataLayer<Dtype>::Reset() {
 
 
    iter_.resize(this->sLSTM_);
-   this->transfer_frame_ids_.resize(this->sLSTM_);
-   this->transfer_video_ids_.resize(this->sLSTM_);
 
     for (int i = 0; i < this->sLSTM_; i++){
       iter_[i].reset(db_->NewIterator(leveldb::ReadOptions()));
       iter_[i]->SeekToFirst();
-      this->transfer_frame_ids_[i] = 0;  //all frames equal zero....
-      this->transfer_video_ids_[i] = 0;  //all frames equal zero....
     }
 
 //OLD CODE:
@@ -476,6 +472,14 @@ void DataLayer<Dtype>::Reset() {
     break;
   default:
     LOG(FATAL) << "Unknown database backend";
+  }
+
+  this->transfer_frame_ids_.resize(this->sLSTM_);
+  this->transfer_video_ids_.resize(this->sLSTM_);
+
+  for (int i = 0; i < this->sLSTM_; i++){
+    this->transfer_frame_ids_[i] = 0;  //all frames equal zero....
+    this->transfer_video_ids_[i] = 0;  //all frames equal zero....
   }
 
   // Check if we need to randomly skip a few data points
