@@ -402,6 +402,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     output_blobs_.push_back(CHECK_NOTNULL(
         lstm_->blob_by_name("o_" + ts).get()));
   }
+  ts = int_to_str(T_);
   h_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_" + ts).get());
   c_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_" + ts).get());
 
@@ -456,17 +457,23 @@ void LSTMLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     lstm_->ShareWeightData();
   }
 
+  const int timestep_dim = buffer_size_ * hidden_dim_;
+  const Dtype* hidden_output_data = h_output_blob_->cpu_data();
+  Dtype* hidden_input_data = h_input_blob_->mutable_cpu_data();
+  caffe_copy(timestep_dim, hidden_output_data, hidden_input_data);
+  const Dtype* cell_output_data = c_output_blob_->cpu_data();
+  Dtype* cell_input_data = c_input_blob_->mutable_cpu_data();
+  caffe_copy(timestep_dim, cell_output_data, cell_input_data);
+
   // Run the LSTM in forward mode.
   lstm_->ForwardPrefilled();
 
   // Copy the LSTM outputs.
-  const int output_timestep_dim = buffer_size_ * hidden_dim_;
   const Dtype* output_data;
   Dtype* top_data = top[0]->mutable_cpu_data();
   for (int t = 0; t < T_; ++t) {
     output_data = output_blobs_[t]->cpu_data();
-    caffe_copy(output_timestep_dim, output_data,
-               top_data + t * output_timestep_dim);
+    caffe_copy(timestep_dim, output_data, top_data + t * timestep_dim);
   }
 }
 

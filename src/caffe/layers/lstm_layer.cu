@@ -18,6 +18,14 @@ void LSTMLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     lstm_->ShareWeightData();
   }
 
+  const int timestep_dim = buffer_size_ * hidden_dim_;
+  const Dtype* hidden_output_data = h_output_blob_->gpu_data();
+  Dtype* hidden_input_data = h_input_blob_->mutable_gpu_data();
+  caffe_copy(timestep_dim, hidden_output_data, hidden_input_data);
+  const Dtype* cell_output_data = c_output_blob_->gpu_data();
+  Dtype* cell_input_data = c_input_blob_->mutable_gpu_data();
+  caffe_copy(timestep_dim, cell_output_data, cell_input_data);
+
   // Run the LSTM in forward mode.
   lstm_->ForwardPrefilled();
 
