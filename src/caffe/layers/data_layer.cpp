@@ -53,13 +53,13 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
     this->sLSTM_ = this->layer_param_.data_param().slstm(); 
-    this->tLSTM_ = this->layer_param_.data_param().batch_size() / this->sLSTM_; 
     CHECK_EQ(0,this->layer_param_.data_param().batch_size() % this->sLSTM_) <<
 	"Batch size must be divisible by sLSTM";
   }
   else {
     this->sLSTM_ = 1;
   }
+  this->tLSTM_ = this->layer_param_.data_param().batch_size() / this->sLSTM_; 
   // Initialize the DB and rand_skip.
   Reset();
 
@@ -379,12 +379,15 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       } 
     } //for (out_frame_id = 0; out_frame_id < output_length) 
     // go to the next iter
-    if (item_id + 1 < this->sLSTM_ * ((item_id / batch_size)+1)) {
+//    if (item_id + 1 < this->sLSTM_ * ((item_id / batch_size)+1)) {
+    if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
+    if (item_id > this->tLSTM_*(iter_index+1) - 1) {
       //keep track of which frame we want to start on at iter_index with next batch
-      if (frame_id + sub_sample < this->layer_param_.data_param().clip_length()) {
+      if (frame_id + sub_sample >= this->layer_param_.data_param().clip_length()*sub_sample) {
         this->transfer_frame_ids_[iter_index] = 0;
         this->transfer_video_ids_[iter_index] = this->video_id_+1; 
       } else {
+        LOG(ERROR) << "In loop.";
         this->transfer_frame_ids_[iter_index] = frame_id + sub_sample;
         this->transfer_video_ids_[iter_index] = this->video_id_; 
       }
@@ -392,7 +395,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     } else {
       this->transfer_frame_ids_[iter_index] = 0;
     }    
-    
+    }  
     switch (this->layer_param_.data_param().backend()) {
     case DataParameter_DB_LEVELDB:
 //      iter_->Next();
