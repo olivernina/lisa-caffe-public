@@ -370,6 +370,7 @@ class LSTMLayer : public Layer<Dtype> {
       const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
+  virtual void Reset();
 
   virtual inline LayerParameter_LayerType type() const {
     return LayerParameter_LayerType_LSTM;

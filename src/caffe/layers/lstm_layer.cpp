@@ -449,6 +449,14 @@ void LSTMLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 }
 
 template <typename Dtype>
+void LSTMLayer<Dtype>::Reset() {
+  Dtype* hidden_input_data = h_input_blob_->mutable_cpu_data();
+  caffe_set(h_input_blob_->count(), Dtype(0), hidden_input_data);
+  Dtype* cell_input_data = c_input_blob_->mutable_cpu_data();
+  caffe_set(c_input_blob_->count(), Dtype(0), cell_input_data);
+}
+
+template <typename Dtype>
 void LSTMLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   // Hacky fix for test time... reshare all the shared blobs.
