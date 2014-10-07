@@ -414,6 +414,8 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   for (int i = 0; i < lstm_->params().size(); ++i) {
     if (lstm_->param_owners()[i] == -1) {
+      LOG(INFO) << "Adding parameter " << this->blobs_.size() << ": "
+                << lstm_->param_display_names()[i];
       this->blobs_.push_back(lstm_->params()[i]);
     }
   }
@@ -438,8 +440,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   x_input_blob_->ShareData(*bottom[0]);
   x_input_blob_->ShareDiff(*bottom[0]);
   flush_input_blob_->ShareData(*bottom[1]);
-  h_output_blob_->ShareData(*h_input_blob_);
-  c_output_blob_->ShareData(*c_input_blob_);
 }
 
 template <typename Dtype>

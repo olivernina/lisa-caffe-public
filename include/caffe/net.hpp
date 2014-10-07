@@ -149,6 +149,7 @@ class Net {
   inline vector<float>& params_lr() { return params_lr_; }
   inline vector<float>& params_weight_decay() { return params_weight_decay_; }
   inline vector<int>& param_owners() { return param_owners_; }
+  inline vector<string>& param_display_names() { return param_display_names_; }
   const map<string, int>& param_names_index() { return param_names_index_; }
   /// @brief Input and output blob numbers
   inline int num_inputs() { return net_input_blobs_.size(); }
