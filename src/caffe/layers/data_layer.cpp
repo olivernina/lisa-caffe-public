@@ -278,7 +278,8 @@ void DataLayer<Dtype>::InternalThreadEntry() {
 //		//1) space left in row of data matrix
 //		//2) number of frames in video
 //        //need to use remaining items IN ROW!
-        remaining_items = (this->tLSTM_ * ((item_id/batch_size)+1)) - item_id;
+        //remaining_items = (this->tLSTM_ * ((item_id/batch_size)+1)) - item_id;
+        remaining_items = this->tLSTM_ - ((item_id + this->tLSTM_) % this->tLSTM_);
         if (this->layer_param_.data_param().lstm_clip() && (num_frames > this->layer_param_.data_param().lstm_clip_length())) {
             if (!continuing_video) {
               input_offset = this->input_offset(num_frames, sub_sample);

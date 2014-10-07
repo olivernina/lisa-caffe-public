@@ -2,6 +2,8 @@
 
 #include <string>
 #include <vector>
+#include <iostream>
+
 
 #include "gtest/gtest.h"
 #include "leveldb/db.h"
@@ -14,6 +16,8 @@
 #include "caffe/vision_layers.hpp"
 
 #include "caffe/test/test_caffe_main.hpp"
+
+
 
 namespace caffe {
 
@@ -483,108 +487,23 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     EXPECT_EQ(this->blob_top_label_->height(), 1);
     EXPECT_EQ(this->blob_top_label_->width(), 1);
 
-//    for (int iter = 0; iter < 100; ++iter) {
-//      layer1.Forward(blob_bottom_vec_, blob_top_vec_);
-//      EXPECT_EQ(0, this->blob_top_label_->cpu_data()[0]);
-//      EXPECT_EQ(1, this->blob_top_label_->cpu_data()[1]);
-//      EXPECT_EQ(0, this->blob_top_label_->cpu_data()[2]);
-//      EXPECT_EQ(1, this->blob_top_label_->cpu_data()[3]);
-//      EXPECT_EQ(0, this->blob_top_label_->cpu_data()[4]);
-//      EXPECT_EQ(1, this->blob_top_label_->cpu_data()[5]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_BEGIN,
-//                this->blob_top_clip_markers_->cpu_data()[0]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_BEGIN,
-//                this->blob_top_clip_markers_->cpu_data()[1]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[2]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[3]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[4]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[5]);
-//      for (int i = 0; i < 6; ++i) {
-//        for (int j = 0; j < 24; ++j) {
-//          const Dtype expected = 10 * sub_sample * (i / 2) + i % 2;
-//          EXPECT_EQ(expected,
-//                    this->blob_top_data_->cpu_data()[i * 24 + j])
-//              << " i = " << i << "; j = " << j;
-//        }
-//      }
-//
-//      layer1.Forward(blob_bottom_vec_, blob_top_vec_);
-//      EXPECT_EQ(2, this->blob_top_label_->cpu_data()[0]);
-//      EXPECT_EQ(3, this->blob_top_label_->cpu_data()[1]);
-//      EXPECT_EQ(2, this->blob_top_label_->cpu_data()[2]);
-//      EXPECT_EQ(3, this->blob_top_label_->cpu_data()[3]);
-//      EXPECT_EQ(2, this->blob_top_label_->cpu_data()[4]);
-//      EXPECT_EQ(3, this->blob_top_label_->cpu_data()[5]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_BEGIN,
-//                this->blob_top_clip_markers_->cpu_data()[0]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_BEGIN,
-//                this->blob_top_clip_markers_->cpu_data()[1]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[2]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[3]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[4]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[5]);
-//      for (int i = 0; i < 6; ++i) {
-//        for (int j = 0; j < 24; ++j) {
-//          const Dtype expected = 10 * sub_sample * (i / 2) + i % 2 + 2;
-//          EXPECT_EQ(expected,
-//                    this->blob_top_data_->cpu_data()[i * 24 + j])
-//              << " i = " << i << "; j = " << j;
-//        }
-//      }
-//
-//      layer1.Forward(blob_bottom_vec_, blob_top_vec_);
-//      EXPECT_EQ(4, this->blob_top_label_->cpu_data()[0]);
-//      EXPECT_EQ(5, this->blob_top_label_->cpu_data()[1]);
-//      EXPECT_EQ(4, this->blob_top_label_->cpu_data()[2]);
-//      EXPECT_EQ(5, this->blob_top_label_->cpu_data()[3]);
-//      EXPECT_EQ(4, this->blob_top_label_->cpu_data()[4]);
-//      EXPECT_EQ(5, this->blob_top_label_->cpu_data()[5]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_BEGIN,
-//                this->blob_top_clip_markers_->cpu_data()[0]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_BEGIN,
-//                this->blob_top_clip_markers_->cpu_data()[1]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[2]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[3]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[4]);
-//      EXPECT_EQ(DataLayer<Dtype>::CLIP_CONTINUE,
-//                this->blob_top_clip_markers_->cpu_data()[5]);
-//    for (int i = 0; i < 6; ++i) {
-//      for (int j = 0; j < 24; ++j) {
-//        const Dtype expected = 10 * sub_sample * (i / 2) + i % 2 + 4;
-//          EXPECT_EQ(expected,
-//                    this->blob_top_data_->cpu_data()[i * 24 + j])
-//              << " i = " << i << "; j = " << j;
-//        }
-//      }
-//    }
-
 /////////////////////////////////
     int tlstm = batch_size/slstm;
     int clip_index = 0;
-    int num_clips = 6;
+    int num_clips = batch_size;
     int output_length = clip_length * sub_sample;
-    for (int iter = 0; iter < 3; ++iter) {
+    for (int iter = 0; iter < 100; ++iter) {
       layer1.Forward(blob_bottom_vec_, blob_top_vec_);
       const int clip_start_index = clip_index;
       int i = 0;
       int offset = ((iter*batch_size / clip_length)+num_clips) % num_clips;
+      int clips_per_row = tlstm/clip_length;
       for (int t = 0; t < tlstm; t++) { //count along rows of the data matrix
         for (int s = 0; s < slstm; s++) { //count along columns of the data matrix
-          Dtype expected_label = offset + s + (t / (output_length));
+          Dtype expected_label = offset + s*clips_per_row + (t / (clip_length));
           EXPECT_EQ(expected_label, this->blob_top_label_->cpu_data()[i])
               << "debug: iter " << iter << " i " << i;
-          Dtype expected_value = scale * (offset + t/clip_length + (t % clip_length) * 10);
+          Dtype expected_value = scale * (offset + t/clip_length + s*clips_per_row + ((t * sub_sample) % clip_length) * 10);
           for (int j = 0; j < 24; ++j) {
             EXPECT_EQ(expected_value, this->blob_top_data_->cpu_data()[i*24+j]) 
               << "debug: iter " << iter << " i " << i;
@@ -1076,6 +995,14 @@ TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsLSTMClip2) {
   const int clip_length = 3;
   const int batch_size = 12;
   const int slstm = 2;
+  this->FillLevelDB(unique_pixels, clip_length, batch_size);
+  this->TestReadFixedLengthClipsLSTMClip(clip_length, batch_size,slstm);
+}
+TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsLSTMClip3) {
+  const bool unique_pixels = false;  // all pixels the same; images different
+  const int clip_length = 1;
+  const int batch_size = 6;
+  const int slstm = 6;
   this->FillLevelDB(unique_pixels, clip_length, batch_size);
   this->TestReadFixedLengthClipsLSTMClip(clip_length, batch_size,slstm);
 }
