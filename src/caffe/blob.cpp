@@ -221,6 +221,78 @@ Dtype Blob<Dtype>::asum_diff() const {
   return 0;
 }
 
+template <> unsigned int Blob<unsigned int>::sumsq_data() const {
+  NOT_IMPLEMENTED;
+  return 0;
+}
+
+template <> int Blob<int>::sumsq_data() const {
+  NOT_IMPLEMENTED;
+  return 0;
+}
+
+template <typename Dtype>
+Dtype Blob<Dtype>::sumsq_data() const {
+  Dtype sumsq;
+  const Dtype* data;
+  if (!data_) { return 0; }
+  switch (data_->head()) {
+  case SyncedMemory::HEAD_AT_CPU:
+    data = cpu_data();
+    return caffe_cpu_dot(count_, data, data);
+  case SyncedMemory::HEAD_AT_GPU:
+  case SyncedMemory::SYNCED:
+#ifndef CPU_ONLY
+    data = gpu_data();
+    caffe_gpu_dot(count_, data, data, &sumsq);
+    return sumsq;
+#else
+    NO_GPU;
+#endif
+  case SyncedMemory::UNINITIALIZED:
+    return 0;
+  default:
+    LOG(FATAL) << "Unknown SyncedMemory head state: " << data_->head();
+  }
+  return 0;
+}
+
+template <> unsigned int Blob<unsigned int>::sumsq_diff() const {
+  NOT_IMPLEMENTED;
+  return 0;
+}
+
+template <> int Blob<int>::sumsq_diff() const {
+  NOT_IMPLEMENTED;
+  return 0;
+}
+
+template <typename Dtype>
+Dtype Blob<Dtype>::sumsq_diff() const {
+  Dtype sumsq;
+  const Dtype* diff;
+  if (!diff_) { return 0; }
+  switch (diff_->head()) {
+  case SyncedMemory::HEAD_AT_CPU:
+    diff = cpu_diff();
+    return caffe_cpu_dot(count_, diff, diff);
+  case SyncedMemory::HEAD_AT_GPU:
+  case SyncedMemory::SYNCED:
+#ifndef CPU_ONLY
+    diff = gpu_diff();
+    caffe_gpu_dot(count_, diff, diff, &sumsq);
+    return sumsq;
+#else
+    NO_GPU;
+#endif
+  case SyncedMemory::UNINITIALIZED:
+    return 0;
+  default:
+    LOG(FATAL) << "Unknown SyncedMemory head state: " << data_->head();
+  }
+  return 0;
+}
+
 template <typename Dtype>
 void Blob<Dtype>::CopyFrom(const Blob& source, bool copy_diff, bool reshape) {
   if (num_ != source.num() || channels_ != source.channels() ||
