@@ -57,6 +57,7 @@ class BaseDataLayer : public Layer<Dtype> {
   vector<int> transfer_video_ids_;
   //sLSTM needs a more descriptive name.  used in lstms, number of samples processed at a time to determine the gradient
   int sLSTM_;
+  int tLSTM_;
   bool output_clip_markers_;
   DataParameter_ClipMode clip_mode_;
   int clip_length_;

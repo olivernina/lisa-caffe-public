@@ -534,7 +534,7 @@ message DataParameter {
   optional int32 max_test_item = 112 [default = 1];
 
   //These are special options for the LSTM ClipMode.  LSTM_clip=true indicates that
-  //no more than LSTM_clip_length frames will be stored from each video.  sLSTM is th
+  //no more than LSTM_clip_length frames will be stored from each video.  sLSTM is the
   //number of rows in an sT matrix where s is samples and T is time.
   optional bool LSTM_clip = 113 [default = false]; 
   optional int32 LSTM_clip_length = 114 [default = 1];

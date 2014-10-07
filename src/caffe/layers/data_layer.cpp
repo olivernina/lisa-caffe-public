@@ -53,6 +53,9 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
     this->sLSTM_ = this->layer_param_.data_param().slstm(); 
+    this->tLSTM_ = this->layer_param_.data_param().batch_size() / this->sLSTM_; 
+    CHECK_EQ(0,this->layer_param_.data_param().batch_size() % this->sLSTM_) <<
+	"Batch size must be divisible by sLSTM";
   }
   else {
     this->sLSTM_ = 1;
@@ -93,7 +96,7 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   //video
   int clip_length_ = this->layer_param_.data_param().clip_length();
-  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH || this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
+  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH) {
     CHECK_EQ(0, this->layer_param_.data_param().batch_size() % clip_length_)
         << "If using fixed length clips, the batch size must be an exact "
         << "multiple of the clip length to avoid adding unnecessary padding. "
@@ -104,8 +107,11 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   if (this->layer_param_.data_param().clip_order() == DataParameter_ClipOrder_FRAME_MAJOR) {
     top[0]->set_frame_major_clip_length(clip_length_);
-    CHECK_EQ(this->layer_param_.data_param().clip_mode(), DataParameter_ClipMode_FIXED_LENGTH)
-        << "FRAME_MAJOR clip_order requires FIXED_LENGTH clip_mode.";
+    bool check_frame_major = (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) ||
+          (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH);
+    CHECK(check_frame_major) << "FRAME_MAJOR clip_order requires FIXED_LENGTH of LSTM clip_mode";
+//    CHECK_EQ(this->layer_param_.data_param().clip_mode(), DataParameter_ClipMode_FIXED_LENGTH)
+//        << "FRAME_MAJOR clip_order requires FIXED_LENGTH clip_mode.";
   } else {
     top[0]->set_frame_major_clip_length(0);
   }
@@ -272,7 +278,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
 //		//1) space left in row of data matrix
 //		//2) number of frames in video
 //        //need to use remaining items IN ROW!
-        remaining_items = (this->sLSTM_ * ((item_id/batch_size)+1)) - item_id;
+        remaining_items = (this->tLSTM_ * ((item_id/batch_size)+1)) - item_id;
         if (this->layer_param_.data_param().lstm_clip() && (num_frames > this->layer_param_.data_param().lstm_clip_length())) {
             if (!continuing_video) {
               input_offset = this->input_offset(num_frames, sub_sample);

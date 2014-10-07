@@ -79,6 +79,10 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     prefetch_clip_markers = prefetch_clip_markers_.cpu_data();
     top_clip_markers = top[2]->mutable_cpu_data();
   }
+  
+  int length_row;
+  int num_rows;
+  int clip_length;
 
   switch(this->layer_param_.data_param().clip_order()) {
   case DataParameter_ClipOrder_CLIP_MAJOR:
@@ -101,12 +105,21 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     num_clips = prefetch_data_.num() / this->layer_param_.data_param().clip_length();
 //    caffe_copy(prefetch_data_.count(), prefetch_data_.cpu_data(),
 //               top[0]->mutable_cpu_data());
-    for (int frame_id = 0; frame_id < this->layer_param_.data_param().clip_length(); ++frame_id) {
-      for (int clip_id = 0; clip_id < num_clips; ++clip_id) {
+    if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
+      length_row = this->tLSTM_;
+      num_rows = this->sLSTM_;
+      clip_length = this->layer_param_.data_param().lstm_clip_length();
+    } else {
+      length_row = this->layer_param_.data_param().clip_length();
+      num_rows = num_clips;
+      clip_length = this->layer_param_.data_param().clip_length();
+    }
+    for (int frame_id = 0; frame_id < length_row; ++frame_id) {
+      for (int clip_id = 0; clip_id < num_rows; ++clip_id) {
         // prefetch_id: the usual clip-major index.
-        const int prefetch_id = clip_id * this->layer_param_.data_param().clip_length() + frame_id;
+        const int prefetch_id = clip_id * length_row + frame_id;
         // top_id: the frame-major index.
-        const int top_id = frame_id * num_clips + clip_id;
+        const int top_id = frame_id * num_rows + clip_id;
         caffe_copy(dim, &prefetch_data[prefetch_id * dim],
                    &top_data[top_id * dim]);
         if (this->output_labels_) {
