@@ -143,17 +143,20 @@ TYPED_TEST(LSTMLayerTest, TestGradient) {
 }
 
 TYPED_TEST(LSTMLayerTest, TestGradientNonZeroFlush) {
+  Caffe::set_phase(Caffe::TEST);
   typedef typename TypeParam::Dtype Dtype;
   LSTMLayer<Dtype> layer(this->layer_param_);
   GradientChecker<Dtype> checker(1e-2, 1e-3);
-  for (int i = 0; i < this->blob_bottom_flush_.num(); ++i) {
-    this->blob_bottom_flush_.mutable_cpu_data()[i] = 1;
+  for (int i = 0; i < this->blob_bottom_flush_.count(); ++i) {
+    this->blob_bottom_flush_.mutable_cpu_data()[i] =
+        i >= this->layer_param_.lstm_param().buffer_size();
   }
   checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
       this->blob_top_vec_, 0);
 }
 
 TYPED_TEST(LSTMLayerTest, TestGradientNonZeroFlushBufferSize2) {
+  Caffe::set_phase(Caffe::TEST);
   typedef typename TypeParam::Dtype Dtype;
   this->layer_param_.mutable_lstm_param()->set_buffer_size(2);
   this->blob_bottom_.Reshape(4, 4, 3, 2);
@@ -165,7 +168,8 @@ TYPED_TEST(LSTMLayerTest, TestGradientNonZeroFlushBufferSize2) {
   LSTMLayer<Dtype> layer(this->layer_param_);
   GradientChecker<Dtype> checker(1e-2, 1e-3);
   for (int i = 0; i < this->blob_bottom_flush_.count(); ++i) {
-    this->blob_bottom_flush_.mutable_cpu_data()[i] = 1;
+    this->blob_bottom_flush_.mutable_cpu_data()[i] =
+        i >= this->layer_param_.lstm_param().buffer_size();
   }
   checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
       this->blob_top_vec_, 0);
