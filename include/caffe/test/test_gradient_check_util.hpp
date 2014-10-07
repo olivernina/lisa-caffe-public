@@ -101,6 +101,7 @@ void GradientChecker<Dtype>::CheckGradientSingle(Layer<Dtype>* layer,
   Caffe::set_random_seed(seed_);
   // Ignore the loss from the layer (it's just the weighted sum of the losses
   // from the top blobs, whose gradients we may want to test individually).
+  layer->Reset();
   layer->Forward(bottom, top);
   // Get additional loss from the objective
   GetObjAndGradient(*layer, top, top_id, top_data_id);
@@ -148,12 +149,14 @@ void GradientChecker<Dtype>::CheckGradientSingle(Layer<Dtype>* layer,
         // Compute loss with stepsize_ added to input.
         current_blob->mutable_cpu_data()[feat_id] += stepsize_;
         Caffe::set_random_seed(seed_);
+        layer->Reset();
         layer->Forward(bottom, top);
         positive_objective =
             GetObjAndGradient(*layer, top, top_id, top_data_id);
         // Compute loss with stepsize_ subtracted from input.
         current_blob->mutable_cpu_data()[feat_id] -= stepsize_ * 2;
         Caffe::set_random_seed(seed_);
+        layer->Reset();
         layer->Forward(bottom, top);
         negative_objective =
             GetObjAndGradient(*layer, top, top_id, top_data_id);
