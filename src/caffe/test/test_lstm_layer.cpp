@@ -132,6 +132,40 @@ TYPED_TEST(LSTMLayerTest, TestForward) {
          << "t = " << t << "; i = " << i;
     }
   }
+
+  // Process the batch one timestep at a time with all flush blobs set to 0.
+  // Check that we get a different result, except in the first timestep.
+  Caffe::set_random_seed(1701);
+  layer.reset(new LSTMLayer<Dtype>(this->layer_param_));
+  layer->SetUp(this->blob_bottom_vec_, this->blob_top_vec_);
+  for (int t = 0; t < kNumTimesteps; ++t) {
+    caffe_copy(bottom_count,
+               input_sequence.cpu_data() + t * bottom_count,
+               this->blob_bottom_.mutable_cpu_data());
+    for (int n = 0; n < num; ++n) {
+      this->blob_bottom_flush_.mutable_cpu_data()[n] = 0;
+    }
+    LOG(INFO) << "Calling forward for LSTM timestep " << t;
+    layer->Forward(this->blob_bottom_vec_, this->blob_top_vec_);
+    for (int i = 0; i < bottom_count; ++i) {
+      ASSERT_LT(t * bottom_count + i, input_sequence.count());
+      EXPECT_EQ(this->blob_bottom_.cpu_data()[i],
+                input_sequence.cpu_data()[t * bottom_count + i])
+         << "t = " << t << "; i = " << i;
+    }
+    for (int i = 0; i < top_count; ++i) {
+      ASSERT_LT(t * top_count + i, output_sequence.count());
+      if (t == 0) {
+        EXPECT_FLOAT_EQ(this->blob_top_.cpu_data()[i],
+                        output_sequence.cpu_data()[t * top_count + i])
+           << "t = " << t << "; i = " << i;
+      } else {
+        EXPECT_NE(this->blob_top_.cpu_data()[i],
+                  output_sequence.cpu_data()[t * top_count + i])
+           << "t = " << t << "; i = " << i;
+      }
+    }
+  }
 }
 
 TYPED_TEST(LSTMLayerTest, TestGradient) {
