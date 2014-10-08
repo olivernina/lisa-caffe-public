@@ -78,19 +78,21 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   int height = datum_height;
   int width = datum_width;
 
-  int h_off = 0;
-  int w_off = 0;
-  if (crop_size && calc_off) {
+  if (calc_off) {
+  h_off_ = 0;
+  w_off_ = 0;
+  if (crop_size) {
     height = crop_size;
     width = crop_size;
     // We only do random crop when we do training.
     if (phase_ == Caffe::TRAIN) {
-      h_off = Rand(datum_height - crop_size + 1);
-      w_off = Rand(datum_width - crop_size + 1);
+      h_off_ = Rand(datum_height - crop_size + 1);
+      w_off_ = Rand(datum_width - crop_size + 1);
     } else {
-      h_off = (datum_height - crop_size) / 2;
-      w_off = (datum_width - crop_size) / 2;
+      h_off_ = (datum_height - crop_size) / 2;
+      w_off_ = (datum_width - crop_size) / 2;
     }
+  }
   }
 
   Dtype datum_element;
@@ -98,7 +100,7 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   for (int c = 0; c < datum_channels; ++c) {
     for (int h = 0; h < height; ++h) {
       for (int w = 0; w < width; ++w) {
-        data_index = (c * datum_height + h_off + h) * datum_width + w_off + w;
+        data_index = (c * datum_height + h_off_ + h) * datum_width + w_off_ + w;
         if (do_mirror_) {
           top_index = (c * height + h) * width + (width - 1 - w);
         } else {
@@ -214,22 +216,24 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
   const bool has_mean_file = param_.has_mean_file();
   const bool has_mean_values = mean_values_.size() > 0;
 
-  int h_off = 0;
-  int w_off = 0;
-  if (crop_size && calc_off) {
+  if (calc_off) {
+  h_off_ = 0;
+  w_off_ = 0;
+  if (crop_size) {
     CHECK_EQ(crop_size, height);
     CHECK_EQ(crop_size, width);
     // We only do random crop when we do training.
     if (phase_ == Caffe::TRAIN) {
-      h_off = Rand(input_height - crop_size + 1);
-      w_off = Rand(input_width - crop_size + 1);
+      h_off_ = Rand(input_height - crop_size + 1);
+      w_off_ = Rand(input_width - crop_size + 1);
     } else {
-      h_off = (input_height - crop_size) / 2;
-      w_off = (input_width - crop_size) / 2;
+      h_off_ = (input_height - crop_size) / 2;
+      w_off_ = (input_width - crop_size) / 2;
     }
   } else {
     CHECK_EQ(input_height, height);
     CHECK_EQ(input_width, width);
+  }
   }
 
   Dtype* input_data = input_blob->mutable_cpu_data();
@@ -267,10 +271,10 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
     int data_index_n = n * channels;
     for (int c = 0; c < channels; ++c) {
       int top_index_c = (top_index_n + c) * height;
-      int data_index_c = (data_index_n + c) * input_height + h_off;
+      int data_index_c = (data_index_n + c) * input_height + h_off_;
       for (int h = 0; h < height; ++h) {
         int top_index_h = (top_index_c + h) * width;
-        int data_index_h = (data_index_c + h) * input_width + w_off;
+        int data_index_h = (data_index_c + h) * input_width + w_off_;
         if (do_mirror_) {
           int top_index_w = top_index_h + width - 1;
           for (int w = 0; w < width; ++w) {
