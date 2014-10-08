@@ -1,7 +1,7 @@
 net: "ptb_lstm_net.prototxt"
-test_iter: 50
+test_iter: 100
 test_state: { stage: 'test-on-train' }
-test_iter: 50
+test_iter: 100
 test_state: { stage: 'test-on-test' }
 test_interval: 1000
 test_net_reset: true
