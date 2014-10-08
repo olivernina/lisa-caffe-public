@@ -122,7 +122,6 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   if (this->output_labels_) {
     if (this->layer_param_.data_param().clip_collapse_labels()) {  //this->clip_collapse_labels_
       bool tmp = (DataParameter_ClipMode_FIXED_LENGTH | DataParameter_ClipMode_LSTM);
-      LOG(ERROR) << this->layer_param_.data_param().clip_mode() << "tmp is: " << tmp;
       CHECK_GT(tmp,0)
           << "clip_collapse_labels requires fixed_length clip_mode.";
       const int collapsed_label_num = this->layer_param_.data_param().batch_size() / clip_length_;
@@ -139,11 +138,6 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     this->prefetch_clip_markers_.Reshape(
         this->layer_param_.data_param().batch_size(), 1, 1, 1);
   }
-  // datum size
-  this->datum_channels_ = datum.channels();
-  this->datum_height_ = datum.height();
-  this->datum_width_ = datum.width();
-  this->datum_size_ = datum.channels() * datum.height() * datum.width();
 
   if (this->output_clip_markers_) {
     const int count = this->prefetch_clip_markers_.count();
@@ -244,8 +238,9 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     int input_offset = 0;
     int output_offset = 0;
     Dtype* offset_data;
+
     const int out_frame_size =
-        this->datum_channels_ * (this->layer_param_.transform_param().crop_size() ? pow(this->layer_param_.transform_param().crop_size(), 2) : (this->datum_height_ * this->datum_width_));
+        datum.channels()* (this->layer_param_.transform_param().crop_size() ? pow(this->layer_param_.transform_param().crop_size(), 2) : (datum.height() * datum.width()));
 
     int remaining_items;
  
