@@ -46,7 +46,9 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
 
   const int crop_size = param_.crop_size();
   const Dtype scale = param_.scale();
-  const bool do_mirror = param_.mirror() && Rand(2);
+  if (calc_off) {
+    do_mirror_ = param_.mirror() && Rand(2);
+  }
   const bool has_mean_file = param_.has_mean_file();
   const bool has_uint8 = data.size() > 0;
   const bool has_mean_values = mean_values_.size() > 0;
@@ -97,7 +99,7 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
     for (int h = 0; h < height; ++h) {
       for (int w = 0; w < width; ++w) {
         data_index = (c * datum_height + h_off + h) * datum_width + w_off + w;
-        if (do_mirror) {
+        if (do_mirror_) {
           top_index = (c * height + h) * width + (width - 1 - w);
         } else {
           top_index = (c * height + h) * width + w;
@@ -206,7 +208,9 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
 
   const int crop_size = param_.crop_size();
   const Dtype scale = param_.scale();
-  const bool do_mirror = param_.mirror() && Rand(2);
+  if (calc_off) {
+    do_mirror_ = param_.mirror() && Rand(2);
+  }
   const bool has_mean_file = param_.has_mean_file();
   const bool has_mean_values = mean_values_.size() > 0;
 
@@ -267,7 +271,7 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
       for (int h = 0; h < height; ++h) {
         int top_index_h = (top_index_c + h) * width;
         int data_index_h = (data_index_c + h) * input_width + w_off;
-        if (do_mirror) {
+        if (do_mirror_) {
           int top_index_w = top_index_h + width - 1;
           for (int w = 0; w < width; ++w) {
             transformed_data[top_index_w-w] = input_data[data_index_h + w];
