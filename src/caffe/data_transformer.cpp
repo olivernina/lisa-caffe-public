@@ -82,8 +82,6 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   h_off_ = 0;
   w_off_ = 0;
   if (crop_size) {
-    height = crop_size;
-    width = crop_size;
     // We only do random crop when we do training.
     if (phase_ == Caffe::TRAIN) {
       h_off_ = Rand(datum_height - crop_size + 1);
@@ -94,6 +92,15 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
     }
   }
   }
+
+  if (crop_size) {
+    height = crop_size;
+    width = crop_size;
+  }
+
+  CHECK_LE(h_off_, datum_height);
+  CHECK_LE(w_off_, datum_width);
+
 
   Dtype datum_element;
   int top_index, data_index;
@@ -235,6 +242,8 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
     CHECK_EQ(input_width, width);
   }
   }
+  CHECK_LE(h_off_, input_height);
+  CHECK_LE(w_off_, input_width);
 
   Dtype* input_data = input_blob->mutable_cpu_data();
   if (has_mean_file) {
