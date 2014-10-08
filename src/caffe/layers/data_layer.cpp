@@ -121,7 +121,9 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   // label
   if (this->output_labels_) {
     if (this->layer_param_.data_param().clip_collapse_labels()) {  //this->clip_collapse_labels_
-      CHECK_EQ(this->layer_param_.data_param().clip_mode(), DataParameter_ClipMode_FIXED_LENGTH)
+      bool tmp = (DataParameter_ClipMode_FIXED_LENGTH | DataParameter_ClipMode_LSTM);
+      LOG(ERROR) << this->layer_param_.data_param().clip_mode() << "tmp is: " << tmp;
+      CHECK_GT(tmp,0)
           << "clip_collapse_labels requires fixed_length clip_mode.";
       const int collapsed_label_num = this->layer_param_.data_param().batch_size() / clip_length_;
       top[1]->Reshape(collapsed_label_num, 1, 1, 1);
@@ -583,6 +585,8 @@ int DataLayer<Dtype>::output_offset(const int num_frames,
 
 template <typename Dtype>
 unsigned int DataLayer<Dtype>::PrefetchRand() {
+  const unsigned int prefetch_rng_seed = caffe_rng_rand();
+  prefetch_rng_.reset(new Caffe::RNG(prefetch_rng_seed));
   CHECK(prefetch_rng_);
   caffe::rng_t* prefetch_rng =
       static_cast<caffe::rng_t*>(prefetch_rng_->generator());
