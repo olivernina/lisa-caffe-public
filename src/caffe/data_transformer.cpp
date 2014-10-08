@@ -78,11 +78,11 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
 
   int h_off = 0;
   int w_off = 0;
-  if (crop_size) {
+  if (crop_size && calc_off) {
     height = crop_size;
     width = crop_size;
     // We only do random crop when we do training.
-    if (phase_ == Caffe::TRAIN && calc_off) {
+    if (phase_ == Caffe::TRAIN) {
       h_off = Rand(datum_height - crop_size + 1);
       w_off = Rand(datum_width - crop_size + 1);
     } else {
@@ -212,7 +212,7 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
 
   int h_off = 0;
   int w_off = 0;
-  if (crop_size) {
+  if (crop_size && calc_off) {
     CHECK_EQ(crop_size, height);
     CHECK_EQ(crop_size, width);
     // We only do random crop when we do training.
