@@ -5,19 +5,20 @@ test_iter: 50
 test_state: { stage: 'test-on-test' }
 test_interval: 1000
 test_net_reset: true
-base_lr: 0.1
+base_lr: 1.0
 lr_policy: "step"
 gamma: 0.5
 stepsize: 20000
 display: 1
-max_iter: 110000
-momentum: 0.9
+max_iter: 90000
+momentum: 0.0
 # weight_decay: 0.0005
 weight_decay: 0.0000
-snapshot: 1000
-snapshot_prefix: "snapshots/ptb_lstm"
+snapshot: 10000
+snapshot_prefix: "snapshots/ptb_lstm_bugfixed_oriol_params_lr1"
 solver_mode: GPU
-device_id: 6
+device_id: 0
 # debug_info: true
 random_seed: 1701
 average_loss: 100
+clip_gradients: 25

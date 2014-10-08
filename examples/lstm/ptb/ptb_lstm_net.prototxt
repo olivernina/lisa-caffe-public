@@ -8,8 +8,8 @@ layers {
   top: "targets"
   top: "cont"
   hdf5_data_param {
-    source: "./ptb_hdf5/train_batches/hdf5_chunk_list.txt"
-    batch_size: 4000
+    source: "./ptb_hdf5_buffer_20/train_batches/hdf5_chunk_list.txt"
+    batch_size: 400
   }
   include: { phase: TRAIN }
 }
@@ -20,8 +20,8 @@ layers {
   top: "targets"
   top: "cont"
   hdf5_data_param {
-    source: "./ptb_hdf5/valid_batches/hdf5_chunk_list.txt"
-    batch_size: 1000
+    source: "./ptb_hdf5_buffer_20/valid_batches/hdf5_chunk_list.txt"
+    batch_size: 400
   }
   include: { phase: TEST stage: "test-on-test" }
 }
@@ -32,8 +32,8 @@ layers {
   top: "targets"
   top: "cont"
   hdf5_data_param {
-    source: "./ptb_hdf5/train_batches/hdf5_chunk_list.txt"
-    batch_size: 1000
+    source: "./ptb_hdf5_buffer_20/train_batches/hdf5_chunk_list.txt"
+    batch_size: 400
   }
   include: { phase: TEST stage: "test-on-train" }
 }
@@ -50,18 +50,47 @@ layers {
 }
 
 layers {
+  name: "embed"
+  type: INNER_PRODUCT
+  bottom: "one_hot_data"
+  top: "embed"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 200
+    weight_filler {
+      type: "uniform"
+      min: -1.0
+      max: 1.0
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+# layers {
+#   name: "embed_neuron"
+#   type: SIGMOID
+#   bottom: "embed"
+#   top: "embed"
+# }
+
+layers {
   name: "lstm1"
   type: LSTM
-  bottom: "one_hot_data"
+  bottom: "embed"
   bottom: "cont"
   top: "lstm1"
   lstm_param {
     hidden_dim: 300
-    buffer_size: 200
+    buffer_size: 20
     weight_filler {
       type: "uniform"
-      min: -0.08
-      max: 0.08
+      min: -1.0
+      max: 1.0
     }
     bias_filler {
       type: "constant"
@@ -141,8 +170,9 @@ layers {
   inner_product_param {
     num_output: 10000
     weight_filler {
-      type: "constant"
-      value: 0
+      type: "uniform"
+      min: -1.0
+      max: 1.0
     }
     bias_filler {
       type: "constant"
