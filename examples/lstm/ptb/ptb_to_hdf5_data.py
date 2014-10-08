@@ -82,8 +82,9 @@ class PTBSequenceGenerator(SequenceGenerator):
     return out
 
 if __name__ == "__main__":
+  BUFFER_SIZE = 20
   DATASET_PATH_PATTERN = './ptb_data/ptb.%s.txt'
-  OUTPUT_DIR = './ptb_hdf5'
+  OUTPUT_DIR = './ptb_hdf5_buffer_%d' % BUFFER_SIZE
   VOCAB_PATH = '%s/ptb_vocabulary.txt' % OUTPUT_DIR
   OUTPUT_DIR_PATTERN = '%s/%%s_batches' % OUTPUT_DIR
   DATASET_NAMES = ('train', 'valid', 'test')
@@ -93,7 +94,7 @@ if __name__ == "__main__":
     output_path = OUTPUT_DIR_PATTERN % dataset
     assert os.path.exists(dataset_path)
     sg = PTBSequenceGenerator(dataset_path, vocabulary=vocabulary)
-    sg.batch_num_streams = 200
+    sg.batch_num_streams = BUFFER_SIZE
     writer = HDF5SequenceWriter(sg, output_dir=output_path)
     writer.write_to_exhaustion()
     writer.write_filelists()
