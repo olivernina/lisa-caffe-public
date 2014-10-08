@@ -103,6 +103,7 @@ class DataTransformer {
   vector<Dtype> mean_values_;
   int h_off_;
   int w_off_;
+  int do_mirror_;
 };
 
 }  // namespace caffe
