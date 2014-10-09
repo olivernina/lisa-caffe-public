@@ -591,6 +591,10 @@ message InnerProductParameter {
   optional bool bias_term = 2 [default = true]; // whether to have bias terms
   optional FillerParameter weight_filler = 3; // The filler for the weight
   optional FillerParameter bias_filler = 4; // The filler for the bias
+
+  // If >0, assume the input is given as integers to be interpreted as one-hot
+  // vector indices with dimension index_input_dim.
+  optional uint32 index_input_dim = 5 [default = 0];
 }
 
 // Message that stores parameters used by LRNLayer

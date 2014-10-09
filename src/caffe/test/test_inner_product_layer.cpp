@@ -110,4 +110,33 @@ TYPED_TEST(InnerProductLayerTest, TestGradient) {
   }
 }
 
+TYPED_TEST(InnerProductLayerTest, TestIndexedGradient) {
+  typedef typename TypeParam::Dtype Dtype;
+  bool IS_VALID_CUDA = false;
+#ifndef CPU_ONLY
+  IS_VALID_CUDA = CAFFE_TEST_CUDA_PROP.major >= 2;
+#endif
+  if (Caffe::mode() == Caffe::CPU ||
+      sizeof(Dtype) == 4 || IS_VALID_CUDA) {
+    LayerParameter layer_param;
+    InnerProductParameter* inner_product_param =
+        layer_param.mutable_inner_product_param();
+    inner_product_param->set_num_output(10);
+    inner_product_param->mutable_weight_filler()->set_type("gaussian");
+    inner_product_param->mutable_bias_filler()->set_type("gaussian");
+    inner_product_param->mutable_bias_filler()->set_min(1);
+    inner_product_param->mutable_bias_filler()->set_max(2);
+    inner_product_param->set_index_input_dim(10);
+    InnerProductLayer<Dtype> layer(layer_param);
+    GradientChecker<Dtype> checker(1e-2, 1e-3);
+    this->blob_bottom_->Reshape(2, 1, 1, 1);
+    this->blob_bottom_->mutable_cpu_data()[0] = 4;
+    this->blob_bottom_->mutable_cpu_data()[1] = 7;
+    checker.CheckGradientExhaustive(&layer, this->blob_bottom_vec_,
+        this->blob_top_vec_, -2);
+  } else {
+    LOG(ERROR) << "Skipping test due to old architecture.";
+  }
+}
+
 }  // namespace caffe
