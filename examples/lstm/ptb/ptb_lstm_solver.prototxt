@@ -10,12 +10,12 @@ lr_policy: "step"
 gamma: 0.5
 stepsize: 20000
 display: 1
-max_iter: 90000
+max_iter: 130000
 momentum: 0.0
 # weight_decay: 0.0005
 weight_decay: 0.0000
 snapshot: 10000
-snapshot_prefix: "snapshots/ptb_lstm_bugfixed_oriol_params_lr1"
+snapshot_prefix: "snapshots/ptb_lstm_oriol_revisedparams"
 solver_mode: GPU
 device_id: 0
 # debug_info: true
