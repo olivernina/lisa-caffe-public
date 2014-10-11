@@ -48,7 +48,7 @@ void LSTMLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   const Dtype* top_diff = top[0]->gpu_diff();
   Dtype* output_diff;
   for (int t = 0; t < T_; ++t) {
-    CHECK_EQ(output_timestep_dim, output_blobs_[t]->count());
+    DCHECK_EQ(output_timestep_dim, output_blobs_[t]->count());
     output_diff = output_blobs_[t]->mutable_gpu_diff();
     caffe_copy(output_timestep_dim, top_diff + t * output_timestep_dim,
                output_diff);
