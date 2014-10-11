@@ -9,8 +9,8 @@ layers {
   top: "targets"
   top: "cont"
   hdf5_data_param {
-    source: "./ptb_memorize_hdf5/train_batches/hdf5_chunk_list.txt"
-    batch_size: 4000
+    source: "./ptb_memorize_hdf5_buffer_20/train_batches/hdf5_chunk_list.txt"
+    batch_size: 2000
   }
   include: { phase: TRAIN }
 }
@@ -22,8 +22,8 @@ layers {
   top: "targets"
   top: "cont"
   hdf5_data_param {
-    source: "./ptb_memorize_hdf5/valid_batches/hdf5_chunk_list.txt"
-    batch_size: 1000
+    source: "./ptb_memorize_hdf5_buffer_20/valid_batches/hdf5_chunk_list.txt"
+    batch_size: 400
   }
   include: { phase: TEST stage: "test-on-test" }
 }
@@ -35,11 +35,35 @@ layers {
   top: "targets"
   top: "cont"
   hdf5_data_param {
-    source: "./ptb_memorize_hdf5/train_batches/hdf5_chunk_list.txt"
-    batch_size: 1000
+    source: "./ptb_memorize_hdf5_buffer_20/train_batches/hdf5_chunk_list.txt"
+    batch_size: 400
   }
   include: { phase: TEST stage: "test-on-train" }
 }
+
+# layers {
+#   name: "embed"
+#   type: INNER_PRODUCT
+#   bottom: "data"
+#   top: "embed"
+#   blobs_lr: 1
+#   blobs_lr: 2
+#   weight_decay: 1
+#   weight_decay: 0
+#   inner_product_param {
+#     index_input_dim: 10000
+#     num_output: 500
+#     weight_filler {
+#       type: "uniform"
+#       min: -0.1
+#       max: 0.1
+#     }
+#     bias_filler {
+#       type: "constant"
+#       value: 0
+#     }
+#   }
+# }
 
 # convert indexed input data to one-hot
 layers {
@@ -51,29 +75,57 @@ layers {
     dim: 10000
   }
 }
+layers {
+  name: "embed"
+  type: INNER_PRODUCT
+  bottom: "one_hot_data"
+  top: "embed"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 500
+    weight_filler {
+      type: "uniform"
+      min: -0.1
+      max: 0.1
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+# layers {
+#   name: "embed_neuron"
+#   type: SIGMOID
+#   bottom: "embed"
+#   top: "embed"
+# }
 
-# concatenate encoder/decoder indicators to input data
+# concatenate encoder/decoder indicators to embedded input data
 layers {
   name: "concat"
   type: CONCAT
-  bottom: "one_hot_data"
+  bottom: "embed"
   bottom: "stage_indicators"
-  top: "one_hot_and_stage_indicators"
+  top: "embed_and_stage_indicators"
 }
 
 layers {
   name: "lstm1"
   type: LSTM
-  bottom: "one_hot_and_stage_indicators"
+  bottom: "embed_and_stage_indicators"
   bottom: "cont"
   top: "lstm1"
   lstm_param {
-    hidden_dim: 1000
-    buffer_size: 200
+    hidden_dim: 500
+    buffer_size: 100
     weight_filler {
       type: "uniform"
-      min: -0.08
-      max: 0.08
+      min: -0.1
+      max: 0.1
     }
     bias_filler {
       type: "constant"
@@ -81,70 +133,72 @@ layers {
     }
   }
 }
-layers {
-  name: "lstm2"
-  type: LSTM
-  bottom: "lstm1"
-  bottom: "cont"
-  top: "lstm2"
-  lstm_param {
-    hidden_dim: 1000
-    buffer_size: 200
-    weight_filler {
-      type: "uniform"
-      min: -0.08
-      max: 0.08
-    }
-    bias_filler {
-      type: "constant"
-      value: 0
-    }
-  }
-}
-layers {
-  name: "lstm3"
-  type: LSTM
-  bottom: "lstm2"
-  bottom: "cont"
-  top: "lstm3"
-  lstm_param {
-    hidden_dim: 1000
-    buffer_size: 200
-    weight_filler {
-      type: "uniform"
-      min: -0.08
-      max: 0.08
-    }
-    bias_filler {
-      type: "constant"
-      value: 0
-    }
-  }
-}
-layers {
-  name: "lstm4"
-  type: LSTM
-  bottom: "lstm3"
-  bottom: "cont"
-  top: "lstm4"
-  lstm_param {
-    hidden_dim: 1000
-    buffer_size: 200
-    weight_filler {
-      type: "uniform"
-      min: -0.08
-      max: 0.08
-    }
-    bias_filler {
-      type: "constant"
-      value: 0
-    }
-  }
-}
+# layers {
+#   name: "lstm2"
+#   type: LSTM
+#   bottom: "lstm1"
+#   bottom: "cont"
+#   top: "lstm2"
+#   lstm_param {
+#     hidden_dim: 500
+#     buffer_size: 100
+#     weight_filler {
+#       type: "uniform"
+#       min: -0.1
+#       max: 0.1
+#     }
+#     bias_filler {
+#       type: "constant"
+#       value: 0
+#     }
+#   }
+# }
+# layers {
+#   name: "lstm3"
+#   type: LSTM
+#   bottom: "lstm2"
+#   bottom: "cont"
+#   top: "lstm3"
+#   lstm_param {
+#     hidden_dim: 500
+#     buffer_size: 100
+#     weight_filler {
+#       type: "uniform"
+#       min: -0.1
+#       max: 0.1
+#     }
+#     bias_filler {
+#       type: "constant"
+#       value: 0
+#     }
+#   }
+# }
+# layers {
+#   name: "lstm4"
+#   type: LSTM
+#   bottom: "lstm3"
+#   bottom: "cont"
+#   top: "lstm4"
+#   lstm_param {
+#     hidden_dim: 500
+#     buffer_size: 100
+#     weight_filler {
+#       type: "uniform"
+#       min: -0.1
+#       max: 0.1
+#     }
+#     bias_filler {
+#       type: "constant"
+#       value: 0
+#     }
+#   }
+# }
+
 layers {
   name: "predict"
   type: INNER_PRODUCT
-  bottom: "lstm4"
+#   bottom: "lstm4"
+  bottom: "lstm1"
   top: "predict"
   blobs_lr: 1
   blobs_lr: 2
