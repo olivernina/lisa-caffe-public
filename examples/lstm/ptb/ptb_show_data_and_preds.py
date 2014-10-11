@@ -1,15 +1,22 @@
 #!/usr/bin/env python
 
-DEVICE_ID = 4
-DATA_FILE = './ptb_hdf5/train_batches/batch_0.h5'
-VOCAB_FILE = './ptb_hdf5/ptb_vocabulary.txt'
-MODEL_FILE = './snapshots/ptb_lstm_accum_grads_without_buggy_slicelayer_mom0.99_iter_9000.caffemodel'
-NET_FILE = './ptb_lstm_eval_net.prototxt'
+DEVICE_ID = 0
+# DATA_FILE = './ptb_hdf5/train_batches/batch_0.h5'
+# VOCAB_FILE = './ptb_hdf5/ptb_vocabulary.txt'
+# MODEL_FILE = './snapshots/ptb_lstm_accum_grads_without_buggy_slicelayer_mom0.99_iter_9000.caffemodel'
+# NET_FILE = './ptb_lstm_eval_net.prototxt'
 
-# DATA_FILE = './ptb_memorize_hdf5/train_batches/batch_0.h5'
-# VOCAB_FILE = './ptb_memorize_hdf5/ptb_vocabulary.txt'
-# MODEL_FILE = './snapshots/ptb_memorize_lstm.mom0.9_lr0.1_iter_9000.caffemodel'
+# DATA_FILE = './ptb_memorize_hdf5_buffer_20/train_batches/batch_0.h5'
+# VOCAB_FILE = './ptb_memorize_hdf5_buffer_20/ptb_vocabulary.txt'
+# MODEL_FILE = './snapshots/ptb_memorize_lstm.mom0.99_lr0.01_iter_110000.caffemodel'
+# # NET_FILE = './ptb_memorize_lstm_nostage_net.prototxt'
+# NET_FILE = './ptb_memorize_lstm_eval_net.prototxt'
+
+DATA_FILE = './ptb_memorize_hdf5_buffer_20/train_batches/batch_0.h5'
+VOCAB_FILE = './ptb_memorize_hdf5_buffer_20/ptb_vocabulary.txt'
+MODEL_FILE = './snapshots/ptb_memorize_lstm_enc_dec_mom0.9_lr0.1_iter_22000.caffemodel'
 # NET_FILE = './ptb_memorize_lstm_nostage_net.prototxt'
+NET_FILE = './ptb_memorize_dec_enc_lstm_eval_net.prototxt'
 
 import h5py
 import numpy as np
@@ -20,6 +27,7 @@ sys.path.append('../../../python/')
 import caffe
 
 net = caffe.Net(NET_FILE, MODEL_FILE)
+net.set_phase_test()
 
 with open(VOCAB_FILE, 'r') as vocab_file:
   vocab = ['<EOS>'] + vocab_file.read().split()
@@ -41,6 +49,9 @@ def do_iteration():
   data['net_correct_prob'] = np.array([data['net_probs'][i, label] for i, label
                                        in enumerate(np.array(data['net_targets'].reshape(-1),
                                                              dtype=np.int))])
+  print 'Keys: ', data.keys()
+  if 'net_accuracy' in data:
+    print "Accuracy: %f" % data['net_accuracy']
 
   h5file = h5py.File(DATA_FILE)
 
@@ -53,6 +64,9 @@ def do_iteration():
   shaped_data = {}
   vocab_keys = set(('input_data', 'input_targets', 'net_data', 'net_targets', 'net_predind'))
   int_keys = set(('input_cont', 'net_cont',
+      'input_encoder_cont', 'net_encoder_cont',
+      'input_decoder_cont', 'net_decoder_cont',
+      'input_encoder_to_decoder', 'net_encoder_to_decoder',
       'input_stage_indicators', 'net_stage_indicators')).union(vocab_keys)
   reshape_keys = \
       set(('net_correct_prob', 'net_pred_prob')).union(int_keys)
@@ -79,11 +93,14 @@ num_streams = 10
 num_timesteps = -1
 displays = [
   ('cont', 'net_cont', 'net_cont', 'input_cont'),
+  ('enc', 'net_encoder_cont', 'net_encoder_cont', 'input_encoder_cont'),
+  ('dec', 'net_decoder_cont', 'net_decoder_cont', 'input_decoder_cont'),
+  ('enc2dec', 'net_encoder_to_decoder', 'net_encoder_to_decoder', 'input_encoder_to_decoder'),
   ('stage', 'net_stage_indicators', 'net_stage_indicators', 'input_stage_indicators'),
-  ('inputs', 'net_data_s', 'net_data', 'input_data'),
-  ('targets', 'net_targets_s', 'net_targets', 'input_targets'),
-  ('preds', 'net_predind_s', None, None),
-  ('p_correct', 'net_correct_prob', None, None),
+  ('input', 'net_data_s', 'net_data', 'input_data'),
+  ('target', 'net_targets_s', 'net_targets', 'input_targets'),
+  ('p_target', 'net_correct_prob', None, None),
+  ('pred', 'net_predind_s', None, None),
   ('p_pred', 'net_pred_prob', None, None),
 ]
 display_skip = [False] * len(displays)
@@ -107,7 +124,7 @@ for iteration in range(num_iterations):
                  shaped_data[check_key_b][s][iteration*num_timesteps + t]
         item = shaped_data[key][s][t]
         row.append(item)
-      row.append('correct' if row[-1] == row[-2] else '')
+      row.append('correct' if row[-1] == row[-3] else '')
       table.append(row)
 
 headers = [d[0] for i, d in enumerate(displays) if not display_skip[i]] + ['correct']
