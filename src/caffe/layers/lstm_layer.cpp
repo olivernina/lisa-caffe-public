@@ -111,6 +111,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   LayerParameter* flush_slice_param = net_param.add_layers();
   flush_slice_param->CopyFrom(slice_param);
   flush_slice_param->add_bottom("flush");
+  flush_slice_param->set_name("flush slice");
 
   {
     LayerParameter* w_xi_param = net_param.add_layers();
@@ -119,10 +120,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     w_xi_param->add_param("W_{xi}");
     w_xi_param->add_param("b_i");
     w_xi_param->add_top("W_{xi} x + b_i");
+    w_xi_param->set_name("W_{xi} x + b_i");
   }
   LayerParameter* w_xi_slice_param = net_param.add_layers();
   w_xi_slice_param->CopyFrom(slice_param);
   w_xi_slice_param->add_bottom("W_{xi} x + b_i");
+  w_xi_slice_param->set_name("W_{xi} x + b_i slice");
 
   {
     LayerParameter* w_xf_param = net_param.add_layers();
@@ -131,10 +134,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     w_xf_param->add_param("W_{xf}");
     w_xf_param->add_param("b_f");
     w_xf_param->add_top("W_{xf} x + b_f");
+    w_xf_param->set_name("W_{xf} x + b_f");
   }
   LayerParameter* w_xf_slice_param = net_param.add_layers();
   w_xf_slice_param->CopyFrom(slice_param);
   w_xf_slice_param->add_bottom("W_{xf} x + b_f");
+  w_xf_slice_param->set_name("W_{xf} x + b_f slice");
 
   {
     LayerParameter* w_xc_param = net_param.add_layers();
@@ -143,10 +148,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     w_xc_param->add_param("W_{xc}");
     w_xc_param->add_param("b_c");
     w_xc_param->add_top("W_{xc} x + b_c");
+    w_xc_param->set_name("W_{xc} x + b_c");
   }
   LayerParameter* w_xc_slice_param = net_param.add_layers();
   w_xc_slice_param->CopyFrom(slice_param);
   w_xc_slice_param->add_bottom("W_{xc} x + b_c");
+  w_xc_slice_param->set_name("W_{xc} x + b_c slice");
 
   {
     LayerParameter* w_xo_param = net_param.add_layers();
@@ -155,10 +162,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     w_xo_param->add_param("W_{xo}");
     w_xo_param->add_param("b_o");
     w_xo_param->add_top("W_{xo} x + b_o");
+    w_xo_param->set_name("W_{xo} x + b_o");
   }
   LayerParameter* w_xo_slice_param = net_param.add_layers();
   w_xo_slice_param->CopyFrom(slice_param);
   w_xo_slice_param->add_bottom("W_{xo} x + b_o");
+  w_xo_slice_param->set_name("W_{xo} x + b_o slice");
 
   string tm1s;
   for (int t = 1; t <= T_; ++t) {
@@ -180,6 +189,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       flush_c_param->add_bottom("c_" + tm1s);
       flush_c_param->add_bottom("flush_" + tm1s);
       flush_c_param->add_top("c_" + tm1s + "_flushed");
+      flush_c_param->set_name("c_" + tm1s + " flush");
     }
     {
       LayerParameter* flush_h_param = net_param.add_layers();
@@ -188,6 +198,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       flush_h_param->add_bottom("h_" + tm1s);
       flush_h_param->add_bottom("flush_" + tm1s);
       flush_h_param->add_top("h_" + tm1s + "_flushed");
+      flush_h_param->set_name("h_" + tm1s + " flush");
     }
 
     // Add layers to compute the input vector i.
@@ -202,6 +213,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_hi_param->add_bottom("h_" + tm1s + "_flushed");
       w_hi_param->add_param("W_{hi}");
       w_hi_param->add_top("W_{hi} h_" + tm1s);
+      w_hi_param->set_name("W_{hi} h_" + tm1s);
     }
     {
       LayerParameter* w_ci_param = net_param.add_layers();
@@ -209,6 +221,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_ci_param->add_bottom("c_" + tm1s + "_flushed");
       w_ci_param->add_param("W_{ci}");
       w_ci_param->add_top("W_{ci} c_" + tm1s);
+      w_ci_param->set_name("W_{ci} c_" + tm1s);
     }
     {
       LayerParameter* i_input_param = net_param.add_layers();
@@ -219,12 +232,14 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       // identity component of W_{ci}
       i_input_param->add_bottom("c_" + tm1s + "_flushed");
       i_input_param->add_top("i_" + ts + "_input");
+      i_input_param->set_name("i_" + ts + "_input");
     }
     {
       LayerParameter* i_param = net_param.add_layers();
       i_param->CopyFrom(sigmoid_param);
       i_param->add_bottom("i_" + ts + "_input");
       i_param->add_top("i_" + ts);
+      i_param->set_name("i_" + ts);
     }
 
     // Add layers to compute the forgetting vector f.
@@ -239,6 +254,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_hf_param->add_bottom("h_" + tm1s + "_flushed");
       w_hf_param->add_param("W_{hf}");
       w_hf_param->add_top("W_{hf} h_" + tm1s);
+      w_hf_param->set_name("W_{hf} h_" + tm1s);
     }
     {
       LayerParameter* w_cf_param = net_param.add_layers();
@@ -246,6 +262,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_cf_param->add_bottom("c_" + tm1s + "_flushed");
       w_cf_param->add_param("W_{cf}");
       w_cf_param->add_top("W_{cf} c_" + tm1s);
+      w_cf_param->set_name("W_{cf} c_" + tm1s);
     }
     {
       LayerParameter* f_input_param = net_param.add_layers();
@@ -256,12 +273,14 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       // identity component of W_{cf}
       f_input_param->add_bottom("c_" + tm1s + "_flushed");
       f_input_param->add_top("f_" + ts + "_input");
+      f_input_param->set_name("f_" + ts + "_input");
     }
     {
       LayerParameter* f_param = net_param.add_layers();
       f_param->CopyFrom(sigmoid_param);
       f_param->add_bottom("f_" + ts + "_input");
       f_param->add_top("f_" + ts);
+      f_param->set_name("f_" + ts);
     }
 
     // Add layers to compute the cell vector c.
@@ -276,6 +295,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       c_t_term_1_param->add_bottom("f_" + ts);
       c_t_term_1_param->add_bottom("c_" + tm1s + "_flushed");
       c_t_term_1_param->add_top("c_" + ts + "_term_1");
+      c_t_term_1_param->set_name("c_" + ts + "_term_1");
     }
     {
       LayerParameter* w_hc_param = net_param.add_layers();
@@ -283,6 +303,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_hc_param->add_bottom("h_" + tm1s + "_flushed");
       w_hc_param->add_param("W_{hc}");
       w_hc_param->add_top("W_{hc} h_" + tm1s);
+      w_hc_param->set_name("W_{hc} h_" + tm1s);
     }
     {
       LayerParameter* c_input_param = net_param.add_layers();
@@ -290,12 +311,14 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       c_input_param->add_bottom("W_{xc} x_" + ts + " + b_c");
       c_input_param->add_bottom("W_{hc} h_" + tm1s);
       c_input_param->add_top("c_" + ts + "_input");
+      c_input_param->set_name("c_" + ts + "_input");
     }
     {
       LayerParameter* c_act_param = net_param.add_layers();
       c_act_param->CopyFrom(tanh_param);
       c_act_param->add_bottom("c_" + ts + "_input");
       c_act_param->add_top("c_" + ts + "_act");
+      c_act_param->set_name("c_" + ts + "_act");
     }
     {
       LayerParameter* c_t_term_2_param = net_param.add_layers();
@@ -303,6 +326,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       c_t_term_2_param->add_bottom("i_" + ts);
       c_t_term_2_param->add_bottom("c_" + ts + "_act");
       c_t_term_2_param->add_top("c_" + ts + "_term_2");
+      c_t_term_2_param->set_name("c_" + ts + "_term_2");
     }
     {
       LayerParameter* c_param = net_param.add_layers();
@@ -311,8 +335,10 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       c_param->add_bottom("c_" + ts + "_term_2");
       if (t == T_) {
         c_param->add_top("c_" + ts + "_copy");
+        c_param->set_name("c_" + ts + "_copy");
       } else {
         c_param->add_top("c_" + ts);
+        c_param->set_name("c_" + ts);
       }
     }
     string c_t_name = "c_" + ts;
@@ -323,6 +349,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       c_t_name += "_internal";
       c_split_param->add_top(c_t_name);
       c_split_param->add_top("c_" + ts);
+      c_split_param->set_name("c_" + ts + " split");
     }
 
     // Add layers to compute the output vector o.
@@ -337,6 +364,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_ho_param->add_bottom("h_" + tm1s + "_flushed");
       w_ho_param->add_param("W_{ho}");
       w_ho_param->add_top("W_{ho} h_" + tm1s);
+      w_ho_param->set_name("W_{ho} h_" + tm1s);
     }
     {
       LayerParameter* w_co_param = net_param.add_layers();
@@ -344,6 +372,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_co_param->add_bottom(c_t_name);
       w_co_param->add_param("W_{co}");
       w_co_param->add_top("W_{co} c_" + ts);
+      w_co_param->set_name("W_{co} c_" + ts);
     }
     {
       LayerParameter* o_input_param = net_param.add_layers();
@@ -354,12 +383,14 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       // identity component of W_{co}
       o_input_param->add_bottom(c_t_name);
       o_input_param->add_top("o_" + ts + "_input");
+      o_input_param->set_name("o_" + ts + "_input");
     }
     {
       LayerParameter* o_param = net_param.add_layers();
       o_param->CopyFrom(sigmoid_param);
       o_param->add_bottom("o_" + ts + "_input");
       o_param->add_top("o_" + ts + "_internal");
+      o_param->set_name("o_" + ts + "_internal");
       o_param->set_has_external_diff(true);
     }
     // Add a split layer so we have an internal diff (accumulated into
@@ -370,6 +401,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       o_split_param->add_bottom("o_" + ts + "_internal");
       o_split_param->add_top("o_" + ts + "_internal_copy");
       o_split_param->add_top("o_" + ts);
+      o_split_param->set_name("o_" + ts + " split");
     }
 
     // Add layers to compute the hidden vector h.
@@ -379,6 +411,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       c_t_act_param->CopyFrom(tanh_param);
       c_t_act_param->add_bottom(c_t_name);
       c_t_act_param->add_top("c_" + ts + "_tanh");
+      c_t_act_param->set_name("c_" + ts + "_tanh");
     }
     {
       LayerParameter* h_t_param = net_param.add_layers();
@@ -386,7 +419,14 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       h_t_param->add_bottom("o_" + ts + "_internal_copy");
       h_t_param->add_bottom("c_" + ts + "_tanh");
       h_t_param->add_top("h_" + ts);
+      h_t_param->set_name("h_" + ts);
     }
+  }
+
+  const string& layer_name = this->layer_param_.name();
+  for (int i = 0; i < net_param.layers_size(); ++i) {
+    LayerParameter* layer = net_param.mutable_layers(i);
+    layer->set_name(layer_name + "_" + layer->name());
   }
 
   lstm_.reset(new Net<Dtype>(net_param));
