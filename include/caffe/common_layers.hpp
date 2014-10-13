@@ -90,7 +90,7 @@ class ConcatLayer : public Layer<Dtype> {
   virtual inline LayerParameter_LayerType type() const {
     return LayerParameter_LayerType_CONCAT;
   }
-  virtual inline int MinBottomBlobs() const { return 2; }
+  virtual inline int MinBottomBlobs() const { return 1; }
   virtual inline int ExactNumTopBlobs() const { return 1; }
 
  protected:
@@ -405,7 +405,7 @@ class LSTMLayer : public Layer<Dtype> {
   Blob<Dtype>* c_input_blob_;
   Blob<Dtype>* x_input_blob_;
   Blob<Dtype>* flush_input_blob_;
-  vector<Blob<Dtype>*> output_blobs_;
+  Blob<Dtype>* output_blob_;
   Blob<Dtype>* h_output_blob_;
   Blob<Dtype>* c_output_blob_;
 };

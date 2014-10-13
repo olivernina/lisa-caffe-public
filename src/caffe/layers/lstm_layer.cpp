@@ -83,7 +83,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   T_ = bottom[0]->num() / buffer_size_;
   LOG(INFO) << "Initializing LSTM: assuming input batch contains "
             << T_ << " timesteps of " << buffer_size_ << " streams.";
-  output_blobs_.clear();
   NetParameter net_param;
   net_param.set_force_backward(true);
   net_param.add_input("x");
@@ -168,6 +167,13 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   w_xo_slice_param->CopyFrom(slice_param);
   w_xo_slice_param->add_bottom("W_{xo} x + b_o");
   w_xo_slice_param->set_name("W_{xo} x + b_o slice");
+
+  LayerParameter output_concat_layer;
+  output_concat_layer.set_name("o_concat");
+  output_concat_layer.set_type(LayerParameter_LayerType_CONCAT);
+  output_concat_layer.add_top("o");
+  output_concat_layer.set_has_external_diff(true);
+  output_concat_layer.mutable_concat_param()->set_concat_dim(0);
 
   string tm1s;
   for (int t = 1; t <= T_; ++t) {
@@ -389,20 +395,10 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       LayerParameter* o_param = net_param.add_layers();
       o_param->CopyFrom(sigmoid_param);
       o_param->add_bottom("o_" + ts + "_input");
-      o_param->add_top("o_" + ts + "_internal");
-      o_param->set_name("o_" + ts + "_internal");
-      o_param->set_has_external_diff(true);
+      o_param->add_top("o_" + ts);
+      o_param->set_name("o_" + ts);
     }
-    // Add a split layer so we have an internal diff (accumulated into
-    // o_t_internal_copy) and an external diff (accumulated into o_t).
-    {
-      LayerParameter* o_split_param = net_param.add_layers();
-      o_split_param->CopyFrom(split_param);
-      o_split_param->add_bottom("o_" + ts + "_internal");
-      o_split_param->add_top("o_" + ts + "_internal_copy");
-      o_split_param->add_top("o_" + ts);
-      o_split_param->set_name("o_" + ts + " split");
-    }
+    output_concat_layer.add_bottom("o_" + ts);
 
     // Add layers to compute the hidden vector h.
     // h_t = o_t .* \tanh[ c_t ]
@@ -416,12 +412,13 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     {
       LayerParameter* h_t_param = net_param.add_layers();
       h_t_param->CopyFrom(prod_param);
-      h_t_param->add_bottom("o_" + ts + "_internal_copy");
+      h_t_param->add_bottom("o_" + ts);
       h_t_param->add_bottom("c_" + ts + "_tanh");
       h_t_param->add_top("h_" + ts);
       h_t_param->set_name("h_" + ts);
     }
   }
+  net_param.add_layers()->CopyFrom(output_concat_layer);
 
   const string& layer_name = this->layer_param_.name();
   for (int i = 0; i < net_param.layers_size(); ++i) {
@@ -437,20 +434,15 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   flush_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("flush").get());
   h_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_0").get());
   c_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_0").get());
-  for (int t = 1; t <= T_; ++t) {
-    string ts = int_to_str(t);
-    output_blobs_.push_back(CHECK_NOTNULL(
-        lstm_->blob_by_name("o_" + ts).get()));
-  }
+  output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("o").get());
   ts = int_to_str(T_);
   h_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_" + ts).get());
   c_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_" + ts).get());
 
-  // Should have x, flush, h_0, and c_0.
+  // 4 inputs: x, flush, h_0, and c_0.
   CHECK_EQ(4, lstm_->input_blobs().size());
-  // Should have one output for each timestep (o_t), plus the final hidden state
-  // outputs h_T and c_T.
-  CHECK_EQ(T_ + 2, lstm_->output_blobs().size());
+  // 3 outputs: main output (o) plus the final hidden state outputs h_T and c_T.
+  CHECK_EQ(3, lstm_->output_blobs().size());
 
   for (int i = 0; i < lstm_->params().size(); ++i) {
     if (lstm_->param_owners()[i] == -1) {
@@ -476,10 +468,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   caffe_set(hidden_timestep_dim, Dtype(0), hidden_output_diff);
   CHECK_EQ(hidden_timestep_dim, c_output_blob_->count());
   caffe_set(hidden_timestep_dim, Dtype(0), cell_output_diff);
-
-  x_input_blob_->ShareData(*bottom[0]);
-  x_input_blob_->ShareDiff(*bottom[0]);
-  flush_input_blob_->ShareData(*bottom[1]);
 }
 
 template <typename Dtype>
@@ -506,42 +494,50 @@ void LSTMLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   }
 
   const int timestep_dim = buffer_size_ * hidden_dim_;
+
+  CHECK_EQ(timestep_dim, h_input_blob_->count());
+  CHECK_EQ(timestep_dim, h_output_blob_->count());
   const Dtype* hidden_output_data = h_output_blob_->cpu_data();
   Dtype* hidden_input_data = h_input_blob_->mutable_cpu_data();
   caffe_copy(timestep_dim, hidden_output_data, hidden_input_data);
+
+  CHECK_EQ(timestep_dim, c_input_blob_->count());
+  CHECK_EQ(timestep_dim, c_output_blob_->count());
   const Dtype* cell_output_data = c_output_blob_->cpu_data();
   Dtype* cell_input_data = c_input_blob_->mutable_cpu_data();
   caffe_copy(timestep_dim, cell_output_data, cell_input_data);
 
-  x_input_blob_->ShareData(*bottom[0]);
+  CHECK_EQ(bottom[1]->count(), flush_input_blob_->count());
+  caffe_copy(bottom[1]->count(), bottom[1]->cpu_data(),
+             flush_input_blob_->mutable_cpu_data());
+
+  const int count = x_input_blob_->count();
+  CHECK_EQ(count, bottom[0]->count());
+  caffe_copy(count, bottom[0]->cpu_data(), x_input_blob_->mutable_cpu_data());
 
   // Run the LSTM in forward mode.
   lstm_->ForwardPrefilled();
 
   // Copy the LSTM outputs.
-  const Dtype* output_data;
+  CHECK_EQ(output_blob_->count(), top[0]->count());
+  const Dtype* output_data = output_blob_->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
-  for (int t = 0; t < T_; ++t) {
-    output_data = output_blobs_[t]->cpu_data();
-    caffe_copy(timestep_dim, output_data, top_data + t * timestep_dim);
-  }
+  caffe_copy(output_blob_->count(), output_data, top_data);
 }
 
 template <typename Dtype>
 void LSTMLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   CHECK(!propagate_down[1]) << "Cannot backpropagate to sequence index inputs.";
-  const int output_timestep_dim = buffer_size_ * hidden_dim_;
   const Dtype* top_diff = top[0]->cpu_diff();
-  Dtype* output_diff;
-  for (int t = 0; t < T_; ++t) {
-    DCHECK_EQ(output_timestep_dim, output_blobs_[t]->count());
-    output_diff = output_blobs_[t]->mutable_cpu_diff();
-    caffe_copy(output_timestep_dim, top_diff + t * output_timestep_dim,
-               output_diff);
-  }
+  Dtype* output_diff = output_blob_->mutable_cpu_diff();
+  caffe_copy(top[0]->count(), top_diff, output_diff);
 
   lstm_->Backward();
+
+  if (!propagate_down[0]) { return; }
+  const int count = x_input_blob_->count();
+  caffe_copy(count, x_input_blob_->cpu_diff(), bottom[0]->mutable_cpu_diff());
 }
 
 #ifdef CPU_ONLY

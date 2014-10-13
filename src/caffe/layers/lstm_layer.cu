@@ -19,44 +19,50 @@ void LSTMLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   }
 
   const int timestep_dim = buffer_size_ * hidden_dim_;
+
+  CHECK_EQ(timestep_dim, h_input_blob_->count());
+  CHECK_EQ(timestep_dim, h_output_blob_->count());
   const Dtype* hidden_output_data = h_output_blob_->gpu_data();
   Dtype* hidden_input_data = h_input_blob_->mutable_gpu_data();
   caffe_copy(timestep_dim, hidden_output_data, hidden_input_data);
+
+  CHECK_EQ(timestep_dim, c_input_blob_->count());
+  CHECK_EQ(timestep_dim, c_output_blob_->count());
   const Dtype* cell_output_data = c_output_blob_->gpu_data();
   Dtype* cell_input_data = c_input_blob_->mutable_gpu_data();
   caffe_copy(timestep_dim, cell_output_data, cell_input_data);
 
-  x_input_blob_->ShareData(*bottom[0]);
+  CHECK_EQ(bottom[1]->count(), flush_input_blob_->count());
+  caffe_copy(bottom[1]->count(), bottom[1]->cpu_data(),
+             flush_input_blob_->mutable_cpu_data());
+
+  const int count = x_input_blob_->count();
+  CHECK_EQ(count, bottom[0]->count());
+  caffe_copy(count, bottom[0]->gpu_data(), x_input_blob_->mutable_gpu_data());
 
   // Run the LSTM in forward mode.
   lstm_->ForwardPrefilled();
 
   // Copy the LSTM outputs.
-  const int output_timestep_dim = buffer_size_ * hidden_dim_;
-  const Dtype* output_data;
+  CHECK_EQ(output_blob_->count(), top[0]->count());
+  const Dtype* output_data = output_blob_->gpu_data();
   Dtype* top_data = top[0]->mutable_gpu_data();
-  for (int t = 0; t < T_; ++t) {
-    output_data = output_blobs_[t]->gpu_data();
-    caffe_copy(output_timestep_dim, output_data,
-               top_data + t * output_timestep_dim);
-  }
+  caffe_copy(output_blob_->count(), output_data, top_data);
 }
 
 template <typename Dtype>
 void LSTMLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   CHECK(!propagate_down[1]) << "Cannot backpropagate to sequence index inputs.";
-  const int output_timestep_dim = buffer_size_ * hidden_dim_;
   const Dtype* top_diff = top[0]->gpu_diff();
-  Dtype* output_diff;
-  for (int t = 0; t < T_; ++t) {
-    DCHECK_EQ(output_timestep_dim, output_blobs_[t]->count());
-    output_diff = output_blobs_[t]->mutable_gpu_diff();
-    caffe_copy(output_timestep_dim, top_diff + t * output_timestep_dim,
-               output_diff);
-  }
+  Dtype* output_diff = output_blob_->mutable_gpu_diff();
+  caffe_copy(top[0]->count(), top_diff, output_diff);
 
   lstm_->Backward();
+
+  if (!propagate_down[0]) { return; }
+  const int count = x_input_blob_->count();
+  caffe_copy(count, x_input_blob_->gpu_diff(), bottom[0]->mutable_gpu_diff());
 }
 
 INSTANTIATE_CLASS(LSTMLayer);
