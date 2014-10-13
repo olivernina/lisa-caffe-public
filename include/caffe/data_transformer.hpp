@@ -39,7 +39,8 @@ class DataTransformer {
    *    This is destination blob. It can be part of top blob's data if
    *    set_cpu_data() is used See data_layer.cpp for an example.
    */
-  void Transform(const Datum& datum, Blob<Dtype>* transformed_blob, bool calc_off=true);
+  void Transform(const Datum& datum, Blob<Dtype>* transformed_blob, bool calc_off=true, 
+							 	    int track_index = 0);
 
   /**
    * @brief Applies the transformation defined in the data layer's
@@ -79,7 +80,8 @@ class DataTransformer {
    *    This is destination blob, it will contain as many images as the
    *    input blob. It can be part of top blob's data.
    */
-  void Transform(Blob<Dtype>* input_blob, Blob<Dtype>* transformed_blob, bool calc_off = true);
+  void Transform(Blob<Dtype>* input_blob, Blob<Dtype>* transformed_blob, bool calc_off = true,
+ 									 int track_index = 0); 
 
  protected:
    /**
@@ -92,19 +94,21 @@ class DataTransformer {
    */
   virtual int Rand(int n);
 
-  void Transform(const Datum& datum, Dtype* transformed_data, bool calc_off = true);
+  void Transform(const Datum& datum, Dtype* transformed_data, bool calc_off = true,
+						              int track_index = 0);
+
   // Tranformation parameters
   TransformationParameter param_;
-
 
   shared_ptr<Caffe::RNG> rng_;
   Caffe::Phase phase_;
   Blob<Dtype> data_mean_;
   vector<Dtype> mean_values_;
-  int h_off_;
-  int w_off_;
-  int do_mirror_;
+  vector<int> w_off_;
+  vector<int> h_off_;
+  vector<bool> do_mirror_;
 };
+
 
 }  // namespace caffe
 

@@ -515,6 +515,69 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     }
   }
 
+  //LSTM: variable length LSTM
+  void TestReadVariableLengthClipsLSTMClip(const int clip_length,
+                                          const int batch_size, 
+                                          const int slstm = 1, 
+                                          const int sub_sample = 1) {
+    LayerParameter param;
+    DataParameter* data_param = param.mutable_data_param();
+    data_param->set_batch_size(batch_size);
+    data_param->set_clip_mode(DataParameter_ClipMode_LSTM);
+    data_param->set_clip_order(DataParameter_ClipOrder_FRAME_MAJOR);
+    data_param->set_max_train_item(batch_size);
+    data_param->set_max_test_item(batch_size);
+    data_param->set_clip_sub_sample(sub_sample);
+    data_param->set_slstm(slstm);
+    data_param->set_lstm_clip(false);
+    const Dtype scale = 1;
+    TransformationParameter* transform_param =
+        param.mutable_transform_param();
+    transform_param->set_scale(scale);
+    data_param->set_scale(scale);
+    data_param->set_source(this->filename_->c_str());
+    DataLayer<Dtype> layer(param);
+    this->blob_top_vec_.push_back(this->blob_top_clip_markers_);
+    DataLayer<Dtype> layer1(param);
+    layer1.SetUp(blob_bottom_vec_, blob_top_vec_);
+    EXPECT_EQ(this->blob_top_data_->num(), batch_size);
+    EXPECT_EQ(this->blob_top_data_->channels(), 2);
+    EXPECT_EQ(this->blob_top_data_->height(), 3);
+    EXPECT_EQ(this->blob_top_data_->width(), 4);
+    EXPECT_EQ(this->blob_top_label_->num(), batch_size);
+    EXPECT_EQ(this->blob_top_label_->channels(), 1);
+    EXPECT_EQ(this->blob_top_label_->height(), 1);
+    EXPECT_EQ(this->blob_top_label_->width(), 1);
+
+/////////////////////////////////
+    int tlstm = batch_size/slstm;
+    int clip_index = 0;
+    int num_clips = batch_size;
+    int output_length = clip_length * sub_sample;
+    for (int iter = 0; iter < 100; ++iter) {
+      layer1.Forward(blob_bottom_vec_, blob_top_vec_);
+      const int clip_start_index = clip_index;
+      int i = 0;
+      int offset = ((iter*batch_size / clip_length)+num_clips) % num_clips;
+      int clips_per_row = tlstm/clip_length;
+      for (int t = 0; t < tlstm; t++) { //count along rows of the data matrix
+        for (int s = 0; s < slstm; s++) { //count along columns of the data matrix
+          Dtype expected_label = offset + s*clips_per_row + (t / (clip_length));
+          EXPECT_EQ(expected_label, this->blob_top_label_->cpu_data()[i])
+              << "debug: iter " << iter << " i " << i;
+          Dtype expected_value = scale * (offset + t/clip_length + s*clips_per_row + ((t * sub_sample) % clip_length) * 10);
+          for (int j = 0; j < 24; ++j) {
+            EXPECT_EQ(expected_value, this->blob_top_data_->cpu_data()[i*24+j]) 
+              << "debug: iter " << iter << " i " << i;
+          } 
+          Dtype expected_clip_marker = (t % clip_length == 0) ? DataLayer<Dtype>::CLIP_BEGIN : DataLayer<Dtype>::CLIP_CONTINUE ;
+          ++i;
+        }
+      }
+    }
+  }
+
+
   void TestReadFixedLengthClipsCollapsedLabels(const int clip_length,
                                                const int batch_size, const int sub_sample = 1) {
     LayerParameter param;

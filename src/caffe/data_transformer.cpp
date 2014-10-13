@@ -34,11 +34,23 @@ DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param)
       mean_values_.push_back(param_.mean_value(c));
     }
   }
+  // check is we need to initialize h_off, w_off, and do_mirror_
+  if (h_off_.size() == 0) {
+    h_off_.resize(param_.slstm());
+    w_off_.resize(param_.slstm());
+    do_mirror_.resize(param_.slstm());
+    for (int i = 0; i < param_.slstm(); i++) {
+      h_off_[i] = 0;
+      w_off_[i] = 0;
+      do_mirror_[i] = 0;
+    }
+  }
 }
 
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(const Datum& datum,
-                                       Dtype* transformed_data, bool calc_off) {
+                                       Dtype* transformed_data, bool calc_off, int track_index) {
+
   const string& data = datum.data();
   const int datum_channels = datum.channels();
   const int datum_height = datum.height();
@@ -47,7 +59,7 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   const int crop_size = param_.crop_size();
   const Dtype scale = param_.scale();
   if (calc_off) {
-    do_mirror_ = param_.mirror() && Rand(2);
+    do_mirror_[track_index] = param_.mirror() && Rand(2);
   }
   const bool has_mean_file = param_.has_mean_file();
   const bool has_uint8 = data.size() > 0;
@@ -79,16 +91,16 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   int width = datum_width;
 
   if (calc_off) {
-  h_off_ = 0;
-  w_off_ = 0;
+  h_off_[track_index] = 0;
+  w_off_[track_index] = 0;
   if (crop_size) {
     // We only do random crop when we do training.
     if (phase_ == Caffe::TRAIN) {
-      h_off_ = Rand(datum_height - crop_size + 1);
-      w_off_ = Rand(datum_width - crop_size + 1);
+      h_off_[track_index] = Rand(datum_height - crop_size + 1);
+      w_off_[track_index] = Rand(datum_width - crop_size + 1);
     } else {
-      h_off_ = (datum_height - crop_size) / 2;
-      w_off_ = (datum_width - crop_size) / 2;
+      h_off_[track_index] = (datum_height - crop_size) / 2;
+      w_off_[track_index] = (datum_width - crop_size) / 2;
     }
   }
   }
@@ -98,8 +110,8 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
     width = crop_size;
   }
 
-  CHECK_LE(h_off_, datum_height);
-  CHECK_LE(w_off_, datum_width);
+  CHECK_LE(h_off_[track_index], datum_height);
+  CHECK_LE(w_off_[track_index], datum_width);
 
 
   Dtype datum_element;
@@ -107,8 +119,8 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   for (int c = 0; c < datum_channels; ++c) {
     for (int h = 0; h < height; ++h) {
       for (int w = 0; w < width; ++w) {
-        data_index = (c * datum_height + h_off_ + h) * datum_width + w_off_ + w;
-        if (do_mirror_) {
+        data_index = (c * datum_height + h_off_[track_index] + h) * datum_width + w_off_[track_index] + w;
+        if (do_mirror_[track_index]) {
           top_index = (c * height + h) * width + (width - 1 - w);
         } else {
           top_index = (c * height + h) * width + w;
@@ -137,7 +149,7 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
 
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(const Datum& datum,
-                                       Blob<Dtype>* transformed_blob, bool calc_off) {
+                                       Blob<Dtype>* transformed_blob, bool calc_off, int track_index) {
   const int datum_channels = datum.channels();
   const int datum_height = datum.height();
   const int datum_width = datum.width();
@@ -198,7 +210,7 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
 
 template<typename Dtype>
 void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
-                                       Blob<Dtype>* transformed_blob, bool calc_off) {
+                                       Blob<Dtype>* transformed_blob, bool calc_off, int track_index) {
   const int input_num = input_blob->num();
   const int input_channels = input_blob->channels();
   const int input_height = input_blob->height();
@@ -218,32 +230,32 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
   const int crop_size = param_.crop_size();
   const Dtype scale = param_.scale();
   if (calc_off) {
-    do_mirror_ = param_.mirror() && Rand(2);
+    do_mirror_[track_index] = param_.mirror() && Rand(2);
   }
   const bool has_mean_file = param_.has_mean_file();
   const bool has_mean_values = mean_values_.size() > 0;
 
   if (calc_off) {
-  h_off_ = 0;
-  w_off_ = 0;
+  h_off_[track_index] = 0;
+  w_off_[track_index] = 0;
   if (crop_size) {
     CHECK_EQ(crop_size, height);
     CHECK_EQ(crop_size, width);
     // We only do random crop when we do training.
     if (phase_ == Caffe::TRAIN) {
-      h_off_ = Rand(input_height - crop_size + 1);
-      w_off_ = Rand(input_width - crop_size + 1);
+      h_off_[track_index] = Rand(input_height - crop_size + 1);
+      w_off_[track_index] = Rand(input_width - crop_size + 1);
     } else {
-      h_off_ = (input_height - crop_size) / 2;
-      w_off_ = (input_width - crop_size) / 2;
+      h_off_[track_index] = (input_height - crop_size) / 2;
+      w_off_[track_index] = (input_width - crop_size) / 2;
     }
   } else {
     CHECK_EQ(input_height, height);
     CHECK_EQ(input_width, width);
   }
   }
-  CHECK_LE(h_off_, input_height);
-  CHECK_LE(w_off_, input_width);
+  CHECK_LE(h_off_[track_index], input_height);
+  CHECK_LE(w_off_[track_index], input_width);
 
   Dtype* input_data = input_blob->mutable_cpu_data();
   if (has_mean_file) {
@@ -280,11 +292,11 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
     int data_index_n = n * channels;
     for (int c = 0; c < channels; ++c) {
       int top_index_c = (top_index_n + c) * height;
-      int data_index_c = (data_index_n + c) * input_height + h_off_;
+      int data_index_c = (data_index_n + c) * input_height + h_off_[track_index];
       for (int h = 0; h < height; ++h) {
         int top_index_h = (top_index_c + h) * width;
-        int data_index_h = (data_index_c + h) * input_width + w_off_;
-        if (do_mirror_) {
+        int data_index_h = (data_index_c + h) * input_width + w_off_[track_index];
+        if (do_mirror_[track_index]) {
           int top_index_w = top_index_h + width - 1;
           for (int w = 0; w < width; ++w) {
             transformed_data[top_index_w-w] = input_data[data_index_h + w];

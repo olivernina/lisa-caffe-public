@@ -346,7 +346,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
         }
       }
       current_frame = datum.current_frame();
-      const string& data = datum.data(); //let's see if this gives us the right answer...
+      //const string& data = datum.data(); //let's see if this gives us the right answer...
       if (DataParameter_DB_LEVELDB){
         CHECK_EQ(frame_id, current_frame) << "LMDB? " << DataParameter_DB_LMDB;
         CHECK_GE(frame_id, 0);
@@ -357,7 +357,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       CHECK_LT(item_id, batch_size);
       int offset = this->prefetch_data_.offset(item_id);
       this->transformed_data_.set_cpu_data(top_data + offset);
-      this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video);
+      this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video,iter_index);
       first_video = false;
 
       if (this->output_labels_) {
