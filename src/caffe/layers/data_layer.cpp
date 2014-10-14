@@ -139,6 +139,10 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     this->prefetch_clip_markers_.Reshape(
         this->layer_param_.data_param().batch_size(), 1, 1, 1);
   }
+  if (this->layer_param_.data_param().weight_loss()) {
+    top[3]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
+  }
+
 
   if (this->output_clip_markers_) {
     const int count = this->prefetch_clip_markers_.count();

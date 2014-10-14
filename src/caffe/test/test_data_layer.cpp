@@ -644,11 +644,11 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
               << "debug: iter " << iter << " i " << i;
           Dtype expected_value = scale * (labels[s]+frames[s] * 10);
           for (int j = 0; j < 24; ++j) {
-         //   EXPECT_EQ(expected_value, this->blob_top_data_->cpu_data()[i*24+j]) 
-         //     << "debug: iter " << iter << " i " << i;
+            EXPECT_EQ(expected_value, this->blob_top_data_->cpu_data()[i*24+j]) 
+              << "debug: iter " << iter << " i " << i;
           } 
           Dtype expected_clip_marker = (frames[s] == 0) ? DataLayer<Dtype>::CLIP_BEGIN : DataLayer<Dtype>::CLIP_CONTINUE;
-         // EXPECT_EQ(expected_clip_marker, this->blob_top_clip_markers_->cpu_data()[i]);
+          EXPECT_EQ(expected_clip_marker, this->blob_top_clip_markers_->cpu_data()[i]);
           ++i;
           ++frames[s];
         }
