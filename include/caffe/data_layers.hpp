@@ -53,8 +53,8 @@ class BaseDataLayer : public Layer<Dtype> {
   bool output_labels_;
 
   int video_id_;
-  vector<int> transfer_frame_ids_;
-  vector<int> transfer_video_ids_;
+  std::vector<int> transfer_frame_ids_;
+  std::vector<int> transfer_video_ids_;
   //sLSTM needs a more descriptive name.  used in lstms, number of samples processed at a time to determine the gradient
   int sLSTM_;
   int tLSTM_;
@@ -113,7 +113,7 @@ class DataLayer : public BasePrefetchingDataLayer<Dtype> {
   }
   virtual inline int ExactNumBottomBlobs() const { return 0; }
   virtual inline int MinTopBlobs() const { return 1; }
-  virtual inline int MaxTopBlobs() const { return 3; }
+  virtual inline int MaxTopBlobs() const { return 4; }
 
   enum ClipMarker { CLIP_BEGIN, CLIP_CONTINUE, PADDING };
 

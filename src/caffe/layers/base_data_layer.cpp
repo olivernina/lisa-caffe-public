@@ -80,6 +80,11 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     top_clip_markers = top[2]->mutable_cpu_data();
   }
   
+  Dtype* top_weight_loss = NULL;
+  if (this->layer_param_.data_param().weight_loss()) {
+    top_weight_loss = top[3]->mutable_cpu_data();
+  }
+  
   int length_row;
   int num_rows;
   int clip_length;
@@ -131,6 +136,9 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
         }
         if (this->output_clip_markers_) {
           top_clip_markers[top_id] = prefetch_clip_markers[prefetch_id];
+        }
+        if (this->layer_param_.data_param().weight_loss()) {
+          top_weight_loss[top_id] = 1 - prefetch_clip_markers[prefetch_id];
         }
       }
     }

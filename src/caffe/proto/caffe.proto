@@ -471,6 +471,8 @@ message DataParameter {
   // image.
   optional uint32 clip_length = 100 [default = 1];
 
+  optional bool weight_loss = 130 [default = false];
+
   // clip_length_mode specifies how to handle video data with different
   // clip lengths.
   //
