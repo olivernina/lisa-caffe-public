@@ -15,6 +15,7 @@
 #include "caffe/util/rng.hpp"
 
 using std::string;
+using std::vector;
 
 namespace caffe {
 
@@ -237,6 +238,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     int output_length;
     int input_offset = 0;
     int output_offset = 0;
+    int video_length = 0;
     Dtype* offset_data;
 
     const int out_frame_size =
@@ -249,6 +251,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
         CHECK_LE(num_frames, batch_size) << "Clip longer than batch size.";
         // If using this entire clip would put us past the maximum batch size,
         // fill the rest of the batch with padding.
+        video_length = num_frames;
         if (item_id + num_frames > batch_size) {
           remaining_items = batch_size - item_id;
           const int remaining_data_size = remaining_items * out_frame_size;
@@ -269,6 +272,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
         input_offset = this->input_offset(num_frames, sub_sample);
         output_offset = this->output_offset(num_frames, sub_sample);
         output_length = this->layer_param_.data_param().clip_length()*sub_sample;          
+        video_length = this->layer_param_.data_param().clip_length();
         break;
       case DataParameter_ClipMode_LSTM:
 //        // output_length should just be the minimum of the two:
@@ -277,6 +281,11 @@ void DataLayer<Dtype>::InternalThreadEntry() {
 //        //need to use remaining items IN ROW!
         //remaining_items = (this->tLSTM_ * ((item_id/batch_size)+1)) - item_id;
         remaining_items = this->tLSTM_ - ((item_id + this->tLSTM_) % this->tLSTM_);
+        if (this->layer_param_.data_param().lstm_clip()) {
+          video_length = this->layer_param_.data_param().lstm_clip_length()*sub_sample;
+        } else {
+          video_length = num_frames; 
+        }
         if (this->layer_param_.data_param().lstm_clip() && (num_frames > this->layer_param_.data_param().lstm_clip_length())) {
             if (!continuing_video) {
               input_offset = this->input_offset(num_frames, sub_sample);
@@ -295,7 +304,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
                    << DataParameter_ClipMode_Name(this->clip_mode_);
     }
     //frame loop
-    for (int out_frame_id = current_frame; out_frame_id < output_length;
+    for (int out_frame_id = current_frame; out_frame_id < output_length + first_frame;
         out_frame_id += sub_sample, ++item_id) {
       //if needed, switch to next db pointer
       if (out_frame_id < output_offset ||
@@ -381,11 +390,11 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
     if (item_id > this->tLSTM_*(iter_index+1) - 1) {
       //keep track of which frame we want to start on at iter_index with next batch
-      if (frame_id + sub_sample >= this->layer_param_.data_param().clip_length()*sub_sample) {
+      //if (frame_id + sub_sample >= this->layer_param_.data_param().clip_length()*sub_sample) {
+      if (frame_id + sub_sample >= video_length) {
         this->transfer_frame_ids_[iter_index] = 0;
         this->transfer_video_ids_[iter_index] = this->video_id_+1; 
       } else {
-        LOG(ERROR) << "In loop.";
         this->transfer_frame_ids_[iter_index] = frame_id + sub_sample;
         this->transfer_video_ids_[iter_index] = this->video_id_; 
       }
