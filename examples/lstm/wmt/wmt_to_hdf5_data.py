@@ -69,14 +69,18 @@ class WMTSequenceGenerator(SequenceGenerator):
     self.vocabulary.append(vocabulary)
     self.vocabulary_inverted.append(vocabulary_inverted)
 
-  def dump_vocabulary(self, vocab_filename):
+  def dump_vocabulary(self, vocab_filename, vocab_index):
     print 'Dumping vocabulary to file: %s' % vocab_filename
     with open(vocab_filename, 'wb') as vocab_file:
-      for word in self.vocabulary_inverted:
+      for word in self.vocabulary_inverted[vocab_index]:
         vocab_file.write('%s\n' % word)
     print 'Done.'
 
   def next_line(self):
+    if self.line_index % 10000 == 0:
+      num_lines = float(len(self.lines))
+      print 'Processed %d/%d (%f%%) lines' % (self.line_index, num_lines,
+                                              100 * self.line_index / num_lines)
     self.line_index += 1
     if self.line_index == len(self.lines):
       self.line_index = 0
@@ -101,7 +105,8 @@ class WMTSequenceGenerator(SequenceGenerator):
     out = {}
 
     # encoding stage
-    out['data'] = list(reversed(stream_a))
+    out['encoder_data'] = list(reversed(stream_a))
+    out['decoder_data'] = [0] * len(stream_a)
     out['targets'] = [0] * len(stream_a)
     out['stage_indicators'] = [0] * len(stream_a)
     out['encoder_cont'] = [0] + [1] * (len(stream_a) - 1)
@@ -109,7 +114,8 @@ class WMTSequenceGenerator(SequenceGenerator):
     out['encoder_to_decoder'] = [0] * len(stream_a)
 
     # decoding stage
-    out['data'] += [0] + stream_b
+    out['encoder_data'] += [0] * (len(stream_b) + 1)
+    out['decoder_data'] += [0] + stream_b
     out['targets'] += stream_b + [0]
     out['stage_indicators'] += [1] * (len(stream_b) + 1)
     out['encoder_cont'] += [1] + [0] * len(stream_b)
@@ -120,6 +126,7 @@ class WMTSequenceGenerator(SequenceGenerator):
 
 if __name__ == "__main__":
   BUFFER_SIZE = 100
+  BATCH_STREAM_LENGTH = 100000 # 100k
   DATASET_PATH_PATTERN = './wmt14_data/ptb.%s.txt'
   OUTPUT_DIR = './wmt_hdf5/buffer_%d' % BUFFER_SIZE
   VOCAB_PATH = '%s/wmt_vocabulary.txt' % OUTPUT_DIR
@@ -149,7 +156,12 @@ if __name__ == "__main__":
       assert os.path.exists(path_b)
     output_path = OUTPUT_DIR_PATTERN % dataset_name
     sg = WMTSequenceGenerator(dataset_paths, vocab_paths)
+    sg.batch_stream_length = BATCH_STREAM_LENGTH
     sg.batch_num_streams = BUFFER_SIZE
     writer = HDF5SequenceWriter(sg, output_dir=output_path)
     writer.write_to_exhaustion()
     writer.write_filelists()
+  vocab_out_paths = ['%s/vocabulary.%s.txt' % (OUTPUT_DIR, lang)
+                     for lang in LANGS]
+  for vocab_index, vocab_out_path in enumerate(vocab_out_paths):
+    sg.dump_vocabulary(vocab_out_path, vocab_index)
