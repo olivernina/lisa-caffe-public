@@ -75,26 +75,27 @@ layers {
 # }
 
 # convert indexed input data to one-hot
-layers {
-  name: "one_hot_encoder_data"
-  type: IDX21HOT
-  bottom: "encoder_data"
-  top: "one_hot_encoder_data"
-  idx21hot_param {
-    dim: 80001
-  }
-}
+# layers {
+#   name: "one_hot_encoder_data"
+#   type: IDX21HOT
+#   bottom: "encoder_data"
+#   top: "one_hot_encoder_data"
+#   idx21hot_param {
+#     dim: 80001
+#   }
+# }
 layers {
   name: "embed_encoder"
   type: INNER_PRODUCT
-  bottom: "one_hot_encoder_data"
+  bottom: "encoder_data"
   top: "embed_encoder"
   blobs_lr: 1
   blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
-    num_output: 10000
+    index_input_dim: 80001
+    num_output: 1000
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -107,26 +108,27 @@ layers {
   }
 }
 
-layers {
-  name: "one_hot_decoder_data"
-  type: IDX21HOT
-  bottom: "decoder_data"
-  top: "one_hot_decoder_data"
-  idx21hot_param {
-    dim: 160001
-  }
-}
+# layers {
+#   name: "one_hot_decoder_data"
+#   type: IDX21HOT
+#   bottom: "decoder_data"
+#   top: "one_hot_decoder_data"
+#   idx21hot_param {
+#     dim: 160001
+#   }
+# }
 layers {
   name: "embed_decoder"
   type: INNER_PRODUCT
-  bottom: "one_hot_decoder_data"
+  bottom: "decoder_data"
   top: "embed_decoder"
   blobs_lr: 1
   blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
-    num_output: 10000
+    index_input_dim: 160001
+    num_output: 1000
     weight_filler {
       type: "uniform"
       min: -0.08
