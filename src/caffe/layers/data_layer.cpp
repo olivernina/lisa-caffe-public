@@ -400,7 +400,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
         this->transfer_video_ids_[iter_index] = this->video_id_+1; 
       } else {
         this->transfer_frame_ids_[iter_index] = frame_id + sub_sample;
-        this->transfer_video_ids_[iter_index] = this->video_id_; 
+        this->transfer_video_ids_[iter_index] = current_video; 
       }
       iter_index += 1;
     } else {
