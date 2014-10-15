@@ -77,12 +77,12 @@ class WMTSequenceGenerator(SequenceGenerator):
     print 'Done.'
 
   def next_line(self):
+    num_lines = float(len(self.lines))
     if self.line_index % 10000 == 0:
-      num_lines = float(len(self.lines))
       print 'Processed %d/%d (%f%%) lines' % (self.line_index, num_lines,
                                               100 * self.line_index / num_lines)
     self.line_index += 1
-    if self.line_index == len(self.lines):
+    if self.line_index == num_lines:
       self.line_index = 0
       self.num_resets += 1
 
@@ -137,7 +137,7 @@ if __name__ == "__main__":
        './wmt14_data/crawl.%s.txt',
        './wmt14_data/dev08_11.%s.txt',
        './wmt14_data/ep7_pc45.%s.txt',
-#        './wmt14_data/nc9.%s.txt',
+       './wmt14_data/nc9.%s.txt',
        './wmt14_data/un2000_pc34.%s.txt'
      ]),
      ('valid', [
