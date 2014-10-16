@@ -48,9 +48,6 @@ template <typename Dtype>
 void LSTMLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   CHECK(!propagate_down[1]) << "Cannot backpropagate to sequence index inputs.";
-  const Dtype* top_diff = top[0]->gpu_diff();
-  Dtype* output_diff = output_blob_->mutable_gpu_diff();
-  caffe_copy(top[0]->count(), top_diff, output_diff);
 
   lstm_->Backward();
 

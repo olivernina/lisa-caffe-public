@@ -475,6 +475,7 @@ void LSTMLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   top[0]->Reshape(bottom[0]->num(), hidden_dim_, 1, 1);
   output_blob_->ShareData(*top[0]);
+  output_blob_->ShareDiff(*top[0]);
 }
 
 template <typename Dtype>
@@ -524,9 +525,6 @@ template <typename Dtype>
 void LSTMLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   CHECK(!propagate_down[1]) << "Cannot backpropagate to sequence index inputs.";
-  const Dtype* top_diff = top[0]->cpu_diff();
-  Dtype* output_diff = output_blob_->mutable_cpu_diff();
-  caffe_copy(top[0]->count(), top_diff, output_diff);
 
   lstm_->Backward();
 
