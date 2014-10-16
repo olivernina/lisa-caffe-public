@@ -1,0 +1,26 @@
+net: "./wmt_lstm_4layer_net.prototxt"
+test_iter: 100
+test_state: { stage: 'test-on-train' }
+test_iter: 25
+test_state: { stage: 'test-on-test' }
+test_interval: 1000
+test_net_reset: true
+# base_lr: 0.1
+base_lr: 0.5
+lr_policy: "step"
+gamma: 0.5
+stepsize: 20000
+display: 1
+max_iter: 110000
+momentum: 0.5
+# weight_decay: 0.0005
+weight_decay: 0.0000
+# snapshot: 5
+snapshot: 1000
+snapshot_prefix: "snapshots/wmt_lstm_four_layer_2500d_400d_lr0.5_mom0.0_bs1000_buf100"
+# snapshot_prefix: "snapshots/test"
+solver_mode: GPU
+# debug_info: true
+random_seed: 1701
+average_loss: 100
+clip_gradients: 5
