@@ -36,10 +36,6 @@ void LSTMLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   caffe_copy(bottom[1]->count(), bottom[1]->cpu_data(),
              flush_input_blob_->mutable_cpu_data());
 
-  const int count = x_input_blob_->count();
-  CHECK_EQ(count, bottom[0]->count());
-  caffe_copy(count, bottom[0]->gpu_data(), x_input_blob_->mutable_gpu_data());
-
   // Run the LSTM in forward mode.
   lstm_->ForwardPrefilled();
 }
