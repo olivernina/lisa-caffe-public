@@ -46,10 +46,6 @@ void LSTMLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   CHECK(!propagate_down[1]) << "Cannot backpropagate to sequence index inputs.";
 
   lstm_->Backward();
-
-  if (!propagate_down[0]) { return; }
-  const int count = x_input_blob_->count();
-  caffe_copy(count, x_input_blob_->gpu_diff(), bottom[0]->mutable_gpu_diff());
 }
 
 INSTANTIATE_CLASS(LSTMLayer);

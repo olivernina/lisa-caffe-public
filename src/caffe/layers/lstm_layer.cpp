@@ -475,6 +475,7 @@ void LSTMLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   top[0]->Reshape(bottom[0]->num(), hidden_dim_, 1, 1);
   x_input_blob_->ShareData(*bottom[0]);
+  x_input_blob_->ShareDiff(*bottom[0]);
   output_blob_->ShareData(*top[0]);
   output_blob_->ShareDiff(*top[0]);
 }
@@ -524,10 +525,6 @@ void LSTMLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   CHECK(!propagate_down[1]) << "Cannot backpropagate to sequence index inputs.";
 
   lstm_->Backward();
-
-  if (!propagate_down[0]) { return; }
-  const int count = x_input_blob_->count();
-  caffe_copy(count, x_input_blob_->cpu_diff(), bottom[0]->mutable_cpu_diff());
 }
 
 #ifdef CPU_ONLY
