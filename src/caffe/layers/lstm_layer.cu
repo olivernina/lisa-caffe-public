@@ -42,12 +42,6 @@ void LSTMLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 
   // Run the LSTM in forward mode.
   lstm_->ForwardPrefilled();
-
-  // Copy the LSTM outputs.
-  CHECK_EQ(output_blob_->count(), top[0]->count());
-  const Dtype* output_data = output_blob_->gpu_data();
-  Dtype* top_data = top[0]->mutable_gpu_data();
-  caffe_copy(output_blob_->count(), output_data, top_data);
 }
 
 template <typename Dtype>
