@@ -476,6 +476,7 @@ void LSTMLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   top[0]->Reshape(bottom[0]->num(), hidden_dim_, 1, 1);
   x_input_blob_->ShareData(*bottom[0]);
   x_input_blob_->ShareDiff(*bottom[0]);
+  flush_input_blob_->ShareData(*bottom[1]);
   output_blob_->ShareData(*top[0]);
   output_blob_->ShareDiff(*top[0]);
 }
@@ -510,10 +511,6 @@ void LSTMLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   const Dtype* cell_output_data = c_output_blob_->cpu_data();
   Dtype* cell_input_data = c_input_blob_->mutable_cpu_data();
   caffe_copy(timestep_dim, cell_output_data, cell_input_data);
-
-  CHECK_EQ(bottom[1]->count(), flush_input_blob_->count());
-  caffe_copy(bottom[1]->count(), bottom[1]->cpu_data(),
-             flush_input_blob_->mutable_cpu_data());
 
   // Run the LSTM in forward mode.
   lstm_->ForwardPrefilled();
