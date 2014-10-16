@@ -129,7 +129,6 @@ if __name__ == "__main__":
   BATCH_STREAM_LENGTH = 100000 # 100k
   DATASET_PATH_PATTERN = './wmt14_data/ptb.%s.txt'
   OUTPUT_DIR = './wmt_hdf5/buffer_%d' % BUFFER_SIZE
-  VOCAB_PATH = '%s/wmt_vocabulary.txt' % OUTPUT_DIR
   OUTPUT_DIR_PATTERN = '%s/%%s_batches' % OUTPUT_DIR
   DATASETS = [
     ('train', [
