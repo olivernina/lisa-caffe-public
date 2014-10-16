@@ -326,8 +326,9 @@ void Solver<Dtype>::Test(const int test_net_id) {
     ostringstream loss_msg_stream;
     const Dtype mean_score = test_score[i] / param_.test_iter(test_net_id);
     if (loss_weight) {
-      loss_msg_stream << " (* " << loss_weight
-                      << " = " << loss_weight * mean_score << " loss)";
+    //Lisa commented this out because she thought it was annoying
+    //  loss_msg_stream << " (* " << loss_weight
+    //                  << " = " << loss_weight * mean_score << " loss)";
     }
     LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
         << mean_score << loss_msg_stream.str();

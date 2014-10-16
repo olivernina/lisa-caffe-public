@@ -50,6 +50,11 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   } else {
     this->output_clip_markers_ = false;
   }
+  if (top.size() > 3) {
+    this->weight_loss_ = true;
+  } else {
+    this->weight_loss_ = false;
+  }
   this->video_id_ = 0;
 
   if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
@@ -139,8 +144,10 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     this->prefetch_clip_markers_.Reshape(
         this->layer_param_.data_param().batch_size(), 1, 1, 1);
   }
-  if (this->layer_param_.data_param().weight_loss()) {
+  if (this->weight_loss_) {
     top[3]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
+    this->prefetch_weight_loss_.Reshape(
+        this->layer_param_.data_param().batch_size(), 1, 1, 1);
   }
 
 
@@ -167,6 +174,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
   Dtype* top_label = NULL;  // suppress warnings about uninitialized variables
   Dtype* top_clip_markers = NULL;
+  Dtype* top_weight_loss = NULL;
   const Dtype pad_value = this->layer_param_.data_param().clip_pad_value();
   const int sub_sample = this->layer_param_.data_param().clip_sub_sample();
   const bool clip_collapse_labels = this->layer_param_.data_param().clip_collapse_labels();
@@ -178,6 +186,9 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   }
   if (this->output_clip_markers_) {
     top_clip_markers = this->prefetch_clip_markers_.mutable_cpu_data();
+  }
+  if (this->weight_loss_) {
+    top_weight_loss = this->prefetch_weight_loss_.mutable_cpu_data();
   }
   const int batch_size = this->layer_param_.data_param().batch_size();
   int max_video;
@@ -387,6 +398,10 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       if (this->output_clip_markers_) {
         top_clip_markers[item_id] = (out_frame_id == output_offset) ?
             DataLayer<Dtype>::CLIP_BEGIN : DataLayer<Dtype>::CLIP_CONTINUE;
+      } 
+      if (this->weight_loss_) {
+        top_weight_loss[item_id] = (out_frame_id == output_length-1) ?
+            1 : 0;
       } 
     } //for (out_frame_id = 0; out_frame_id < output_length) 
     // go to the next iter

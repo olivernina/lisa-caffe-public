@@ -59,6 +59,7 @@ class BaseDataLayer : public Layer<Dtype> {
   int sLSTM_;
   int tLSTM_;
   bool output_clip_markers_;
+  bool weight_loss_;
   DataParameter_ClipMode clip_mode_;
   int clip_length_;
   bool LSTM_clip_;
@@ -94,6 +95,7 @@ class BasePrefetchingDataLayer :
   Blob<Dtype> prefetch_data_;
   Blob<Dtype> prefetch_label_;
   Blob<Dtype> prefetch_clip_markers_;
+  Blob<Dtype> prefetch_weight_loss_;
   Blob<Dtype> transformed_data_;
 };
 

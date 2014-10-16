@@ -81,7 +81,9 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
   }
   
   Dtype* top_weight_loss = NULL;
+  const Dtype* prefetch_weight_loss = NULL;
   if (this->layer_param_.data_param().weight_loss()) {
+    prefetch_weight_loss = prefetch_weight_loss_.cpu_data();
     top_weight_loss = top[3]->mutable_cpu_data();
   }
   
@@ -138,7 +140,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
           top_clip_markers[top_id] = prefetch_clip_markers[prefetch_id];
         }
         if (this->layer_param_.data_param().weight_loss()) {
-          top_weight_loss[top_id] = 1 - prefetch_clip_markers[prefetch_id];
+          top_weight_loss[top_id] =  prefetch_weight_loss[prefetch_id];
         }
       }
     }
