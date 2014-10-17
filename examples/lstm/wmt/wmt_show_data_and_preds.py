@@ -92,7 +92,7 @@ def do_iteration():
     'net_data': 0,
     'net_data_fr': 0,
     'net_data_en': 1,
-    'net_targets': 0,
+    'net_targets': 1,
     'net_targets_fr': 0,
     'net_targets_en': 1,
     'net_encoder_data': 0,
@@ -100,8 +100,8 @@ def do_iteration():
     'net_predind': 1,
   }
   int_keys = set(('input_cont', 'net_cont',
-#       'input_encoder_cont', 'net_encoder_cont',
-#       'input_decoder_cont', 'net_decoder_cont',
+      'input_encoder_cont', 'net_encoder_cont',
+      'input_decoder_cont', 'net_decoder_cont',
       'input_encoder_to_decoder', 'net_encoder_to_decoder',
       'input_stage_indicators', 'net_stage_indicators')).union(vocab_indices.keys())
   reshape_keys = \
@@ -125,7 +125,7 @@ def do_iteration():
                                  for i in range(len(sdata))]
   return shaped_data
 
-num_iterations = 5
+num_iterations = 10
 # num_iterations = 1
 num_streams = 10
 num_timesteps = -1
@@ -149,10 +149,19 @@ displays = [
 display_skip = [False] * len(displays)
 all_tables = [[] for _ in range(num_streams)]
 for iteration in range(num_iterations):
+  print 'Iteration %d' % iteration
   shaped_data = do_iteration()
   for s, table in enumerate(all_tables):
     if num_timesteps < 0:
-      num_timesteps = len(shaped_data[displays[0][2]][s])
+      num_timesteps = None
+      for display in displays:
+        if display[2] in shaped_data:
+          try:
+            num_timesteps = len(shaped_data[display[2]][s])
+            break
+          except:
+            pass
+      assert num_timesteps is not None
     for t in range(num_timesteps):
       row = []
       for index, disp_keys in enumerate(displays):
