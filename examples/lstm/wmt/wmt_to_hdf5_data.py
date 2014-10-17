@@ -15,7 +15,7 @@ UNK_IDENTIFIERS = ['<fr_unk>', '<en_unk>']
 class WMTSequenceGenerator(SequenceGenerator):
   # filenames should be a list of
   #     [(french1, english1), ..., (frenchK, englishK)]
-  def __init__(self, filenames, vocab_filenames):
+  def __init__(self, filenames, vocab_filenames, langs=[], lang_specs=None):
     self.lines = []
     num_empty_lines = 0
     for a, b in filenames:
@@ -39,6 +39,9 @@ class WMTSequenceGenerator(SequenceGenerator):
     self.num_resets = 0
     self.vocabulary = []
     self.vocabulary_inverted = []
+    self.langs = langs
+    self.lang_specs = lang_specs
+    self.output_character_data = False
     for index, vocab_filename in enumerate(vocab_filenames):
       self.init_vocabulary(vocab_filename, index)
     random.shuffle(self.lines)
@@ -98,38 +101,70 @@ class WMTSequenceGenerator(SequenceGenerator):
     return stream
 
   def get_streams(self):
-    line_a, line_b = self.lines[self.line_index]
-    stream_a = self.line_to_stream(0, line_a)
-    stream_b = self.line_to_stream(1, line_b)
-    self.next_line()
+    parallel_lines = self.lines[self.line_index]
+    input_length = 0
+    output_length = 0
+    streams = []
+    inputs = []
+    outputs = []
+    # Loop over the languages once to compute the streams and input/output length.
+    for lang_index, lang_line in enumerate(parallel_lines):
+      lang = self.langs[lang_index]
+      lang_spec = self.lang_specs[lang]
+      streams.append(self.line_to_stream(lang_index, lang_line))
+      stream_length = len(streams[-1])
+      inputs.append(lang_spec['input'])
+      if inputs[-1] and stream_length > input_length:
+        input_length = stream_length
+      outputs.append(lang_spec['output'])
+      if outputs[-1] and stream_length > output_length:
+        output_length = stream_length
+    # Loop again to create the dict of output data.
     out = {}
-
-    # encoding stage
-    out['encoder_data'] = list(reversed(stream_a))
-    out['decoder_data'] = [0] * len(stream_a)
-    out['targets'] = [0] * len(stream_a)
-    out['stage_indicators'] = [0] * len(stream_a)
-    out['encoder_cont'] = [0] + [1] * (len(stream_a) - 1)
-    out['decoder_cont'] = [0] * len(stream_a)
-    out['encoder_to_decoder'] = [0] * len(stream_a)
-
-    # decoding stage
-    out['encoder_data'] += [0] * (len(stream_b) + 1)
-    out['decoder_data'] += [0] + stream_b
-    out['targets'] += stream_b + [0]
-    out['stage_indicators'] += [1] * (len(stream_b) + 1)
-    out['encoder_cont'] += [1] + [0] * len(stream_b)
-    out['decoder_cont'] += [0] + [1] * len(stream_b)
-    out['encoder_to_decoder'] += [1] + [0] * len(stream_b)
-
+    out['stage_indicators'] = [0] * (input_length + 1) + [1] * (output_length + 1)
+    for lang, lang_stream, input, output in \
+        zip(self.langs, streams, inputs, outputs):
+      # encoding stage
+      if input:
+        input_stream = list(reversed(lang_stream))
+        # prepend EOS padding (empty if len(input_stream) == input_length)
+        pad = [0] * (input_length - len(input_stream))
+        out['data_%s' % lang] = pad + [0] + input_stream
+        out['targets_%s' % lang] = pad + input_stream + [0]
+        out['cont_%s' % lang] = pad + [0] + [1] * len(input_stream)
+      else:
+        zeros = [0] * (input_length + 1)
+        out['data_%s' % lang] = list(zeros)
+        out['targets_%s' % lang] = list(zeros)
+        out['cont_%s' % lang] = list(zeros)
+      # decoding stage
+      if output:
+        output_stream = list(lang_stream)
+        # append EOS padding (empty if len(output_stream) == output_length)
+        pad = [0] * (output_length - len(output_stream))
+        out['data_%s' % lang] += [0] + output_stream + pad
+        out['targets_%s' % lang] += output_stream + [0] + pad
+        out['cont_%s' % lang] += [1] * (len(output_stream) + 1) + pad
+      else:
+        zeros = [0] * (output_length + 1)
+        out['data_%s' % lang] += list(zeros)
+        out['targets_%s' % lang] += list(zeros)
+        out['cont_%s' % lang] += list(zeros)
+    self.next_line()
     return out
 
-if __name__ == "__main__":
-  BUFFER_SIZE = 100
+def lang_specs_to_str(langs, lang_specs):
+  out = []
+  for lang in langs:
+    spec = lang_specs[lang]
+    out.append('%s_%s%s' %
+        (lang, 'i' if spec['input'] else '', 'o' if spec['output'] else ''))
+  return '-'.join(out)
+
+def preprocess_en_to_fr_words():
+  BUFFER_SIZE = 10
   BATCH_STREAM_LENGTH = 100000 # 100k
   DATASET_PATH_PATTERN = './wmt14_data/ptb.%s.txt'
-  OUTPUT_DIR = './wmt_hdf5/buffer_%d' % BUFFER_SIZE
-  OUTPUT_DIR_PATTERN = '%s/%%s_batches' % OUTPUT_DIR
   DATASETS = [
     ('train', [
        './wmt14_data/ccb2_pc30.%s.txt',
@@ -145,6 +180,12 @@ if __name__ == "__main__":
   ]
   VOCAB = './wmt14_data/%sVocab.txt'
   LANGS = ['fr', 'en']
+  LANG_SPECS = {
+    'fr': {'input': True, 'output': True},
+    'en': {'input': False, 'output': True},
+  }
+  OUTPUT_DIR = './wmt_hdf5/%s/buffer_%d' % (lang_specs_to_str(LANGS, LANG_SPECS), BUFFER_SIZE)
+  OUTPUT_DIR_PATTERN = '%s/%%s_batches' % OUTPUT_DIR
 
   vocab_paths = [VOCAB % lang for lang in LANGS]
   for dataset_name, dataset_path_patterns in DATASETS:
@@ -154,7 +195,7 @@ if __name__ == "__main__":
       assert os.path.exists(path_a)
       assert os.path.exists(path_b)
     output_path = OUTPUT_DIR_PATTERN % dataset_name
-    sg = WMTSequenceGenerator(dataset_paths, vocab_paths)
+    sg = WMTSequenceGenerator(dataset_paths, vocab_paths, langs=LANGS, lang_specs=LANG_SPECS)
     sg.batch_stream_length = BATCH_STREAM_LENGTH
     sg.batch_num_streams = BUFFER_SIZE
     writer = HDF5SequenceWriter(sg, output_dir=output_path)
@@ -164,3 +205,7 @@ if __name__ == "__main__":
                      for lang in LANGS]
   for vocab_index, vocab_out_path in enumerate(vocab_out_paths):
     sg.dump_vocabulary(vocab_out_path, vocab_index)
+
+
+if __name__ == "__main__":
+  preprocess_en_to_fr_words()
