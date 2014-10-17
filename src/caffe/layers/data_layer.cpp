@@ -383,7 +383,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       // False indicates that we will not recalculate these values.
       CHECK_LT(item_id, batch_size);
       int offset = this->prefetch_data_.offset(item_id);
-      if (current_video == 1816 && current_frame > 40) {
+      if (current_video == 1207 && current_frame > 40) {
         LOG(INFO) << "reading from video " << current_video << " in " << this->phase_;
         LOG(INFO) << "current frame is " << current_frame;
         ++count;
