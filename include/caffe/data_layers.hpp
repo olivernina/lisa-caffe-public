@@ -137,8 +137,6 @@ class DataLayer : public BasePrefetchingDataLayer<Dtype> {
   bool skip_initialized_;
   inline int input_offset(const int num_frames, const int sub_sample);
   inline int output_offset(const int num_frames, const int sub_sample);
-  virtual unsigned int PrefetchRand();
-  shared_ptr<Caffe::RNG> prefetch_rng_;
 };
 
 /**

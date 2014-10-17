@@ -169,6 +169,7 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 // This function is used to create a thread that prefetches the data.
 template <typename Dtype>
 void DataLayer<Dtype>::InternalThreadEntry() {
+  int count = 0;
   CHECK(this->prefetch_data_.count());
   CHECK(this->transformed_data_.count());
   Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
@@ -192,7 +193,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   }
   const int batch_size = this->layer_param_.data_param().batch_size();
   int max_video;
-  if (this->phase_ == Caffe::TRAIN) {
+  if (this->phase_ == 0) {
     max_video = this->layer_param_.data_param().max_train_item() - 1;  //3571
   } else {
     max_video = this->layer_param_.data_param().max_test_item() - 1;  //1531
@@ -233,6 +234,8 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       CHECK(iter_[iter_index]);
       CHECK(iter_[iter_index]->Valid());
       length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
+      LOG(INFO) << "reading from video " << current_video << " in " << this->phase_;
+
       db_->Get(leveldb::ReadOptions(), my_key, &value);
       datum.ParseFromString(value);
       //datum.ParseFromString(iter_->value().ToString());
@@ -380,6 +383,11 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       // False indicates that we will not recalculate these values.
       CHECK_LT(item_id, batch_size);
       int offset = this->prefetch_data_.offset(item_id);
+      if (current_video == 1816 && current_frame > 40) {
+        LOG(INFO) << "reading from video " << current_video << " in " << this->phase_;
+        LOG(INFO) << "current frame is " << current_frame;
+        ++count;
+      }  
       this->transformed_data_.set_cpu_data(top_data + offset);
       this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video,iter_index);
       first_video = false;
@@ -561,7 +569,7 @@ int DataLayer<Dtype>::input_offset(const int num_frames,
   }
   switch (this->layer_param_.data_param().clip_crop_mode()) {
   case DataParameter_ClipPadCropMode_RANDOM:
-    return this->PrefetchRand() % (crop_needed + 1);
+    return this->data_transformer_.Rand(crop_needed+1);
   case DataParameter_ClipPadCropMode_START:
     return 0;
   case DataParameter_ClipPadCropMode_CENTER:
@@ -590,7 +598,7 @@ int DataLayer<Dtype>::output_offset(const int num_frames,
   }
   switch (this->layer_param_.data_param().clip_pad_mode()) {
   case DataParameter_ClipPadCropMode_RANDOM:
-    return this->PrefetchRand() % (pad_needed + 1);
+    return this->data_transformer_.Rand(pad_needed+1);
   case DataParameter_ClipPadCropMode_START:
     return 0;
   case DataParameter_ClipPadCropMode_CENTER:
@@ -604,16 +612,6 @@ int DataLayer<Dtype>::output_offset(const int num_frames,
   }
   LOG(FATAL) << "Shouldn't reach this line; switch returns or LOG(FATAL)s.";
   return 0;
-}
-
-template <typename Dtype>
-unsigned int DataLayer<Dtype>::PrefetchRand() {
-  const unsigned int prefetch_rng_seed = caffe_rng_rand();
-  prefetch_rng_.reset(new Caffe::RNG(prefetch_rng_seed));
-  CHECK(prefetch_rng_);
-  caffe::rng_t* prefetch_rng =
-      static_cast<caffe::rng_t*>(prefetch_rng_->generator());
-  return (*prefetch_rng)();
 }
 
 INSTANTIATE_CLASS(DataLayer);

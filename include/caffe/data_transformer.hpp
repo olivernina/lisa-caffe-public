@@ -83,7 +83,6 @@ class DataTransformer {
   void Transform(Blob<Dtype>* input_blob, Blob<Dtype>* transformed_blob, bool calc_off = true,
  									 int track_index = 0); 
 
- protected:
    /**
    * @brief Generates a random integer from Uniform({0, 1, ..., n-1}).
    * 
@@ -93,6 +92,8 @@ class DataTransformer {
    *    A uniformly random integer value from ({0, 1, ..., n-1}).
    */
   virtual int Rand(int n);
+
+ protected:
 
   void Transform(const Datum& datum, Dtype* transformed_data, bool calc_off = true,
 						              int track_index = 0);
