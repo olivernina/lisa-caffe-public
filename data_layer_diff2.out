@@ -1,0 +1,578 @@
+diff --git a/src/caffe/layers/data_layer.cpp b/src/caffe/layers/data_layer.cpp
+index 5fae2f5..419a747 100644
+--- a/src/caffe/layers/data_layer.cpp
++++ b/src/caffe/layers/data_layer.cpp
+@@ -1,5 +1,3 @@
+-// Copyright 2014 BVLC and contributors.
+-
+ #include <leveldb/db.h>
+ #include <stdint.h>
+ 
+@@ -14,9 +12,6 @@
+ #include "caffe/util/math_functions.hpp"
+ #include "caffe/util/rng.hpp"
+ 
+-using std::string;
+-using std::vector;
+-
+ namespace caffe {
+ 
+ template <typename Dtype>
+@@ -40,32 +35,6 @@ DataLayer<Dtype>::~DataLayer<Dtype>() {
+ template <typename Dtype>
+ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+       const vector<Blob<Dtype>*>& top) {
+-  if (top.size() > 1) {
+-    this->output_labels_ = true;
+-  } else {
+-    this->output_labels_ = false;
+-  }
+-  if (top.size() > 2) {
+-    this->output_clip_markers_ = true;
+-  } else {
+-    this->output_clip_markers_ = false;
+-  }
+-  if (top.size() > 3) {
+-    this->weight_loss_ = true;
+-  } else {
+-    this->weight_loss_ = false;
+-  }
+-  this->video_id_ = 0;
+-
+-  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
+-    this->sLSTM_ = this->layer_param_.data_param().slstm(); 
+-    CHECK_EQ(0,this->layer_param_.data_param().batch_size() % this->sLSTM_) <<
+-	"Batch size must be divisible by sLSTM";
+-  }
+-  else {
+-    this->sLSTM_ = 1;
+-  }
+-  this->tLSTM_ = this->layer_param_.data_param().batch_size() / this->sLSTM_; 
+   // Initialize the DB and rand_skip.
+   Reset();
+ 
+@@ -73,7 +42,7 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+   Datum datum;
+   switch (this->layer_param_.data_param().backend()) {
+   case DataParameter_DB_LEVELDB:
+-    datum.ParseFromString(iter_[0]->value().ToString());
++    datum.ParseFromString(iter_->value().ToString());
+     break;
+   case DataParameter_DB_LMDB:
+     datum.ParseFromArray(mdb_value_.mv_data, mdb_value_.mv_size);
+@@ -89,153 +58,48 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+                        datum.channels(), crop_size, crop_size);
+     this->prefetch_data_.Reshape(this->layer_param_.data_param().batch_size(),
+         datum.channels(), crop_size, crop_size);
+-    this->transformed_data_.Reshape(1, datum.channels(), crop_size, crop_size);
+   } else {
+     top[0]->Reshape(
+         this->layer_param_.data_param().batch_size(), datum.channels(),
+         datum.height(), datum.width());
+     this->prefetch_data_.Reshape(this->layer_param_.data_param().batch_size(),
+         datum.channels(), datum.height(), datum.width());
+-    this->transformed_data_.Reshape(1, datum.channels(),
+-      datum.height(), datum.width());
+-  }
+-
+-  //video
+-  int clip_length_ = this->layer_param_.data_param().clip_length();
+-  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH) {
+-    CHECK_EQ(0, this->layer_param_.data_param().batch_size() % clip_length_)
+-        << "If using fixed length clips, the batch size must be an exact "
+-        << "multiple of the clip length to avoid adding unnecessary padding. "
+-        << "Consider setting batch_size = " << clip_length_ *
+-          (this->layer_param_.data_param().batch_size() / clip_length_);
+-  }
+-
+-
+-  if (this->layer_param_.data_param().clip_order() == DataParameter_ClipOrder_FRAME_MAJOR) {
+-    top[0]->set_frame_major_clip_length(clip_length_);
+-    bool check_frame_major = (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) ||
+-          (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH);
+-    CHECK(check_frame_major) << "FRAME_MAJOR clip_order requires FIXED_LENGTH of LSTM clip_mode";
+-//    CHECK_EQ(this->layer_param_.data_param().clip_mode(), DataParameter_ClipMode_FIXED_LENGTH)
+-//        << "FRAME_MAJOR clip_order requires FIXED_LENGTH clip_mode.";
+-  } else {
+-    top[0]->set_frame_major_clip_length(0);
+   }
+   LOG(INFO) << "output data size: " << top[0]->num() << ","
+       << top[0]->channels() << "," << top[0]->height() << ","
+       << top[0]->width();
+   // label
+   if (this->output_labels_) {
+-    if (this->layer_param_.data_param().clip_collapse_labels()) {  //this->clip_collapse_labels_
+-      bool tmp = (DataParameter_ClipMode_FIXED_LENGTH | DataParameter_ClipMode_LSTM);
+-      CHECK_GT(tmp,0)
+-          << "clip_collapse_labels requires fixed_length clip_mode.";
+-      const int collapsed_label_num = this->layer_param_.data_param().batch_size() / clip_length_;
+-      top[1]->Reshape(collapsed_label_num, 1, 1, 1);
+-      this->prefetch_label_.Reshape(collapsed_label_num, 1, 1, 1);
+-    } else {
+-      top[1]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
+-      this->prefetch_label_.Reshape(
+-          this->layer_param_.data_param().batch_size(), 1, 1, 1);
+-    }
+-  }
+-  if (this->output_clip_markers_) {
+-    top[2]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
+-    this->prefetch_clip_markers_.Reshape(
+-        this->layer_param_.data_param().batch_size(), 1, 1, 1);
+-  }
+-  if (this->weight_loss_) {
+-    top[3]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
+-    this->prefetch_weight_loss_.Reshape(
+-        this->layer_param_.data_param().batch_size(), 1, 1, 1);
+-  }
+-
+-
+-  if (this->output_clip_markers_) {
+-    const int count = this->prefetch_clip_markers_.count();
+-    Dtype* prefetch_clip_markers = this->prefetch_clip_markers_.mutable_cpu_data();
+-    if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH) {
+-    // Prefill markers for fixed length batch size, as they'll never change.
+-      for (int i = 0; i < count; ++i) {
+-        prefetch_clip_markers[i] =
+-            (i % clip_length_ > 0) ? CLIP_CONTINUE : CLIP_BEGIN;
+-      }
+-    } else {
+-      caffe_set(count, Dtype(PADDING), prefetch_clip_markers);
+-    }
+-  }
++    top[1]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
++    this->prefetch_label_.Reshape(this->layer_param_.data_param().batch_size(),
++        1, 1, 1);
++  }
++  // datum size
++  this->datum_channels_ = datum.channels();
++  this->datum_height_ = datum.height();
++  this->datum_width_ = datum.width();
++  this->datum_size_ = datum.channels() * datum.height() * datum.width();
+ }
+ 
+ // This function is used to create a thread that prefetches the data.
+ template <typename Dtype>
+ void DataLayer<Dtype>::InternalThreadEntry() {
++  Datum datum;
+   CHECK(this->prefetch_data_.count());
+-  CHECK(this->transformed_data_.count());
+   Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
+   Dtype* top_label = NULL;  // suppress warnings about uninitialized variables
+-  Dtype* top_clip_markers = NULL;
+-  Dtype* top_weight_loss = NULL;
+-  const Dtype pad_value = this->layer_param_.data_param().clip_pad_value();
+-  const int sub_sample = this->layer_param_.data_param().clip_sub_sample();
+-  const bool clip_collapse_labels = this->layer_param_.data_param().clip_collapse_labels();
+-  int collapsed_label_id = 0;
+-  const int label_num = this->prefetch_label_.num();
+-
+   if (this->output_labels_) {
+     top_label = this->prefetch_label_.mutable_cpu_data();
+   }
+-  if (this->output_clip_markers_) {
+-    top_clip_markers = this->prefetch_clip_markers_.mutable_cpu_data();
+-  }
+-  if (this->weight_loss_) {
+-    top_weight_loss = this->prefetch_weight_loss_.mutable_cpu_data();
+-  }
+   const int batch_size = this->layer_param_.data_param().batch_size();
+-  int max_video;
+-  if (this->phase_ == Caffe::TRAIN) {
+-    max_video = this->layer_param_.data_param().max_train_item() - 1;  //3571
+-  } else {
+-    max_video = this->layer_param_.data_param().max_test_item() - 1;  //1531
+-  }
+-  CHECK_GE(max_video,0)  << "Need to have more videos than 0.";
+ 
+-
+-  //should refactor this in a smart way
+-  int iter_index = 0;
+-  std::string value;
+-  int frame_id;
+-  for (int item_id = 0; item_id < batch_size; ) {
+-    bool first_video = true;
++  for (int item_id = 0; item_id < batch_size; ++item_id) {
+     // get a blob
+-    Datum datum;
+-    bool continuing_video = false;
+-    if (this->transfer_frame_ids_[iter_index] > 0) {
+-      continuing_video = true;
+-      first_video = false;  //need to figure out way to transfer w_off and h_off neatly
+-    }
+-    // Read in first blob from video to initialize everything.
+-    char my_key[17];
+-    int first_frame;
+-    int current_video;
+-    if (this->video_id_ > max_video){
+-      this->video_id_ = 0;
+-    }
+-    if (continuing_video){
+-      first_frame = this->transfer_frame_ids_[iter_index];
+-      current_video = this->transfer_video_ids_[iter_index];
+-    } else {
+-      first_frame = 0;
+-      current_video = this->video_id_;
+-    }
+-    int length_key;
+     switch (this->layer_param_.data_param().backend()) {
+     case DataParameter_DB_LEVELDB:
+-      CHECK(iter_[iter_index]);
+-      CHECK(iter_[iter_index]->Valid());
+-      length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
+-      db_->Get(leveldb::ReadOptions(), my_key, &value);
+-      datum.ParseFromString(value);
+-      //datum.ParseFromString(iter_->value().ToString());
++      CHECK(iter_);
++      CHECK(iter_->Valid());
++      datum.ParseFromString(iter_->value().ToString());
+       break;
+     case DataParameter_DB_LMDB:
+       CHECK_EQ(mdb_cursor_get(mdb_cursor_, &mdb_key_,
+@@ -247,190 +111,22 @@ void DataLayer<Dtype>::InternalThreadEntry() {
+       LOG(FATAL) << "Unknown database backend";
+     }
+ 
+-    const int num_frames = datum.frames();
+-    int current_frame = datum.current_frame();
+-    CHECK_GT(num_frames, 0) << "Input had no frames.";
+-    int output_length;
+-    int input_offset = 0;
+-    int output_offset = 0;
+-    int video_length = 0;
+-    Dtype* offset_data;
+-
+-    const int out_frame_size =
+-        datum.channels()* (this->layer_param_.transform_param().crop_size() ? pow(this->layer_param_.transform_param().crop_size(), 2) : (datum.height() * datum.width()));
++    // Apply data transformations (mirror, scale, crop...)
++    this->data_transformer_.Transform(item_id, datum, this->mean_, top_data);
+ 
+-    int remaining_items;
+- 
+-    switch (this->layer_param_.data_param().clip_mode()) {
+-      case DataParameter_ClipMode_VARIABLE:
+-        CHECK_LE(num_frames, batch_size) << "Clip longer than batch size.";
+-        // If using this entire clip would put us past the maximum batch size,
+-        // fill the rest of the batch with padding.
+-        video_length = num_frames;
+-        if (item_id + num_frames > batch_size) {
+-          remaining_items = batch_size - item_id;
+-          const int remaining_data_size = remaining_items * out_frame_size;
+-          offset_data = &top_data[item_id * out_frame_size];
+-          caffe_set(remaining_data_size, pad_value, offset_data);
+-          if (this->output_labels_) {
+-            caffe_set(remaining_items, pad_value, &top_label[item_id]);
+-          } 
+-          if (this->output_clip_markers_) {
+-            caffe_set(remaining_items, Dtype(DataLayer<Dtype>::PADDING),
+-                      &top_clip_markers[item_id]);
+-          }
+-          return; 
+-        }
+-        output_length = num_frames*sub_sample; 
+-        break;
+-      case DataParameter_ClipMode_FIXED_LENGTH:
+-        input_offset = this->input_offset(num_frames, sub_sample);
+-        output_offset = this->output_offset(num_frames, sub_sample);
+-        output_length = this->layer_param_.data_param().clip_length()*sub_sample;          
+-        video_length = this->layer_param_.data_param().clip_length();
+-        break;
+-      case DataParameter_ClipMode_LSTM:
+-//        // output_length should just be the minimum of the two:
+-//		//1) space left in row of data matrix
+-//		//2) number of frames in video
+-//        //need to use remaining items IN ROW!
+-        //remaining_items = (this->tLSTM_ * ((item_id/batch_size)+1)) - item_id;
+-        remaining_items = this->tLSTM_ - ((item_id + this->tLSTM_) % this->tLSTM_);
+-        if (this->layer_param_.data_param().lstm_clip()) {
+-          video_length = this->layer_param_.data_param().lstm_clip_length()*sub_sample;
+-        } else {
+-          video_length = num_frames; 
+-        }
+-        if (this->layer_param_.data_param().lstm_clip() && (num_frames > this->layer_param_.data_param().lstm_clip_length())) {
+-            if (!continuing_video) {
+-              input_offset = this->input_offset(num_frames, sub_sample);
+-              output_offset = this->output_offset(num_frames, sub_sample);
+-              output_length = this->layer_param_.data_param().clip_length()*sub_sample;
+-            } else {
+-              LOG(FATAL) << "Can't handle continuing video with fixed length LSTM mode.";
+-            }
+-        } else {
+-            output_length = (num_frames - current_frame) *sub_sample;
+-        }
+-        output_length = std::min(remaining_items*sub_sample, output_length);
+-        break;       
+-      default:
+-        LOG(FATAL) << "Unknown clip mode: "
+-                   << DataParameter_ClipMode_Name(this->clip_mode_);
++    if (this->output_labels_) {
++      top_label[item_id] = datum.label();
+     }
+-    //frame loop
+-    for (int out_frame_id = current_frame; out_frame_id < output_length + first_frame;
+-        out_frame_id += sub_sample, ++item_id) {
+-      //if needed, switch to next db pointer
+-      if (out_frame_id < output_offset ||
+-          out_frame_id >= output_offset + num_frames) {
+-        // This is a padding frame of a fixed-length clip; fill it as such.
+-        Dtype* top_data_frame = &top_data[item_id * out_frame_size];
+-        caffe_set(out_frame_size, pad_value, top_data_frame);
+-        if (this->output_labels_) {
+-          if (clip_collapse_labels) {
+-            if (out_frame_id == 0) {
+-              CHECK_LT(collapsed_label_id, label_num);
+-              CHECK_LT(collapsed_label_id, batch_size);
+-              top_label[collapsed_label_id] = datum.label();
+-              ++collapsed_label_id;
+-            }
+-          } else {
+-            CHECK_LT(item_id, batch_size);
+-            top_label[item_id] = datum.label();
+-          }
+-        }
+-        if (this->output_clip_markers_) {
+-          CHECK_LT(item_id, batch_size);
+-          top_clip_markers[item_id] = Dtype(DataLayer<Dtype>::PADDING);
+-        }
+-        continue;
+-      }
+-
+-      frame_id = out_frame_id - output_offset + input_offset;
+-      if (output_length < num_frames) {
+-        CHECK_LT(frame_id, num_frames);
+-      }
+ 
+-      if (frame_id != 0){ //if frame_id is zero than the frame loaded currently is the frame we want
+-        switch (this->layer_param_.data_param().backend()) {
+-          case DataParameter_DB_LEVELDB:
+-          length_key = snprintf(my_key, 17, "%08d%08d", current_video, frame_id); //should not be minus 1 here???
+-          db_->Get(leveldb::ReadOptions(), my_key, &value);
+-          datum.ParseFromString(value);
+-          break;
+-        case DataParameter_DB_LMDB:
+-          CHECK_EQ(mdb_cursor_get(mdb_cursor_, &mdb_key_,
+-                  &mdb_value_, MDB_GET_CURRENT), MDB_SUCCESS);
+-          datum.ParseFromArray(mdb_value_.mv_data,
+-              mdb_value_.mv_size);
+-          break;
+-        default:
+-          LOG(FATAL) << "Unknown database backend";
+-        }
+-      }
+-      current_frame = datum.current_frame();
+-      //const string& data = datum.data(); //let's see if this gives us the right answer...
+-      if (DataParameter_DB_LEVELDB){
+-        CHECK_EQ(frame_id, current_frame) << "LMDB? " << DataParameter_DB_LMDB;
+-        CHECK_GE(frame_id, 0);
+-        CHECK_LT(frame_id, num_frames);
+-      }
+-      // Apply data transformations (mirror, scale, crop...).  Use predetermined h_off and w_off.  
+-      // False indicates that we will not recalculate these values.
+-      CHECK_LT(item_id, batch_size);
+-      int offset = this->prefetch_data_.offset(item_id);
+-      this->transformed_data_.set_cpu_data(top_data + offset);
+-      this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video,iter_index);
+-      first_video = false;
+-
+-      if (this->output_labels_) {
+-        if (clip_collapse_labels) {
+-          if (out_frame_id == 0) {
+-            CHECK_LT(collapsed_label_id, label_num);
+-            top_label[collapsed_label_id] = datum.label();
+-            ++collapsed_label_id;
+-          }
+-        } else {
+-          top_label[item_id] = datum.label();
+-        }
+-      }
+-      if (this->output_clip_markers_) {
+-        top_clip_markers[item_id] = (out_frame_id == output_offset) ?
+-            DataLayer<Dtype>::CLIP_BEGIN : DataLayer<Dtype>::CLIP_CONTINUE;
+-      } 
+-      if (this->weight_loss_) {
+-        top_weight_loss[item_id] = (out_frame_id == output_length-1) ?
+-            1 : 0;
+-      } 
+-    } //for (out_frame_id = 0; out_frame_id < output_length) 
+     // go to the next iter
+-//    if (item_id + 1 < this->sLSTM_ * ((item_id / batch_size)+1)) {
+-    if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
+-    if (item_id > this->tLSTM_*(iter_index+1) - 1) {
+-      //keep track of which frame we want to start on at iter_index with next batch
+-      //if (frame_id + sub_sample >= this->layer_param_.data_param().clip_length()*sub_sample) {
+-      if (frame_id + sub_sample >= video_length) {
+-        this->transfer_frame_ids_[iter_index] = 0;
+-        this->transfer_video_ids_[iter_index] = this->video_id_+1; 
+-      } else {
+-        this->transfer_frame_ids_[iter_index] = frame_id + sub_sample;
+-        this->transfer_video_ids_[iter_index] = current_video; 
+-      }
+-      iter_index += 1;
+-    } else {
+-      this->transfer_frame_ids_[iter_index] = 0;
+-    }    
+-    }  
+     switch (this->layer_param_.data_param().backend()) {
+     case DataParameter_DB_LEVELDB:
+-//      iter_->Next();
+-//      if (!iter_->Valid()) {
++      iter_->Next();
++      if (!iter_->Valid()) {
+         // We have reached the end. Restart from the first.
+-//        DLOG(INFO) << "Restarting data prefetching from start.";
+-//        iter_->SeekToFirst();
+-//      }
+-        //need to check if we need to switch db_iter
++        DLOG(INFO) << "Restarting data prefetching from start.";
++        iter_->SeekToFirst();
++      }
+       break;
+     case DataParameter_DB_LMDB:
+       if (mdb_cursor_get(mdb_cursor_, &mdb_key_,
+@@ -444,15 +140,8 @@ void DataLayer<Dtype>::InternalThreadEntry() {
+     default:
+       LOG(FATAL) << "Unknown database backend";
+     }
+-    //++item_id;
+-    if (!continuing_video) {
+-      ++this->video_id_;
+-    }
+-
+-
+-      
+-  }  // while (item_id < batch_size)
+-} 
++  }
++}
+ 
+ template <typename Dtype>
+ void DataLayer<Dtype>::Reset() {
+@@ -470,23 +159,8 @@ void DataLayer<Dtype>::Reset() {
+                        << this->layer_param_.data_param().source() << std::endl
+                        << status.ToString();
+     db_.reset(db_temp);
+-
+-
+-   //adding a few extra variables for debugging
+-
+-
+-   iter_.resize(this->sLSTM_);
+-
+-    for (int i = 0; i < this->sLSTM_; i++){
+-      iter_[i].reset(db_->NewIterator(leveldb::ReadOptions()));
+-      iter_[i]->SeekToFirst();
+-    }
+-
+-//OLD CODE:
+-//    iter_.reset(db_->NewIterator(leveldb::ReadOptions()));
+-//    iter_->SeekToFirst();
+-
+-
++    iter_.reset(db_->NewIterator(leveldb::ReadOptions()));
++    iter_->SeekToFirst();
+     }
+     break;
+   case DataParameter_DB_LMDB:
+@@ -509,14 +183,6 @@ void DataLayer<Dtype>::Reset() {
+     LOG(FATAL) << "Unknown database backend";
+   }
+ 
+-  this->transfer_frame_ids_.resize(this->sLSTM_);
+-  this->transfer_video_ids_.resize(this->sLSTM_);
+-
+-  for (int i = 0; i < this->sLSTM_; i++){
+-    this->transfer_frame_ids_[i] = 0;  //all frames equal zero....
+-    this->transfer_video_ids_[i] = 0;  //all frames equal zero....
+-  }
+-
+   // Check if we need to randomly skip a few data points
+   if (this->layer_param_.data_param().rand_skip()) {
+     if (!skip_initialized_) {
+@@ -527,9 +193,9 @@ void DataLayer<Dtype>::Reset() {
+     while (skip-- > 0) {
+       switch (this->layer_param_.data_param().backend()) {
+       case DataParameter_DB_LEVELDB:
+-        iter_[0]->Next();
+-        if (!iter_[0]->Valid()) {
+-          iter_[0]->SeekToFirst();
++        iter_->Next();
++        if (!iter_->Valid()) {
++          iter_->SeekToFirst();
+         }
+         break;
+       case DataParameter_DB_LMDB:
+@@ -547,75 +213,6 @@ void DataLayer<Dtype>::Reset() {
+   }
+ }
+ 
+-template <typename Dtype>
+-int DataLayer<Dtype>::input_offset(const int num_frames,
+-    const int sub_sample) {
+-  const int crop_needed =
+-      num_frames - ((this->layer_param_.data_param().clip_length() * sub_sample) - sub_sample + 1);
+-      //originally: num_frames - (this->clip_length_ * sub_sample) + sub_sample - 1;
+-  if (crop_needed <= 0) { return 0; }
+-  if (!this->layer_param_.data_param().clip_allow_crop()) {
+-    LOG(FATAL) << "Clip (length " << num_frames << ") is longer than "
+-        "fixed clip length (" << this->clip_length_ << ") "
+-        "and clip_allow_crop was not set.";
+-  }
+-  switch (this->layer_param_.data_param().clip_crop_mode()) {
+-  case DataParameter_ClipPadCropMode_RANDOM:
+-    return this->PrefetchRand() % (crop_needed + 1);
+-  case DataParameter_ClipPadCropMode_START:
+-    return 0;
+-  case DataParameter_ClipPadCropMode_CENTER:
+-    return crop_needed / 2;
+-  case DataParameter_ClipPadCropMode_END:
+-    return crop_needed;
+-  default:
+-    LOG(FATAL) << "Unknown clip crop mode: " <<
+-        DataParameter_ClipPadCropMode_Name(
+-            this->layer_param_.data_param().clip_crop_mode());
+-  }
+-  LOG(FATAL) << "Shouldn't reach this line; switch returns or LOG(FATAL)s.";
+-  return 0;
+-}
+-
+-template <typename Dtype>
+-int DataLayer<Dtype>::output_offset(const int num_frames,
+-    const int sub_sample) {
+-  const int pad_needed =
+-      (this->layer_param_.data_param().clip_length() * sub_sample) - sub_sample + 1 - num_frames;
+-  if (pad_needed <= 0) { return 0; }
+-  if (!this->layer_param_.data_param().clip_allow_pad()) {
+-    LOG(FATAL) << "Clip (length " << num_frames << ") is shorter than "
+-        "fixed clip length (" << this->clip_length_ <<
+-        ") and clip_allow_pad was not set.";
+-  }
+-  switch (this->layer_param_.data_param().clip_pad_mode()) {
+-  case DataParameter_ClipPadCropMode_RANDOM:
+-    return this->PrefetchRand() % (pad_needed + 1);
+-  case DataParameter_ClipPadCropMode_START:
+-    return 0;
+-  case DataParameter_ClipPadCropMode_CENTER:
+-    return pad_needed / 2;
+-  case DataParameter_ClipPadCropMode_END:
+-    return pad_needed;
+-  default:
+-    LOG(FATAL) << "Unknown clip pad mode: " <<
+-        DataParameter_ClipPadCropMode_Name(
+-            this->layer_param_.data_param().clip_pad_mode());
+-  }
+-  LOG(FATAL) << "Shouldn't reach this line; switch returns or LOG(FATAL)s.";
+-  return 0;
+-}
+-
+-template <typename Dtype>
+-unsigned int DataLayer<Dtype>::PrefetchRand() {
+-  const unsigned int prefetch_rng_seed = caffe_rng_rand();
+-  prefetch_rng_.reset(new Caffe::RNG(prefetch_rng_seed));
+-  CHECK(prefetch_rng_);
+-  caffe::rng_t* prefetch_rng =
+-      static_cast<caffe::rng_t*>(prefetch_rng_->generator());
+-  return (*prefetch_rng)();
+-}
+-
+ INSTANTIATE_CLASS(DataLayer);
+ 
+ }  // namespace caffe
