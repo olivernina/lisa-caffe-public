@@ -148,6 +148,9 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     top[3]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
     this->prefetch_weight_loss_.Reshape(
         this->layer_param_.data_param().batch_size(), 1, 1, 1);
+    const int count = this->prefetch_weight_loss_.count();
+    Dtype* prefetch_weight_loss = this->prefetch_weight_loss_.mutable_cpu_data();
+    caffe_set(count, Dtype(1), prefetch_weight_loss);
   }
 
 

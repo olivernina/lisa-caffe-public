@@ -55,9 +55,10 @@ void SoftmaxWithLossLayer<Dtype>::Forward_cpu(
       weight = weights[i];
     }
     for (int j = 0; j < spatial_dim; j++) {
-      loss -= weight * log(std::max(prob_data[i * dim +
-          static_cast<int>(label[i * spatial_dim + j]) * spatial_dim + j],
-                           Dtype(FLT_MIN)));
+      const int int_label = static_cast<int>(label[i * spatial_dim + j]);
+      DCHECK_LT(int_label, dim) << "Label for (" << i << ", " << j << ") is greater than number of classes.";
+      loss -= weight * log(std::max(prob_data[i * dim + int_label * spatial_dim + j],
+		Dtype(FLT_MIN)));
     }
   }
   top[0]->mutable_cpu_data()[0] = loss / num / spatial_dim;
