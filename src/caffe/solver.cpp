@@ -425,19 +425,9 @@ void SGDSolver<Dtype>::PreSolve() {
   }
 }
 
-
 template <typename Dtype>
-void SGDSolver<Dtype>::ComputeUpdateValue() {
+void SGDSolver<Dtype>::ClipGradients() {
   vector<shared_ptr<Blob<Dtype> > >& net_params = this->net_->params();
-  vector<float>& net_params_lr = this->net_->params_lr();
-  vector<float>& net_params_weight_decay = this->net_->params_weight_decay();
-  // get the learning rate
-  Dtype rate = GetLearningRate();
-  if (this->param_.display() && this->iter_ % this->param_.display() == 0) {
-    LOG(INFO) << "Iteration " << this->iter_ << ", lr = " << rate;
-  }
-  Dtype momentum = this->param_.momentum();
-  Dtype weight_decay = this->param_.weight_decay();
   Dtype clip_gradients = this->param_.clip_gradients();
   if (clip_gradients >= 0) {
     Dtype sumsq_diff = 0;
@@ -468,6 +458,21 @@ void SGDSolver<Dtype>::ComputeUpdateValue() {
           << new_l2norm_diff << ")";
     }
   }
+}
+
+template <typename Dtype>
+void SGDSolver<Dtype>::ComputeUpdateValue() {
+  vector<shared_ptr<Blob<Dtype> > >& net_params = this->net_->params();
+  vector<float>& net_params_lr = this->net_->params_lr();
+  vector<float>& net_params_weight_decay = this->net_->params_weight_decay();
+  // get the learning rate
+  Dtype rate = GetLearningRate();
+  if (this->param_.display() && this->iter_ % this->param_.display() == 0) {
+    LOG(INFO) << "Iteration " << this->iter_ << ", lr = " << rate;
+  }
+  ClipGradients();
+  Dtype momentum = this->param_.momentum();
+  Dtype weight_decay = this->param_.weight_decay();
   string regularization_type = this->param_.regularization_type();
   switch (Caffe::mode()) {
   case Caffe::CPU:
@@ -579,6 +584,7 @@ void NesterovSolver<Dtype>::ComputeUpdateValue() {
   if (this->param_.display() && this->iter_ % this->param_.display() == 0) {
     LOG(INFO) << "Iteration " << this->iter_ << ", lr = " << rate;
   }
+  SGDSolver<Dtype>::ClipGradients();
   Dtype momentum = this->param_.momentum();
   Dtype weight_decay = this->param_.weight_decay();
   string regularization_type = this->param_.regularization_type();
@@ -695,6 +701,7 @@ void AdaGradSolver<Dtype>::ComputeUpdateValue() {
   if (this->param_.display() && this->iter_ % this->param_.display() == 0) {
     LOG(INFO) << "Iteration " << this->iter_ << ", lr = " << rate;
   }
+  SGDSolver<Dtype>::ClipGradients();
   Dtype weight_decay = this->param_.weight_decay();
   string regularization_type = this->param_.regularization_type();
   switch (Caffe::mode()) {

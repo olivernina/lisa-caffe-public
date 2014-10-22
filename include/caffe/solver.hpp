@@ -85,6 +85,7 @@ class SGDSolver : public Solver<Dtype> {
   virtual void PreSolve();
   Dtype GetLearningRate();
   virtual void ComputeUpdateValue();
+  virtual void ClipGradients();
   virtual void SnapshotSolverState(SolverState * state);
   virtual void RestoreSolverState(const SolverState& state);
   // history maintains the historical momentum data.
