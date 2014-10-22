@@ -237,7 +237,6 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       CHECK(iter_[iter_index]);
       CHECK(iter_[iter_index]->Valid());
       length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
-      LOG(INFO) << "reading from video " << current_video << " in " << this->phase_;
 
       db_->Get(leveldb::ReadOptions(), my_key, &value);
       datum.ParseFromString(value);
@@ -386,11 +385,6 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       // False indicates that we will not recalculate these values.
       CHECK_LT(item_id, batch_size);
       int offset = this->prefetch_data_.offset(item_id);
-      if (current_video == 1207 && current_frame > 40) {
-        LOG(INFO) << "reading from video " << current_video << " in " << this->phase_;
-        LOG(INFO) << "current frame is " << current_frame;
-        ++count;
-      }  
       this->transformed_data_.set_cpu_data(top_data + offset);
       this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video,iter_index);
       first_video = false;
