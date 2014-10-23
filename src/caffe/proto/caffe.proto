@@ -624,6 +624,9 @@ message LSTMParameter {
 
   // Whether to enable displaying debug_info in the LSTM.
   optional bool lstm_debug_info = 5 [default = false];
+
+  // Whether to initialize and regularize cell gates to the identity matrix.
+  optional bool identity_prior = 6 [default = false];
 }
 
 // Message that stores parameters used by MemoryDataLayer

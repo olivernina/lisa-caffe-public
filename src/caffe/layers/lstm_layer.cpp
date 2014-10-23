@@ -20,6 +20,7 @@ string LSTMLayer<Dtype>::int_to_str(const int t) {
 template <typename Dtype>
 void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
+  const bool identity_prior = this->layer_param_.lstm_param().identity_prior();
   hidden_dim_ = this->layer_param_.lstm_param().hidden_dim();
   CHECK_GT(hidden_dim_, 0) << "hidden_dim must be positive.";
   buffer_size_ = this->layer_param_.lstm_param().buffer_size();
@@ -236,7 +237,9 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       i_input_param->add_bottom("W_{hi} h_" + tm1s);
       i_input_param->add_bottom("W_{ci} c_" + tm1s);
       // identity component of W_{ci}
-      i_input_param->add_bottom("c_" + tm1s + "_flushed");
+      if (identity_prior) {
+        i_input_param->add_bottom("c_" + tm1s + "_flushed");
+      }
       i_input_param->add_top("i_" + ts + "_input");
       i_input_param->set_name("i_" + ts + "_input");
     }
@@ -277,7 +280,9 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       f_input_param->add_bottom("W_{hf} h_" + tm1s);
       f_input_param->add_bottom("W_{cf} c_" + tm1s);
       // identity component of W_{cf}
-      f_input_param->add_bottom("c_" + tm1s + "_flushed");
+      if (identity_prior) {
+        f_input_param->add_bottom("c_" + tm1s + "_flushed");
+      }
       f_input_param->add_top("f_" + ts + "_input");
       f_input_param->set_name("f_" + ts + "_input");
     }
@@ -387,7 +392,9 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       o_input_param->add_bottom("W_{ho} h_" + tm1s);
       o_input_param->add_bottom("W_{co} c_" + ts);
       // identity component of W_{co}
-      o_input_param->add_bottom(c_t_name);
+      if (identity_prior) {
+        o_input_param->add_bottom(c_t_name);
+      }
       o_input_param->add_top("o_" + ts + "_input");
       o_input_param->set_name("o_" + ts + "_input");
     }
