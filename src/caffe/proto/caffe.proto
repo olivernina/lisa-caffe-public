@@ -381,6 +381,7 @@ message TransformationParameter {
   repeated float mean_value = 5;
   //needed for LSTM - this is really clunky bc it has to be declared three times in prototxt - how to fix?
   optional uint32 sLSTM = 6 [default = 1];
+  optional bool flow = 7 [default = false];
 }
 
 // Message that stores parameters used by AccuracyLayer
