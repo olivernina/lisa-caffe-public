@@ -446,6 +446,57 @@ class MVNLayer : public Layer<Dtype> {
 };
 
 /**
+ * @brief Does an LSTM thingie.
+ *
+ * TODO(dox): thorough documentation for Forward, Backward, and proto params.
+ */
+template <typename Dtype>
+class ResetRNNLayer : public Layer<Dtype> {
+ public:
+  explicit ResetRNNLayer(const LayerParameter& param)
+      : Layer<Dtype>(param) {}
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Reset();
+
+  virtual inline LayerParameter_LayerType type() const {
+    return LayerParameter_LayerType_RESET_RNN;
+  }
+  virtual inline int ExactNumBottomBlobs() const { return 2; }
+  virtual inline int ExactNumTopBlobs() const { return 1; }
+
+ protected:
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  string int_to_str(const int t);
+
+  /// @brief A Net to implement the LSTM functionality.
+  shared_ptr<Net<Dtype> > rnn_;
+
+  /// @brief The hidden and output dimension.
+  int hidden_dim_;
+  /// @brief The number of examples to process simultaneously.
+  int buffer_size_;
+  /// @brief The number of timesteps to backprop through: num / buffer_size.
+  int T_;
+
+  Blob<Dtype>* h_input_blob_;
+  Blob<Dtype>* x_input_blob_;
+  Blob<Dtype>* flush_input_blob_;
+  Blob<Dtype>* output_blob_;
+  Blob<Dtype>* h_output_blob_;
+};
+
+/**
  * @brief Ignores bottom blobs while producing no top blobs. (This is useful
  *        to suppress outputs during testing.)
  */
