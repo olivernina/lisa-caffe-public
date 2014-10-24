@@ -26,13 +26,14 @@ class Classifier(caffe.Net):
         caffe.Net.__init__(self, model_file, pretrained_file)
         self.set_phase_test()
 
+        print self.inputs
         if gpu:
             self.set_mode_gpu()
         else:
             self.set_mode_cpu()
 
         if mean is not None:
-            self.set_mean(self.inputs[0], mean)
+            self.set_mean(self.inputs[0], mean, mode='channel')
         if input_scale is not None:
             self.set_input_scale(self.inputs[0], input_scale)
         if raw_scale is not None:
@@ -41,6 +42,8 @@ class Classifier(caffe.Net):
             self.set_channel_swap(self.inputs[0], channel_swap)
 
         self.crop_dims = np.array(self.blobs[self.inputs[0]].data.shape[2:])
+        print self.crop_dims
+        print image_dims
         if not image_dims:
             image_dims = self.crop_dims
         self.image_dims = image_dims
