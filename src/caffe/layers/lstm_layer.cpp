@@ -21,6 +21,8 @@ template <typename Dtype>
 void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const bool identity_prior = this->layer_param_.lstm_param().identity_prior();
+  const bool diag_cell_gates =
+      this->layer_param_.lstm_param().diagonal_cell_gates();
   hidden_dim_ = this->layer_param_.lstm_param().hidden_dim();
   CHECK_GT(hidden_dim_, 0) << "hidden_dim must be positive.";
   buffer_size_ = this->layer_param_.lstm_param().buffer_size();
@@ -222,7 +224,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_hi_param->add_top("W_{hi} h_" + tm1s);
       w_hi_param->set_name("W_{hi} h_" + tm1s);
     }
-    {
+    if (diag_cell_gates) {
       LayerParameter* w_ci_param = net_param.add_layers();
       w_ci_param->CopyFrom(diag_hidden_param);
       w_ci_param->add_bottom("c_" + tm1s + "_flushed");
@@ -235,10 +237,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       i_input_param->CopyFrom(sum_param);
       i_input_param->add_bottom("W_{xi} x_" + ts + " + b_i");
       i_input_param->add_bottom("W_{hi} h_" + tm1s);
-      i_input_param->add_bottom("W_{ci} c_" + tm1s);
-      // identity component of W_{ci}
-      if (identity_prior) {
-        i_input_param->add_bottom("c_" + tm1s + "_flushed");
+      if (diag_cell_gates) {
+        i_input_param->add_bottom("W_{ci} c_" + tm1s);
+        // identity component of W_{ci}
+        if (identity_prior) {
+          i_input_param->add_bottom("c_" + tm1s + "_flushed");
+        }
       }
       i_input_param->add_top("i_" + ts + "_input");
       i_input_param->set_name("i_" + ts + "_input");
@@ -265,7 +269,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_hf_param->add_top("W_{hf} h_" + tm1s);
       w_hf_param->set_name("W_{hf} h_" + tm1s);
     }
-    {
+    if (diag_cell_gates) {
       LayerParameter* w_cf_param = net_param.add_layers();
       w_cf_param->CopyFrom(diag_hidden_param);
       w_cf_param->add_bottom("c_" + tm1s + "_flushed");
@@ -278,10 +282,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       f_input_param->CopyFrom(sum_param);
       f_input_param->add_bottom("W_{xf} x_" + ts + " + b_f");
       f_input_param->add_bottom("W_{hf} h_" + tm1s);
-      f_input_param->add_bottom("W_{cf} c_" + tm1s);
-      // identity component of W_{cf}
-      if (identity_prior) {
-        f_input_param->add_bottom("c_" + tm1s + "_flushed");
+      if (diag_cell_gates) {
+        f_input_param->add_bottom("W_{cf} c_" + tm1s);
+        // identity component of W_{cf}
+        if (identity_prior) {
+          f_input_param->add_bottom("c_" + tm1s + "_flushed");
+        }
       }
       f_input_param->add_top("f_" + ts + "_input");
       f_input_param->set_name("f_" + ts + "_input");
@@ -377,7 +383,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_ho_param->add_top("W_{ho} h_" + tm1s);
       w_ho_param->set_name("W_{ho} h_" + tm1s);
     }
-    {
+    if (diag_cell_gates) {
       LayerParameter* w_co_param = net_param.add_layers();
       w_co_param->CopyFrom(diag_hidden_param);
       w_co_param->add_bottom(c_t_name);
@@ -390,10 +396,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       o_input_param->CopyFrom(sum_param);
       o_input_param->add_bottom("W_{xo} x_" + ts + " + b_o");
       o_input_param->add_bottom("W_{ho} h_" + tm1s);
-      o_input_param->add_bottom("W_{co} c_" + ts);
-      // identity component of W_{co}
-      if (identity_prior) {
-        o_input_param->add_bottom(c_t_name);
+      if (diag_cell_gates) {
+        o_input_param->add_bottom("W_{co} c_" + ts);
+        // identity component of W_{co}
+        if (identity_prior) {
+          o_input_param->add_bottom(c_t_name);
+        }
       }
       o_input_param->add_top("o_" + ts + "_input");
       o_input_param->set_name("o_" + ts + "_input");
@@ -466,7 +474,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
 
   this->param_propagate_down_.resize(this->blobs_.size(), true);
-  CHECK_EQ(15, this->blobs_.size());
+  CHECK_EQ(12 + 3 * diag_cell_gates, this->blobs_.size());
 
   const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
   Dtype* hidden_output_diff = h_output_blob_->mutable_cpu_diff();

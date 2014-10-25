@@ -628,6 +628,9 @@ message LSTMParameter {
 
   // Whether to initialize and regularize cell gates to the identity matrix.
   optional bool identity_prior = 6 [default = false];
+
+  // Whether to use the diagonal gates from cell to input/output/forget gate.
+  optional bool diagonal_cell_gates = 7 [default = false];
 }
 
 // Message that stores parameters used by MemoryDataLayer
