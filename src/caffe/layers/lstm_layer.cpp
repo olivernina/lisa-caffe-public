@@ -170,9 +170,9 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   w_xo_slice_param->set_name("W_{xo} x + b_o slice");
 
   LayerParameter output_concat_layer;
-  output_concat_layer.set_name("o_concat");
+  output_concat_layer.set_name("h_concat");
   output_concat_layer.set_type(LayerParameter_LayerType_CONCAT);
-  output_concat_layer.add_top("o");
+  output_concat_layer.add_top("h");
   output_concat_layer.set_has_external_diff(true);
   output_concat_layer.mutable_concat_param()->set_concat_dim(0);
 
@@ -405,7 +405,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       o_param->add_top("o_" + ts);
       o_param->set_name("o_" + ts);
     }
-    output_concat_layer.add_bottom("o_" + ts);
 
     // Add layers to compute the hidden vector h.
     // h_t = o_t .* \tanh[ c_t ]
@@ -424,6 +423,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       h_t_param->add_top("h_" + ts);
       h_t_param->set_name("h_" + ts);
     }
+    output_concat_layer.add_bottom("h_" + ts);
   }
   net_param.add_layers()->CopyFrom(output_concat_layer);
 
@@ -441,15 +441,15 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   flush_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("flush").get());
   h_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_0").get());
   c_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_0").get());
-  output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("o").get());
+  output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h").get());
   ts = int_to_str(T_);
   h_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_" + ts).get());
   c_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_" + ts).get());
 
   // 4 inputs: x, flush, h_0, and c_0.
   CHECK_EQ(4, lstm_->input_blobs().size());
-  // 3 outputs: main output (o) plus the final hidden state outputs h_T and c_T.
-  CHECK_EQ(3, lstm_->output_blobs().size());
+  // 2 outputs: h and c_T.
+  CHECK_EQ(2, lstm_->output_blobs().size());
 
   for (int i = 0; i < lstm_->params().size(); ++i) {
     if (lstm_->param_owners()[i] == -1) {
