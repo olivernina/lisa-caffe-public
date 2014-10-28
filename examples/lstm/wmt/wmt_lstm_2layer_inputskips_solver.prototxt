@@ -1,0 +1,26 @@
+net: "./wmt_lstm_2layer_inputskips_net.prototxt"
+test_iter: 25
+test_state: { stage: 'test-on-train' }
+test_iter: 25
+test_state: { stage: 'test-on-test' }
+test_interval: 1000
+test_net_reset: true
+base_lr: 0.1
+# base_lr: 0.5
+lr_policy: "step"
+gamma: 0.5
+stepsize: 20000
+display: 1
+max_iter: 110000
+momentum: 0.9
+# weight_decay: 0.0005
+weight_decay: 0.0000
+# snapshot: 5
+snapshot: 1000
+snapshot_prefix: "snapshots/wmt_fixed_lstm_two_layer_input_skips_1000d_400d_lr0.1_mom0.9_bs400_buf20"
+# snapshot_prefix: "snapshots/test"
+solver_mode: GPU
+# debug_info: true
+random_seed: 1701
+average_loss: 100
+clip_gradients: 5

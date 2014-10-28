@@ -61,7 +61,7 @@ class WMTSequenceGenerator(SequenceGenerator):
     assert vocab_index == len(self.vocabulary)
     if self.chars:
       # self.init_char_vocabulary(vocab_index)
-      self.init_char_vocabulary_easy(vocab_index)
+      self.init_char_vocabulary(vocab_index)
     else:
       with open(vocab_filename, 'rb') as vocab_file:
         self.init_word_vocabulary(vocab_file, vocab_index)
@@ -94,10 +94,10 @@ class WMTSequenceGenerator(SequenceGenerator):
     for index, char in enumerate(vocabulary_by_count):
       vocabulary[char] = index
       vocabulary_inverted.append(char)
-    assert len(vocabulary_inverted) == num_words_vocab
+    num_chars_vocab = len(vocabulary.keys())
+    assert len(vocabulary_inverted) == num_chars_vocab
     self.vocabulary.append(vocabulary)
     self.vocabulary_inverted.append(vocabulary_inverted)
-    num_chars_vocab = len(vocabulary.keys())
     print 'Initialized vocabulary (%s) with %d unique chars ' % \
           (self.langs[vocab_index], num_chars_vocab)
 
@@ -237,7 +237,6 @@ def preprocess_en_to_fr_chars():
        './wmt14_data/wmt_raw/training/europarl-v7.fr-en.%s',
      ]),
      ('valid', [
-       './wmt14_data/wmt_raw/dev/newsdev2014.%s',
        './wmt14_data/wmt_raw/dev/newssyscomb2009.%s',
        './wmt14_data/wmt_raw/dev/news-test2008.%s',
        './wmt14_data/wmt_raw/dev/newstest2009.%s',
@@ -252,7 +251,7 @@ def preprocess_en_to_fr_chars():
     'fr': {'input': True, 'output': True},
     'en': {'input': True, 'output': True},
   }
-  OUTPUT_DIR = './wmt_char_hdf5/%s/buffer_%d' % (lang_specs_to_str(LANGS, LANG_SPECS), BUFFER_SIZE)
+  OUTPUT_DIR = './wmt_char_hdf5_good/%s/buffer_%d' % (lang_specs_to_str(LANGS, LANG_SPECS), BUFFER_SIZE)
   OUTPUT_DIR_PATTERN = '%s/%%s_batches' % OUTPUT_DIR
   vocab_out_paths = ['wmt_char_hdf5/vocabs/vocabulary.%s.txt' % lang
                      for lang in LANGS]
@@ -273,7 +272,7 @@ def preprocess_en_to_fr_chars():
     writer.write_filelists()
 
 def preprocess_en_to_fr_words():
-  BUFFER_SIZE = 10
+  BUFFER_SIZE = 20
   BATCH_STREAM_LENGTH = 100000 # 100k
   DATASET_PATH_PATTERN = './wmt14_data/ptb.%s.txt'
   DATASETS = [
@@ -319,5 +318,5 @@ def preprocess_en_to_fr_words():
 
 
 if __name__ == "__main__":
-#   preprocess_en_to_fr_words()
-  preprocess_en_to_fr_chars()
+  preprocess_en_to_fr_words()
+#   preprocess_en_to_fr_chars()

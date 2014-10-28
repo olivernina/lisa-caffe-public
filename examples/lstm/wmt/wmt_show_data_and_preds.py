@@ -12,19 +12,39 @@ DEVICE_ID = -1
 # # NET_FILE = './ptb_memorize_lstm_nostage_net.prototxt'
 # NET_FILE = './ptb_memorize_lstm_eval_net.prototxt'
 
-# DATA_FILE = './wmt_hdf5/buffer_10/valid_batches/batch_0.h5'
+# DATA_FILE = './wmt_hdf5/buffer_100/train_batches/batch_0.h5'
+# LANGS = ['fr', 'en']
+# VOCAB_FILES = ['./wmt_hdf5/buffer_100/wmt_vocabulary.%s.txt' % lang for lang in LANGS]
+# MODEL_FILE = './snapshots/wmt_lstm_four_layer_enc_dec_lr0.7_mom0.0_iter_110000.caffemodel'
+# NET_FILE = './wmt_dec_enc_lstm_4layer_eval_net.prototxt'
+
+# DATA_FILE = './wmt_hdf5/fr_io-en_o/buffer_10/train_batches/batch_0.h5'
 # LANGS = ['fr', 'en']
 # VOCAB_FILES = ['./wmt_hdf5/buffer_10/vocabulary.%s.txt' % lang for lang in LANGS]
 # MODEL_FILE = './snapshots/wmt_lstm_four_layer_2500d_400d_lr0.5_mom0.0_bs1000_buf100_iter_8000.caffemodel'
-# NET_FILE = './wmt_lstm_4layer_eval_net.prototxt'
+# NET_FILE = './wmt_lstm_4layer_eval_net.newdatanames.prototxt'
 # NET_FILE = None
 
-DATA_FILE = './wmt_hdf5/fr_io-en_o/buffer_10/train_batches/batch_0.h5'
+# DATA_FILE = './wmt_char_hdf5/fr_io-en_io/buffer_100/train_batches/batch_0.h5'
+# LANGS = ['fr', 'en']
+# # VOCAB_FILES = ['./wmt_char_hdf5/vocabs/vocabulary.%s.txt' % lang for lang in LANGS]
+# VOCAB_FILES = [None, None]
+# MODEL_FILE = './snapshots/wmt_char_lr0.1_mom0.9_iter_38000.caffemodel'
+# NET_FILE = './wmt_char_lstm_4layer_eval_net.prototxt'
+
+# DATA_FILE = './wmt_char_hdf5/fr_io-en_io/buffer_100/train_batches/batch_0.h5'
+# LANGS = ['fr', 'en']
+# # VOCAB_FILES = ['./wmt_char_hdf5/vocabs/vocabulary.%s.txt' % lang for lang in LANGS]
+# VOCAB_FILES = [None, None]
+# # MODEL_FILE = './snapshots/wmt_char_memorize_1layer_lr0.5_adagrad_iter_22000.caffemodel'
+# MODEL_FILE = './snapshots/wmt_char_memorize_1layer_lr0.1_mom_0.9_nesterov_iter_54000.caffemodel'
+# NET_FILE = './wmt_char_lstm_1layer_eval_net.prototxt'
+
+DATA_FILE = './wmt_hdf5/fr_io-en_o/buffer_20/train_batches/batch_0.h5'
 LANGS = ['fr', 'en']
-VOCAB_FILES = ['./wmt_hdf5/buffer_10/vocabulary.%s.txt' % lang for lang in LANGS]
-MODEL_FILE = './snapshots/wmt_lstm_four_layer_2500d_400d_lr0.5_mom0.0_bs1000_buf100_iter_8000.caffemodel'
-NET_FILE = './wmt_lstm_4layer_eval_net.newdatanames.prototxt'
-# NET_FILE = None
+VOCAB_FILES = ['./wmt_hdf5/fr_io-en_o/buffer_20/vocabulary.%s.txt' % lang for lang in LANGS]
+MODEL_FILE = './snapshots/wmt_fixed_lstm_two_layer_input_skips_1000d_400d_lr0.1_mom0.9_bs400_buf20_iter_17000.caffemodel'
+NET_FILE = './wmt_lstm_2layer_inputskips_eval_net.prototxt'
 
 import h5py
 import numpy as np
@@ -47,11 +67,17 @@ else:
 
 vocabs = []
 for vocab_filename in VOCAB_FILES:
+  vocabs.append([u'<EOS>'])
+  if vocab_filename is None:
+    vocabs[-1].append([u'<unk>'])
+    vocabs[-1] += [unichr(c) for c in range(256)]
+    continue
   with open(vocab_filename, 'r') as vocab_file:
 #     vocabs.append(['<EOS>'] + [s.encode('ascii', errors='replace') for s in vocab_file.read().split()])
-    vocabs.append([u'<EOS>'])
     for s in vocab_file.read().split():
-      vocabs[-1].append(s.decode('utf8'))
+      vocabs[-1].append(s.decode('utf8', errors='replace'))
+#       vocabs[-1].append(s.decode('utf8', errors='replace').encode('ascii', errors='replace'))
+#       vocabs[-1].append(s.decode('utf8'))
 #       vocabs[-1].append(s.decode('utf8').encode('ascii', errors='xmlcharrefreplace'))
 
 
@@ -60,13 +86,21 @@ def do_iteration():
   data = {}
   for key in net.blobs.keys():
     data['net_' + key] = net.blobs[key].data.copy()
-  data['net_predind'] = data['net_predict'].argmax(axis=1)
-  data['net_pred_prob'] = np.array([data['net_probs'][i, argmax] for i, argmax
-                                    in enumerate(data['net_predind'])])
-  net_targets = np.array(data['net_targets'] if 'net_targets' in data else data['net_targets_en'])
-  data['net_correct_prob'] = np.array([data['net_probs'][i, label] for i, label
-                                       in enumerate(np.array(net_targets.reshape(-1),
-                                                             dtype=np.int))])
+    if 'predict' in key:
+      predind_key = key.replace('predict', 'predind')
+      data['net_' + predind_key] = data['net_' + key].argmax(axis=1)
+  for key in data.keys():
+    if 'predind' in key:
+      probs_key = key.replace('predind', 'probs')
+      if probs_key in data:
+        out_key = probs_key.replace('probs', 'pred_prob')
+        data[out_key] = np.array([data[probs_key][i, argmax] for i, argmax
+                                  in enumerate(data[key])])
+        targets_key = key.replace('predind', 'targets')
+        net_targets = np.array(data[targets_key])
+        out_key = probs_key.replace('probs', 'correct_prob')
+        data[out_key] = np.array([data[probs_key][i, label] for i, label
+                                 in enumerate(np.array(net_targets.reshape(-1), dtype=np.int))])
   print 'Keys: ', data.keys()
   if 'net_accuracy' in data:
     print "Accuracy: %f" % data['net_accuracy']
@@ -98,14 +132,21 @@ def do_iteration():
     'net_encoder_data': 0,
     'net_decoder_data': 1,
     'net_predind': 1,
+    'net_predind_en': 1,
+    'net_predind_fr': 0,
   }
   int_keys = set(('input_cont', 'net_cont',
+      'input_cont_en', 'net_cont_en',
+      'input_cont_fr', 'net_cont_fr',
       'input_encoder_cont', 'net_encoder_cont',
       'input_decoder_cont', 'net_decoder_cont',
       'input_encoder_to_decoder', 'net_encoder_to_decoder',
       'input_stage_indicators', 'net_stage_indicators')).union(vocab_indices.keys())
   reshape_keys = \
-      set(('net_correct_prob', 'net_pred_prob')).union(int_keys)
+      set(('net_correct_prob', 'net_pred_prob',
+           'net_correct_prob_en', 'net_correct_prob_fr',
+           'net_pred_prob_en', 'net_pred_prob_fr',
+           )).union(int_keys)
   for key, val in data.iteritems():
     old_shape = filter(lambda s: s != 1, val.shape)
     if key in reshape_keys:
@@ -125,12 +166,14 @@ def do_iteration():
                                  for i in range(len(sdata))]
   return shaped_data
 
-num_iterations = 10
+num_iterations = 50
 # num_iterations = 1
 num_streams = 10
 num_timesteps = -1
 displays = [
   ('cont', 'net_cont', 'net_cont', 'input_cont'),
+  ('cont_en', 'net_cont_en', 'net_cont_en', 'input_cont_en'),
+  ('cont_fr', 'net_cont_fr', 'net_cont_fr', 'input_cont_fr'),
   ('enc', 'net_encoder_cont', 'net_encoder_cont', 'input_encoder_cont'),
   ('dec', 'net_decoder_cont', 'net_decoder_cont', 'input_decoder_cont'),
   ('enc2dec', 'net_encoder_to_decoder', 'net_encoder_to_decoder', 'input_encoder_to_decoder'),
@@ -140,11 +183,17 @@ displays = [
   ('input_fr', 'net_data_fr_s', 'net_data_fr', 'input_data_fr'),
   ('input_en', 'net_data_en_s', 'net_data_en', 'input_data_en'),
   ('target', 'net_targets_s', 'net_targets', 'input_targets'),
-  ('target', 'net_targets_fr_s', 'net_targets_fr', 'input_targets_fr'),
-  ('target', 'net_targets_en_s', 'net_targets_en', 'input_targets_en'),
+  ('target_fr', 'net_targets_fr_s', 'net_targets_fr', 'input_targets_fr'),
+  ('target_en', 'net_targets_en_s', 'net_targets_en', 'input_targets_en'),
   ('p_target', 'net_correct_prob', None, None),
+  ('p_target_fr', 'net_correct_prob_fr_s', 'net_correct_prob_fr', 'input_correct_prob_fr'),
+  ('p_target_en', 'net_correct_prob_en_s', 'net_correct_prob_en', 'input_correct_prob_en'),
   ('pred', 'net_predind_s', None, None),
+  ('pred_en', 'net_predind_en_s', None, None),
+  ('pred_fr', 'net_predind_fr_s', None, None),
   ('p_pred', 'net_pred_prob', None, None),
+  ('p_pred_en', 'net_pred_prob_en', None, None),
+  ('p_pred_fr', 'net_pred_prob_fr', None, None),
 ]
 display_skip = [False] * len(displays)
 all_tables = [[] for _ in range(num_streams)]
@@ -180,12 +229,18 @@ for iteration in range(num_iterations):
 #                    shaped_data[check_key_b][s][iteration*num_timesteps + t]
           except:
             import pdb; pdb.set_trace()
-        item = shaped_data[key][s][t]
+        try:
+          item = shaped_data[key][s][t]
+        except:
+          import pdb; pdb.set_trace()
         row.append(item)
       row.append('correct' if row[-1] == row[-3] else '')
       table.append(row)
 
-headers = [d[0] for i, d in enumerate(displays) if not display_skip[i]] + ['correct']
-for s, table in enumerate(all_tables):
-  tabulated = tabulate(table, headers=headers)
-  print u'\nStream {0} ({1} iterations):\n{2}'.format(s, num_iterations, tabulated)
+try:
+  headers = [d[0] for i, d in enumerate(displays) if not display_skip[i]] + ['correct']
+  for s, table in enumerate(all_tables):
+    tabulated = tabulate(table, headers=headers)
+    print '\nStream {0} ({1} iterations):\n{2}'.format(s, num_iterations, tabulated.encode('utf8', errors='replace'))
+except:
+  import pdb; pdb.set_trace()
