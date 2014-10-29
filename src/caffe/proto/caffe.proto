@@ -316,6 +316,13 @@ message LayerParameter {
   // needs to be backpropagated.
   optional bool has_external_diff = 999 [default = false];
 
+  enum LayerMode {
+    NET_DEFAULT = 0;
+    CPU = 1;
+    GPU = 2;
+  }
+  optional LayerMode layer_mode = 1003 [default = NET_DEFAULT];
+
   optional AccuracyParameter accuracy_param = 27;
   optional ArgMaxParameter argmax_param = 23;
   optional ConcatParameter concat_param = 9;

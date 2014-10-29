@@ -41,6 +41,11 @@ class Layer {
           blobs_[i]->FromProto(layer_param_.blobs(i));
         }
       }
+      layer_mode_ =
+          (layer_param_.layer_mode() == LayerParameter_LayerMode_NET_DEFAULT) ?
+          Caffe::mode() :
+            ((layer_param_.layer_mode() == LayerParameter_LayerMode_CPU) ?
+              Caffe::CPU : Caffe::GPU);
     }
   virtual ~Layer() {}
 
@@ -302,6 +307,7 @@ class Layer {
  protected:
   /** The protobuf that stores the layer parameters */
   LayerParameter layer_param_;
+  Caffe::Brew layer_mode_;
   /** The vector that stores the learnable parameters as a set of blobs. */
   vector<shared_ptr<Blob<Dtype> > > blobs_;
   /** Vector indicating whether to compute the diff of each param blob. */
@@ -417,7 +423,7 @@ template <typename Dtype>
 inline Dtype Layer<Dtype>::Forward(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   Dtype loss = 0;
-  switch (Caffe::mode()) {
+  switch (layer_mode_) {
   case Caffe::CPU:
     Forward_cpu(bottom, top);
     for (int top_id = 0; top_id < top.size(); ++top_id) {
@@ -452,7 +458,7 @@ template <typename Dtype>
 inline void Layer<Dtype>::Backward(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
-  switch (Caffe::mode()) {
+  switch (layer_mode_) {
   case Caffe::CPU:
     Backward_cpu(top, propagate_down, bottom);
     break;
