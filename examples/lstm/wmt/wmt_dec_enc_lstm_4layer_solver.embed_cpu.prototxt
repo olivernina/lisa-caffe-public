@@ -1,0 +1,24 @@
+net: "./wmt_dec_enc_lstm_4layer_net.embed_cpu.prototxt"
+# test_iter: 50
+# test_state: { stage: 'test-on-train' }
+# test_iter: 50
+# test_state: { stage: 'test-on-test' }
+test_interval: 1000
+test_net_reset: true
+base_lr: 0.1
+# base_lr: 0.7
+lr_policy: "step"
+gamma: 0.5
+stepsize: 20000
+display: 1
+max_iter: 200000
+momentum: 0.9
+# weight_decay: 0.0005
+weight_decay: 0.0000
+snapshot: 1000
+snapshot_prefix: "snapshots/wmt_lstm_four_layer_enc_dec_lr0.1_mom0.9_bs160_embedcpu"
+solver_mode: GPU
+random_seed: 1701
+average_loss: 100
+clip_gradients: 5
+# debug_info: true

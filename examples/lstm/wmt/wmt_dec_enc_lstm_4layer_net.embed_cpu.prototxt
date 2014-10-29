@@ -1,0 +1,477 @@
+name: "CaffeNet"
+
+# input data
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "data_fr"
+  top: "data_en"
+  top: "stage_indicators"
+  top: "targets_en"
+  top: "cont_fr"
+  top: "cont_en"
+  top: "encoder_to_decoder"
+  hdf5_data_param {
+    source: "./wmt_hdf5/fr_i-en_o/buffer_20/train_batches/hdf5_chunk_list.txt"
+    batch_size: 320
+  }
+  include: { phase: TRAIN }
+}
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "data_fr"
+  top: "data_en"
+  top: "stage_indicators"
+  top: "targets_en"
+  top: "cont_fr"
+  top: "cont_en"
+  top: "encoder_to_decoder"
+  hdf5_data_param {
+    source: "./wmt_hdf5/fr_i-en_o/buffer_20/valid_batches/hdf5_chunk_list.txt"
+    batch_size: 400
+  }
+  include: { phase: TEST stage: "test-on-test" }
+}
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "data_fr"
+  top: "data_en"
+  top: "stage_indicators"
+  top: "targets_en"
+  top: "cont_fr"
+  top: "cont_en"
+  top: "encoder_to_decoder"
+  hdf5_data_param {
+    source: "./wmt_hdf5/fr_i-en_o/buffer_20/train_batches/hdf5_chunk_list.txt"
+    batch_size: 400
+  }
+  include: { phase: TEST stage: "test-on-train" }
+}
+
+# layers {
+#   name: "embed"
+#   type: INNER_PRODUCT
+#   bottom: "data"
+#   top: "embed"
+#   blobs_lr: 1
+#   blobs_lr: 2
+#   weight_decay: 1
+#   weight_decay: 0
+#   inner_product_param {
+#     index_input_dim: 10000
+#     num_output: 500
+#     weight_filler {
+#       type: "uniform"
+#       min: -0.08
+#       max: 0.08
+#     }
+#     bias_filler {
+#       type: "constant"
+#       value: 0
+#     }
+#   }
+# }
+
+# convert indexed input data to one-hot
+# layers {
+#   name: "one_hot_data_fr"
+#   type: IDX21HOT
+#   bottom: "data_fr"
+#   top: "one_hot_data_fr"
+#   idx21hot_param {
+#     dim: 80001
+#   }
+# }
+layers {
+  name: "embed_encoder"
+  type: INNER_PRODUCT
+  bottom: "data_fr"
+  top: "embed_encoder"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    index_input_dim: 80001
+    num_output: 10000
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+  layer_mode: CPU
+}
+
+# layers {
+#   name: "one_hot_data_en"
+#   type: IDX21HOT
+#   bottom: "data_en"
+#   top: "one_hot_data_en"
+#   idx21hot_param {
+#     dim: 160001
+#   }
+# }
+layers {
+  name: "embed_decoder"
+  type: INNER_PRODUCT
+  bottom: "data_en"
+  top: "embed_decoder"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    index_input_dim: 160001
+    num_output: 10000
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+  layer_mode: CPU
+}
+
+layers {
+  name: "lstm1"
+  type: LSTM
+  bottom: "embed_encoder"
+  bottom: "cont_fr"
+  top: "lstm1"
+  lstm_param {
+    hidden_dim: 1000
+    buffer_size: 20
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layers {
+  name: "decoder_gate_1"
+  type: ELTWISE
+  bottom: "lstm1"
+  bottom: "encoder_to_decoder"
+  top: "lstm1_decoder_input"
+  eltwise_param {
+    operation: SUM
+    coeff_blob: true
+  }
+}
+
+layers {
+  name: "lstm2"
+  type: LSTM
+  bottom: "lstm1"
+  bottom: "cont_fr"
+  top: "lstm2"
+  lstm_param {
+    hidden_dim: 1000
+    buffer_size: 20
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layers {
+  name: "decoder_gate_2"
+  type: ELTWISE
+  bottom: "lstm2"
+  bottom: "encoder_to_decoder"
+  top: "lstm2_decoder_input"
+  eltwise_param {
+    operation: SUM
+    coeff_blob: true
+  }
+}
+
+layers {
+  name: "lstm3"
+  type: LSTM
+  bottom: "lstm2"
+  bottom: "cont_fr"
+  top: "lstm3"
+  lstm_param {
+    hidden_dim: 1000
+    buffer_size: 20
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layers {
+  name: "decoder_gate_3"
+  type: ELTWISE
+  bottom: "lstm3"
+  bottom: "encoder_to_decoder"
+  top: "lstm3_decoder_input"
+  eltwise_param {
+    operation: SUM
+    coeff_blob: true
+  }
+}
+
+layers {
+  name: "lstm4"
+  type: LSTM
+  bottom: "lstm3"
+  bottom: "cont_fr"
+  top: "lstm4"
+  lstm_param {
+    hidden_dim: 1000
+    buffer_size: 20
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layers {
+  name: "decoder_gate_4"
+  type: ELTWISE
+  bottom: "lstm4"
+  bottom: "encoder_to_decoder"
+  top: "lstm4_decoder_input"
+  eltwise_param {
+    operation: SUM
+    coeff_blob: true
+  }
+}
+
+
+layers {
+  name: "concat"
+  type: CONCAT
+  bottom: "embed_decoder"
+  bottom: "lstm1_decoder_input"
+  top: "embed_and_lstm1_decoder_input"
+}
+
+# concatenate data with lstm output
+layers {
+  name: "lstm1decode"
+  type: LSTM
+  bottom: "embed_and_lstm1_decoder_input"
+  bottom: "cont_en"
+  top: "lstm1decode"
+  lstm_param {
+    hidden_dim: 1000
+    buffer_size: 20
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "concat"
+  type: CONCAT
+  bottom: "lstm1decode"
+  bottom: "lstm2_decoder_input"
+  top: "lstm1decode_and_lstm2_decoder_input"
+}
+layers {
+  name: "lstm2decode"
+  type: LSTM
+  bottom: "lstm1decode_and_lstm2_decoder_input"
+  bottom: "cont_en"
+  top: "lstm2decode"
+  lstm_param {
+    hidden_dim: 1000
+    buffer_size: 20
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "concat"
+  type: CONCAT
+  bottom: "lstm2decode"
+  bottom: "lstm3_decoder_input"
+  top: "lstm2decode_and_lstm3_decoder_input"
+}
+layers {
+  name: "lstm3decode"
+  type: LSTM
+  bottom: "lstm2decode_and_lstm3_decoder_input"
+  bottom: "cont_en"
+  top: "lstm3decode"
+  lstm_param {
+    hidden_dim: 1000
+    buffer_size: 20
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "concat"
+  type: CONCAT
+  bottom: "lstm3decode"
+  bottom: "lstm4_decoder_input"
+  top: "lstm3decode_and_lstm4_decoder_input"
+}
+layers {
+  name: "lstm4decode"
+  type: LSTM
+  bottom: "lstm3decode_and_lstm4_decoder_input"
+  bottom: "cont_en"
+  top: "lstm4decode"
+  lstm_param {
+    hidden_dim: 1000
+    buffer_size: 20
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+
+layers {
+  name: "predict"
+  type: INNER_PRODUCT
+  bottom: "lstm4decode"
+  top: "predict"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 160001
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "accuracy"
+  type: ACCURACY
+  bottom: "predict"
+  bottom: "targets_en"
+  bottom: "stage_indicators"
+  top: "accuracy"
+  include { phase: TEST }
+}
+layers {
+  name: "cross_entropy_loss"
+  type: SOFTMAX_LOSS
+  bottom: "predict"
+  bottom: "targets_en"
+  bottom: "stage_indicators"
+  top: "cross_entropy_loss"
+  loss_weight: 0
+}
+layers {
+  type: SPLIT
+  bottom: "cross_entropy_loss"
+  top: "cross_entropy_loss_copy"
+  top: "loss"
+  loss_weight: 0
+  loss_weight: 1
+}
+# perplexity = 2 ^ (log_2(e) * L), where L is the cross-entropy loss
+layers {
+  name: "perplexity"
+  type: EXP
+  bottom: "cross_entropy_loss_copy"
+  top: "perplexity"
+  exp_param {
+    base: 2
+    scale: 1.44269504089 # ~= log_2(e)
+  }
+}
+
+# layers {
+#   name: "all_zero"
+#   type: DUMMY_DATA
+#   top: "all_zero"
+#   dummy_data_param {
+#     num: 1620
+#     channels: 1
+#     height: 1
+#     width: 1
+#   }
+# }
+# layers {
+#   name: "all_zero_pred"
+#   type: IDX21HOT
+#   bottom: "all_zero"
+#   top: "all_zero_pred"
+#   idx21hot_param {
+#     dim: 10000
+#   }
+# }
+# layers {
+#   name: "all_zero_accuracy"
+#   type: ACCURACY
+#   bottom: "all_zero_pred"
+#   bottom: "targets_en"
+#   top: "all_zero_accuracy"
+# }
