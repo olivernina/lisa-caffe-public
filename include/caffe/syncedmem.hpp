@@ -24,6 +24,7 @@ namespace caffe {
 
 inline void CaffeMallocHost(void** ptr, size_t size) {
   *ptr = malloc(size);
+  Caffe::add_host_mem(size);
 }
 
 inline void CaffeFreeHost(void* ptr) {

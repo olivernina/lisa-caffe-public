@@ -49,12 +49,14 @@ inline void SyncedMemory::to_gpu() {
   switch (head_) {
   case UNINITIALIZED:
     CUDA_CHECK(cudaMalloc(&gpu_ptr_, size_));
+    Caffe::add_device_mem(size_);
     caffe_gpu_memset(size_, 0, gpu_ptr_);
     head_ = HEAD_AT_GPU;
     break;
   case HEAD_AT_CPU:
     if (gpu_ptr_ == NULL) {
       CUDA_CHECK(cudaMalloc(&gpu_ptr_, size_));
+      Caffe::add_device_mem(size_);
     }
     caffe_gpu_memcpy(size_, cpu_ptr_, gpu_ptr_);
     head_ = SYNCED;

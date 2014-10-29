@@ -73,6 +73,9 @@ class Caffe {
   inline static Caffe& Get() {
     if (!singleton_.get()) {
       singleton_.reset(new Caffe());
+      singleton_->host_mem_ = 0;
+      singleton_->device_mem_ = 0;
+      singleton_->mem_debug_info_ = false;
     }
     return *singleton_;
   }
@@ -110,6 +113,20 @@ class Caffe {
 
   // Returns the mode: running on CPU or GPU.
   inline static Brew mode() { return Get().mode_; }
+  inline static size_t host_mem() { return Get().host_mem_; }
+  inline static void add_host_mem(size_t add) {
+    Get().host_mem_ += add;
+    if (Get().mem_debug_info_) {
+      LOG(INFO) << "Current host memory used: " << Get().host_mem_;
+    }
+  }
+  inline static size_t device_mem() { return Get().device_mem_; }
+  inline static void add_device_mem(size_t add) {
+    Get().device_mem_ += add;
+    if (Get().mem_debug_info_) {
+      LOG(INFO) << "Current device memory used: " << Get().device_mem_;
+    }
+  }
   // Returns the phase: TRAIN or TEST.
   inline static Phase phase() { return Get().phase_; }
   // The setters for the variables
@@ -138,6 +155,10 @@ class Caffe {
   Brew mode_;
   Phase phase_;
   static shared_ptr<Caffe> singleton_;
+
+  size_t host_mem_;
+  size_t device_mem_;
+  bool mem_debug_info_;
 
  private:
   // The private constructor to avoid duplicate instantiation.
