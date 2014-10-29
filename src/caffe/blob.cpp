@@ -309,6 +309,7 @@ void Blob<Dtype>::scale_data(Dtype scale_factor) {
   case SyncedMemory::HEAD_AT_CPU:
     data = mutable_cpu_data();
     caffe_scal(count_, scale_factor, data);
+    break;
   case SyncedMemory::HEAD_AT_GPU:
   case SyncedMemory::SYNCED:
 #ifndef CPU_ONLY
@@ -317,6 +318,7 @@ void Blob<Dtype>::scale_data(Dtype scale_factor) {
 #else
     NO_GPU;
 #endif
+    break;
   case SyncedMemory::UNINITIALIZED:
     return;
   default:
@@ -340,6 +342,7 @@ void Blob<Dtype>::scale_diff(Dtype scale_factor) {
   case SyncedMemory::HEAD_AT_CPU:
     diff = mutable_cpu_diff();
     caffe_scal(count_, scale_factor, diff);
+    break;
   case SyncedMemory::HEAD_AT_GPU:
   case SyncedMemory::SYNCED:
 #ifndef CPU_ONLY
@@ -348,6 +351,7 @@ void Blob<Dtype>::scale_diff(Dtype scale_factor) {
 #else
     NO_GPU;
 #endif
+    break;
   case SyncedMemory::UNINITIALIZED:
     return;
   default:
