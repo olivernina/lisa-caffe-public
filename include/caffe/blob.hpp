@@ -117,10 +117,16 @@ class Blob {
   /// @brief Compute the sum of squares (L2 norm squared) of the diff.
   Dtype sumsq_diff() const;
 
+  /// @brief Zero out the blob diff.
+  void set_diff_zero();
+
   /// @brief Scale the blob data by a constant factor.
   void scale_data(Dtype scale_factor);
   /// @brief Scale the blob diff by a constant factor.
   void scale_diff(Dtype scale_factor);
+
+  SyncedMemory::SyncedHead data_head() const { return data_->head(); }
+  SyncedMemory::SyncedHead diff_head() const { return diff_->head(); }
 
   /**
    * @brief Set the data_ shared_ptr to point to the SyncedMemory holding the

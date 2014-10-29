@@ -360,6 +360,39 @@ void Blob<Dtype>::scale_diff(Dtype scale_factor) {
 }
 
 template <typename Dtype>
+void Blob<Dtype>::set_diff_zero() {
+  Dtype* diff;
+  if (!diff_) { return; }
+  switch (diff_->head()) {
+  case SyncedMemory::HEAD_AT_CPU:
+    diff = mutable_cpu_diff();
+    caffe_set(count_, Dtype(0), diff);
+    break;
+  case SyncedMemory::HEAD_AT_GPU:
+  case SyncedMemory::SYNCED:
+#ifndef CPU_ONLY
+    diff = mutable_gpu_diff();
+    caffe_gpu_set(count_, Dtype(0), diff);
+#else
+    NO_GPU;
+#endif
+    break;
+  case SyncedMemory::UNINITIALIZED:
+    return;
+  default:
+    LOG(FATAL) << "Unknown SyncedMemory head state: " << diff_->head();
+  }
+}
+
+template <> void Blob<unsigned int>::set_diff_zero() {
+  NOT_IMPLEMENTED;
+}
+
+template <> void Blob<int>::set_diff_zero() {
+  NOT_IMPLEMENTED;
+}
+
+template <typename Dtype>
 void Blob<Dtype>::CopyFrom(const Blob& source, bool copy_diff, bool reshape) {
   if (num_ != source.num() || channels_ != source.channels() ||
       height_ != source.height() || width_ != source.width()) {

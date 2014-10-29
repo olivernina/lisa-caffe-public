@@ -706,20 +706,7 @@ template <typename Dtype>
 void Net<Dtype>::Backward() {
   for (int i = 0; i < params_.size(); ++i) {
     if (param_owners_[i] >= 0) { continue; }
-    const int count = params_[i]->count();
-    switch (Caffe::mode()) {
-    case Caffe::CPU:
-      caffe_set(count, Dtype(0), params_[i]->mutable_cpu_diff());
-    case Caffe::GPU:
-#ifndef CPU_ONLY
-      caffe_gpu_set(count, Dtype(0), params_[i]->mutable_gpu_diff());
-#else
-      NO_GPU;
-#endif
-      break;
-    default:
-      LOG(FATAL) << "Unknown caffe mode: " << Caffe::mode();
-    }
+    params_[i]->set_diff_zero();
   }
   BackwardFromTo(layers_.size() - 1, 0);
   if (debug_info_) {
