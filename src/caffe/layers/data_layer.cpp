@@ -69,6 +69,15 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   // Initialize the DB and rand_skip.
   Reset();
 
+
+  if (this->layer_param_.data_param().backend() == DataParameter_DB_LEVELDB) {
+    iter_[0]->SeekToLast();
+    string tmp_key = iter_[0]->key().ToString(); 
+    tmp_key = tmp_key.substr(0,8);
+    this->max_video_ = atoi(tmp_key.c_str());
+    iter_[0]->SeekToFirst();
+  }
+
   // Read a data point, and use it to initialize the top blob.
   Datum datum;
   switch (this->layer_param_.data_param().backend()) {
@@ -101,6 +110,7 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
 
   //video
+
   int clip_length_ = this->layer_param_.data_param().clip_length();
   if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH) {
     CHECK_EQ(0, this->layer_param_.data_param().batch_size() % clip_length_)
@@ -195,12 +205,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     top_weight_loss = this->prefetch_weight_loss_.mutable_cpu_data();
   }
   const int batch_size = this->layer_param_.data_param().batch_size();
-  int max_video;
-  if (this->phase_ == 0) {
-    max_video = this->layer_param_.data_param().max_train_item() - 1;  //3571
-  } else {
-    max_video = this->layer_param_.data_param().max_test_item() - 1;  //1531
-  }
+  int max_video = this->max_video_;
   CHECK_GE(max_video,0)  << "Need to have more videos than 0.";
 
 
@@ -486,6 +491,7 @@ void DataLayer<Dtype>::Reset() {
       iter_[i].reset(db_->NewIterator(leveldb::ReadOptions()));
       iter_[i]->SeekToFirst();
     }
+
 
 //OLD CODE:
 //    iter_.reset(db_->NewIterator(leveldb::ReadOptions()));
