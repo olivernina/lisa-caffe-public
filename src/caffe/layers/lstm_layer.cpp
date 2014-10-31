@@ -213,8 +213,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     // c_t = c_t_term_1 + c_t_term_2
     // c_t_term_1 = f_t .* c_{t-1}
     // c_t_term_2 = i_t .* g_t
-    //
-    // (b_c computed in the W_{xc} InnerProductLayer.)
     {
       LayerParameter* c_t_term_1_param = net_param.add_layers();
       c_t_term_1_param->CopyFrom(prod_param);
