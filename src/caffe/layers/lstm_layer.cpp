@@ -170,6 +170,13 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_param->add_top("gate_input_" + ts);
     }
     {
+      LayerParameter* gate_neuron = net_param.add_layers();
+      gate_neuron->CopyFrom(sigmoid_param);
+      gate_neuron->add_bottom("gate_input_" + ts);
+      gate_neuron->add_top("gate_input_" + ts);
+      gate_neuron->set_name("gate_neuron_" + ts);
+    }
+    {
       LayerParameter* gate_input_slice = net_param.add_layers();
       gate_input_slice->CopyFrom(slice_param);
       gate_input_slice->mutable_slice_param()->set_slice_dim(1);
@@ -178,41 +185,29 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       gate_input_slice->add_top("i_" + ts);
       gate_input_slice->add_top("f_" + ts);
       gate_input_slice->add_top("o_" + ts);
-      gate_input_slice->add_top("g_" + ts);
+      gate_input_slice->add_top("g_" + ts + "_pre_shift_scale");
     }
     {
-      LayerParameter* input = net_param.add_layers();
-      input->CopyFrom(sigmoid_param);
-      input->add_bottom("i_" + ts);
-      input->add_top("i_" + ts);
-      input->set_name("i_nonlinearity_" + ts);
-    }
-    {
-      LayerParameter* forget = net_param.add_layers();
-      forget->CopyFrom(sigmoid_param);
-      forget->add_bottom("f_" + ts);
-      forget->add_top("f_" + ts);
-      forget->set_name("f_nonlinearity_" + ts);
-    }
-    {
-      LayerParameter* output = net_param.add_layers();
-      output->CopyFrom(sigmoid_param);
-      output->add_bottom("o_" + ts);
-      output->add_top("o_" + ts);
-      output->set_name("o_nonlinearity_" + ts);
-    }
-    {
-      LayerParameter* modulation = net_param.add_layers();
-      modulation->CopyFrom(tanh_param);
-      modulation->add_bottom("g_" + ts);
-      modulation->add_top("g_" + ts);
-      modulation->set_name("g_nonlinearity_" + ts);
+      LayerParameter* sigmoid_to_tanh = net_param.add_layers();
+      sigmoid_to_tanh->set_type(LayerParameter_LayerType_POWER);
+      sigmoid_to_tanh->mutable_power_param()->set_scale(2);
+      sigmoid_to_tanh->mutable_power_param()->set_shift(-1);
+      sigmoid_to_tanh->add_bottom("g_" + ts + "_pre_shift_scale");
+      sigmoid_to_tanh->add_top("g_" + ts);
     }
 
     // Add layers to compute the cell vector c.
     // c_t = c_t_term_1 + c_t_term_2
     // c_t_term_1 = f_t .* c_{t-1}
     // c_t_term_2 = i_t .* g_t
+    //
+    // g_t used the sigmoid non-linearity, but is supposed to use the tanh
+    // non-linearity.  We project the output into a [-1, 1] range
+    // (from the [0, 1] output of the sigmoid) by doing 2 * g_t - 1.
+    // This is not quite the same as the tanh unit as we'd have to scale the
+    // sigmoid input by 2 as well, but the linear transformation of the input
+    // can handle that if needed.
+    //
     {
       LayerParameter* c_t_term_1_param = net_param.add_layers();
       c_t_term_1_param->CopyFrom(prod_param);
