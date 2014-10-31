@@ -135,15 +135,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
     // Add layers to flush the hidden and cell state, when beginning a new clip.
     {
-      LayerParameter* flush_c_param = net_param.add_layers();
-      flush_c_param->CopyFrom(sum_param);
-      flush_c_param->mutable_eltwise_param()->set_coeff_blob(true);
-      flush_c_param->add_bottom("c_" + tm1s);
-      flush_c_param->add_bottom("flush_" + tm1s);
-      flush_c_param->add_top("c_" + tm1s + "_flushed");
-      flush_c_param->set_name("c_" + tm1s + " flush");
-    }
-    {
       LayerParameter* flush_h_param = net_param.add_layers();
       flush_h_param->CopyFrom(sum_param);
       flush_h_param->mutable_eltwise_param()->set_coeff_blob(true);
@@ -172,10 +163,10 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
     // Add layers to compute the cell vector c.
     //
-    // Inputs: c_{t-1}, i_t, f_t, o_t, g_t
+    // Inputs: c_{t-1}, i_t, f_t, o_t, g_t, flush_t
     // Outputs: c_t, h_t
     //
-    // c_t_term_1 = f_t .* c_{t-1}
+    // c_t_term_1 = flush_t * f_t .* c_{t-1}
     // c_t_term_2 = i_t .* g_t
     // c_t = c_t_term_1 + c_t_term_2
     // tanh_c_t = \tanh[c_t]
@@ -198,8 +189,9 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     {
       LayerParameter* lstm_unit_param = net_param.add_layers();
       lstm_unit_param->set_type(LayerParameter_LayerType_LSTM_UNIT);
-      lstm_unit_param->add_bottom("c_" + tm1s + "_flushed");
+      lstm_unit_param->add_bottom("c_" + tm1s);
       lstm_unit_param->add_bottom("gate_input_" + ts);
+      lstm_unit_param->add_bottom("flush_" + tm1s);
       lstm_unit_param->add_top("c_" + ts);
       lstm_unit_param->add_top("h_" + ts);
       lstm_unit_param->set_name("unit_" + ts);

@@ -426,10 +426,10 @@ class LSTMUnitLayer : public Layer<Dtype> {
   virtual inline LayerParameter_LayerType type() const {
     return LayerParameter_LayerType_LSTM_UNIT;
   }
-  // Inputs are c_{t-1}, x_t = \sigmoid[i_t, f_t, o_t, g_t]
+  // Inputs are c_{t-1}, x_t = \sigmoid[i_t, f_t, o_t, g_t], flush_t
   // Normally, g_t goes through a tanh non-linearity so this layer shifts it
   // from range [0, 1] to [-1, 1].
-  virtual inline int ExactNumBottomBlobs() const { return 2; }
+  virtual inline int ExactNumBottomBlobs() const { return 3; }
   // Output is c_t, h_t
   virtual inline int ExactNumTopBlobs() const { return 2; }
 

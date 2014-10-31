@@ -22,8 +22,10 @@ void LSTMUnitLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   const int num = bottom[0]->num();
   CHECK_EQ(num, bottom[1]->num());
+  CHECK_EQ(num, bottom[2]->num());
   hidden_dim_ = bottom[0]->count() / bottom[0]->num();
   CHECK_EQ(hidden_dim_ * 4, bottom[1]->count() / num);
+  CHECK_EQ(1, bottom[2]->count() / num);
   top[0]->ReshapeLike(*bottom[0]);
   top[1]->ReshapeLike(*bottom[0]);
   X_acts_.ReshapeLike(*bottom[1]);
@@ -36,12 +38,14 @@ void LSTMUnitLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   const int x_dim = hidden_dim_ * 4;
   const Dtype* C_prev = bottom[0]->cpu_data();
   const Dtype* X = bottom[1]->cpu_data();
+  const Dtype* flush = bottom[2]->cpu_data();
   Dtype* C = top[0]->mutable_cpu_data();
   Dtype* H = top[1]->mutable_cpu_data();
   for (int n = 0; n < num; ++n) {
     for (int d = 0; d < hidden_dim_; ++d) {
       const Dtype i = sigmoid(X[d]);
-      const Dtype f = sigmoid(X[1 * hidden_dim_ + d]);
+      const Dtype f = (*flush == 0) ? 0 :
+          (*flush * sigmoid(X[1 * hidden_dim_ + d]));
       const Dtype o = sigmoid(X[2 * hidden_dim_ + d]);
       const Dtype g = tanh(X[3 * hidden_dim_ + d]);
       const Dtype c_prev = C_prev[d];
@@ -54,6 +58,7 @@ void LSTMUnitLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     X += x_dim;
     C += hidden_dim_;
     H += hidden_dim_;
+    ++flush;
   }
 }
 
@@ -65,6 +70,7 @@ void LSTMUnitLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   const int x_dim = hidden_dim_ * 4;
   const Dtype* C_prev = bottom[0]->cpu_data();
   const Dtype* X = bottom[1]->cpu_data();
+  const Dtype* flush = bottom[2]->cpu_data();
   const Dtype* C = top[0]->cpu_data();
   const Dtype* H = top[1]->cpu_data();
   const Dtype* C_diff = top[0]->cpu_diff();
@@ -74,7 +80,8 @@ void LSTMUnitLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   for (int n = 0; n < num; ++n) {
     for (int d = 0; d < hidden_dim_; ++d) {
       const Dtype i = sigmoid(X[d]);
-      const Dtype f = sigmoid(X[1 * hidden_dim_ + d]);
+      const Dtype f = (*flush == 0) ? 0 :
+          (*flush * sigmoid(X[1 * hidden_dim_ + d]));
       const Dtype o = sigmoid(X[2 * hidden_dim_ + d]);
       const Dtype g = tanh(X[3 * hidden_dim_ + d]);
       const Dtype c_prev = C_prev[d];
@@ -101,6 +108,7 @@ void LSTMUnitLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     H_diff += hidden_dim_;
     X_diff += x_dim;
     C_prev_diff += hidden_dim_;
+    ++flush;
   }
 }
 

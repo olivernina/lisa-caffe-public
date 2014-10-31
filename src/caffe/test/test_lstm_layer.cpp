@@ -40,6 +40,7 @@ class LSTMLayerTest : public MultiDeviceTest<TypeParam> {
     blob_top_vec_.push_back(&blob_top_);
     unit_blob_bottom_vec_.push_back(&unit_blob_bottom_c_prev_);
     unit_blob_bottom_vec_.push_back(&unit_blob_bottom_x_);
+    unit_blob_bottom_vec_.push_back(&blob_bottom_flush_);
     unit_blob_top_vec_.push_back(&unit_blob_top_c_);
     unit_blob_top_vec_.push_back(&unit_blob_top_h_);
     layer_param_.mutable_lstm_param()->set_hidden_dim(hidden_dim_);
@@ -227,7 +228,9 @@ TYPED_TEST(LSTMLayerTest, TestLSTMUnitGradient) {
   LSTMUnitLayer<Dtype> layer(layer_param);
   GradientChecker<Dtype> checker(1e-2, 1e-3);
   checker.CheckGradientExhaustive(&layer, this->unit_blob_bottom_vec_,
-      this->unit_blob_top_vec_);
+      this->unit_blob_top_vec_, 0);
+  checker.CheckGradientExhaustive(&layer, this->unit_blob_bottom_vec_,
+      this->unit_blob_top_vec_, 1);
 }
 
 TYPED_TEST(LSTMLayerTest, TestGradient) {
