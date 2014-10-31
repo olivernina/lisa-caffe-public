@@ -107,16 +107,20 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   flush_slice_param->add_bottom("flush");
   flush_slice_param->set_name("flush slice");
 
-  LayerParameter* x_flatten_param = net_param.add_layers();
-  x_flatten_param->set_type(LayerParameter_LayerType_FLATTEN);
-  x_flatten_param->add_bottom("x");
-  x_flatten_param->add_top("x_flat");
-  x_flatten_param->set_name("x flatten");
+  {
+    LayerParameter* x_transform_param = net_param.add_layers();
+    x_transform_param->CopyFrom(biased_hidden_param);
+    x_transform_param->set_name("x_transform");
+    x_transform_param->add_param("W_xh");
+    x_transform_param->add_param("b");
+    x_transform_param->add_bottom("x");
+    x_transform_param->add_top("x_transformed");
+  }
 
   LayerParameter* x_slice_param = net_param.add_layers();
   x_slice_param->CopyFrom(slice_param);
-  x_slice_param->add_bottom("x_flat");
-  x_slice_param->set_name("x slice");
+  x_slice_param->add_bottom("x_transformed");
+  x_slice_param->set_name("x_transformed_slice");
 
   LayerParameter output_concat_layer;
   output_concat_layer.set_name("h_concat");
@@ -131,7 +135,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     string ts = int_to_str(t);
 
     flush_slice_param->add_top("flush_" + tm1s);
-    x_slice_param->add_top("x_" + ts);
+    x_slice_param->add_top("x_transformed_" + ts);
 
     // Add layers to flush the hidden and cell state, when beginning a new clip.
     {
@@ -144,21 +148,20 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       flush_h_param->set_name("h_" + tm1s + " flush");
     }
     {
-      LayerParameter* input_concat_layer = net_param.add_layers();
-      input_concat_layer->set_name("input_concat_" + ts);
-      input_concat_layer->set_type(LayerParameter_LayerType_CONCAT);
-      input_concat_layer->add_bottom("h_" + tm1s + "_flushed");
-      input_concat_layer->add_bottom("x_" + ts);
-      input_concat_layer->add_top("input_" + ts);
+      LayerParameter* w_param = net_param.add_layers();
+      w_param->CopyFrom(hidden_param);
+      w_param->set_name("transform_" + ts);
+      w_param->add_param("W_hh");
+      w_param->add_bottom("h_" + tm1s + "_flushed");
+      w_param->add_top("h_transformed_" + tm1s);
     }
     {
-      LayerParameter* w_param = net_param.add_layers();
-      w_param->CopyFrom(biased_hidden_param);
-      w_param->set_name("transform_" + ts);
-      w_param->add_param("W");
-      w_param->add_param("b");
-      w_param->add_bottom("input_" + ts);
-      w_param->add_top("gate_input_" + ts);
+      LayerParameter* input_sum_layer = net_param.add_layers();
+      input_sum_layer->CopyFrom(sum_param);
+      input_sum_layer->set_name("input_sum_" + ts);
+      input_sum_layer->add_bottom("x_transformed_" + ts);
+      input_sum_layer->add_bottom("h_transformed_" + tm1s);
+      input_sum_layer->add_top("gate_input_" + ts);
     }
 
     // Add layers to compute the cell vector c.
@@ -245,7 +248,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
 
   this->param_propagate_down_.resize(this->blobs_.size(), true);
-  CHECK_EQ(2, this->blobs_.size());
+  CHECK_EQ(3, this->blobs_.size());
 
   const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
   Dtype* hidden_output_diff = h_output_blob_->mutable_cpu_diff();
