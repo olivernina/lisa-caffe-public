@@ -176,30 +176,18 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       gate_neuron->add_top("gate_input_" + ts);
       gate_neuron->set_name("gate_neuron_" + ts);
     }
-    {
-      LayerParameter* gate_input_slice = net_param.add_layers();
-      gate_input_slice->CopyFrom(slice_param);
-      gate_input_slice->mutable_slice_param()->set_slice_dim(1);
-      gate_input_slice->set_name("gate_input_slice_" + ts);
-      gate_input_slice->add_bottom("gate_input_" + ts);
-      gate_input_slice->add_top("i_" + ts);
-      gate_input_slice->add_top("f_" + ts);
-      gate_input_slice->add_top("o_" + ts);
-      gate_input_slice->add_top("g_" + ts + "_pre_shift_scale");
-    }
-    {
-      LayerParameter* sigmoid_to_tanh = net_param.add_layers();
-      sigmoid_to_tanh->set_type(LayerParameter_LayerType_POWER);
-      sigmoid_to_tanh->mutable_power_param()->set_scale(2);
-      sigmoid_to_tanh->mutable_power_param()->set_shift(-1);
-      sigmoid_to_tanh->add_bottom("g_" + ts + "_pre_shift_scale");
-      sigmoid_to_tanh->add_top("g_" + ts);
-    }
 
     // Add layers to compute the cell vector c.
-    // c_t = c_t_term_1 + c_t_term_2
+    //
+    // Inputs: c_{t-1}, i_t, f_t, o_t, g_t_sigmoid
+    // Outputs: c_t, h_t
+    //
+    // g_t = 2 * g_t_sigmoid - 1
     // c_t_term_1 = f_t .* c_{t-1}
     // c_t_term_2 = i_t .* g_t
+    // c_t = c_t_term_1 + c_t_term_2
+    // tanh_c_t = \tanh[c_t]
+    // h_t = o_t .* tanh_c_t
     //
     // g_t used the sigmoid non-linearity, but is supposed to use the tanh
     // non-linearity.  We project the output into a [-1, 1] range
@@ -208,47 +196,29 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     // sigmoid input by 2 as well, but the linear transformation of the input
     // can handle that if needed.
     //
+    // Backward:
+    //
+    // Inputs: dE/dc_t, dE/dh_t (and all inputs & outputs from Forward)
+    // Outputs: dE/dc_{t-1}, dE/di_t, dE/df_t, dE/do_t, dE/dg_t_sigmoid
+    //
+    // dE/do_t = dE/dh_t * dh_t/do_t = dE/dh_t * tanh_c_t
+    //
+    // dE/dc_t_term_{1,2} = dE/dc_t + dE/dh_t * dh_t/dtanh_c_t * dtanh_c_t/dc_t
+    //                    = dE/dc_t + dE/dh_t * o_t * (1 - tanh_c_t * tanh_c_t)
+    // dE/di_t = dE/dc_t_term_2 * g_t
+    // dE/df_t = dE/dc_t_term_1 * c_{t-1}
+    // dE/dc_{t-1} = dE/dc_t_term_1 * f_t
+    // dE/dg_t = dE/dc_t_term_2 * i_t
+    // dE/dg_t_sigmoid = 2 * dE/dg_t = 2 * dE/dc_t_term_2 * i_t
+    //
     {
-      LayerParameter* c_t_term_1_param = net_param.add_layers();
-      c_t_term_1_param->CopyFrom(prod_param);
-      c_t_term_1_param->add_bottom("f_" + ts);
-      c_t_term_1_param->add_bottom("c_" + tm1s + "_flushed");
-      c_t_term_1_param->add_top("c_" + ts + "_term_1");
-      c_t_term_1_param->set_name("c_" + ts + "_term_1");
-    }
-    {
-      LayerParameter* c_t_term_2_param = net_param.add_layers();
-      c_t_term_2_param->CopyFrom(prod_param);
-      c_t_term_2_param->add_bottom("i_" + ts);
-      c_t_term_2_param->add_bottom("g_" + ts);
-      c_t_term_2_param->add_top("c_" + ts + "_term_2");
-      c_t_term_2_param->set_name("c_" + ts + "_term_2");
-    }
-    {
-      LayerParameter* c_param = net_param.add_layers();
-      c_param->CopyFrom(sum_param);
-      c_param->add_bottom("c_" + ts + "_term_1");
-      c_param->add_bottom("c_" + ts + "_term_2");
-      c_param->add_top("c_" + ts);
-      c_param->set_name("c_" + ts);
-    }
-
-    // Add layers to compute the hidden vector h.
-    // h_t = o_t .* \tanh[ c_t ]
-    {
-      LayerParameter* c_t_act_param = net_param.add_layers();
-      c_t_act_param->CopyFrom(tanh_param);
-      c_t_act_param->add_bottom("c_" + ts);
-      c_t_act_param->add_top("c_" + ts + "_tanh");
-      c_t_act_param->set_name("c_" + ts + "_tanh");
-    }
-    {
-      LayerParameter* h_t_param = net_param.add_layers();
-      h_t_param->CopyFrom(prod_param);
-      h_t_param->add_bottom("o_" + ts);
-      h_t_param->add_bottom("c_" + ts + "_tanh");
-      h_t_param->add_top("h_" + ts);
-      h_t_param->set_name("h_" + ts);
+      LayerParameter* lstm_unit_param = net_param.add_layers();
+      lstm_unit_param->set_type(LayerParameter_LayerType_LSTM_UNIT);
+      lstm_unit_param->add_bottom("c_" + tm1s + "_flushed");
+      lstm_unit_param->add_bottom("gate_input_" + ts);
+      lstm_unit_param->add_top("c_" + ts);
+      lstm_unit_param->add_top("h_" + ts);
+      lstm_unit_param->set_name("unit_" + ts);
     }
     output_concat_layer.add_bottom("h_" + ts);
   }

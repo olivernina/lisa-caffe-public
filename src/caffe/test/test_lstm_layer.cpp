@@ -25,13 +25,23 @@ class LSTMLayerTest : public MultiDeviceTest<TypeParam> {
   LSTMLayerTest() : hidden_dim_(3) {
     blob_bottom_.Reshape(3, 4, 3, 2);
     blob_bottom_flush_.Reshape(3, 1, 1, 1);
+    unit_blob_bottom_c_prev_.Reshape(3, hidden_dim_, 1, 1);
+    unit_blob_bottom_x_.Reshape(3, 4 * hidden_dim_, 1, 1);
     // fill the values
     FillerParameter filler_param;
+    filler_param.set_min(-1);
+    filler_param.set_max(1);
     UniformFiller<Dtype> filler(filler_param);
     filler.Fill(&blob_bottom_);
+    filler.Fill(&unit_blob_bottom_c_prev_);
+    filler.Fill(&unit_blob_bottom_x_);
     blob_bottom_vec_.push_back(&blob_bottom_);
     blob_bottom_vec_.push_back(&blob_bottom_flush_);
     blob_top_vec_.push_back(&blob_top_);
+    unit_blob_bottom_vec_.push_back(&unit_blob_bottom_c_prev_);
+    unit_blob_bottom_vec_.push_back(&unit_blob_bottom_x_);
+    unit_blob_top_vec_.push_back(&unit_blob_top_c_);
+    unit_blob_top_vec_.push_back(&unit_blob_top_h_);
     layer_param_.mutable_lstm_param()->set_hidden_dim(hidden_dim_);
     FillerParameter* weight_filler =
         layer_param_.mutable_lstm_param()->mutable_weight_filler();
@@ -156,6 +166,13 @@ class LSTMLayerTest : public MultiDeviceTest<TypeParam> {
   Blob<Dtype> blob_top_;
   vector<Blob<Dtype>*> blob_bottom_vec_;
   vector<Blob<Dtype>*> blob_top_vec_;
+
+  Blob<Dtype> unit_blob_bottom_c_prev_;
+  Blob<Dtype> unit_blob_bottom_x_;
+  Blob<Dtype> unit_blob_top_c_;
+  Blob<Dtype> unit_blob_top_h_;
+  vector<Blob<Dtype>*> unit_blob_bottom_vec_;
+  vector<Blob<Dtype>*> unit_blob_top_vec_;
 };
 
 TYPED_TEST_CASE(LSTMLayerTest, TestDtypesAndDevices);
@@ -178,6 +195,39 @@ TYPED_TEST(LSTMLayerTest, TestForward) {
 TYPED_TEST(LSTMLayerTest, TestForwardDiagCellGates) {
   const bool kUseDiagCellGates = true;
   this->TestForward(kUseDiagCellGates);
+}
+
+TYPED_TEST(LSTMLayerTest, TestLSTMUnitSetUp) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter layer_param;
+  layer_param.set_type(LayerParameter_LayerType_LSTM_UNIT);
+  shared_ptr<Layer<Dtype> > layer(GetLayer<Dtype>(layer_param));
+  layer->SetUp(this->unit_blob_bottom_vec_, this->unit_blob_top_vec_);
+  EXPECT_EQ(this->unit_blob_bottom_c_prev_.num(),
+            this->unit_blob_top_c_.num());
+  EXPECT_EQ(this->unit_blob_bottom_c_prev_.channels(),
+            this->unit_blob_top_c_.channels());
+  EXPECT_EQ(this->unit_blob_bottom_c_prev_.height(),
+            this->unit_blob_top_c_.height());
+  EXPECT_EQ(this->unit_blob_bottom_c_prev_.width(),
+            this->unit_blob_top_c_.width());
+  EXPECT_EQ(this->unit_blob_bottom_c_prev_.num(),
+            this->unit_blob_top_h_.num());
+  EXPECT_EQ(this->unit_blob_bottom_c_prev_.channels(),
+            this->unit_blob_top_h_.channels());
+  EXPECT_EQ(this->unit_blob_bottom_c_prev_.height(),
+            this->unit_blob_top_h_.height());
+  EXPECT_EQ(this->unit_blob_bottom_c_prev_.width(),
+            this->unit_blob_top_h_.width());
+}
+
+TYPED_TEST(LSTMLayerTest, TestLSTMUnitGradient) {
+  typedef typename TypeParam::Dtype Dtype;
+  LayerParameter layer_param;
+  LSTMUnitLayer<Dtype> layer(layer_param);
+  GradientChecker<Dtype> checker(1e-2, 1e-3);
+  checker.CheckGradientExhaustive(&layer, this->unit_blob_bottom_vec_,
+      this->unit_blob_top_vec_);
 }
 
 TYPED_TEST(LSTMLayerTest, TestGradient) {

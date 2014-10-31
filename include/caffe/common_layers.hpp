@@ -411,6 +411,43 @@ class LSTMLayer : public Layer<Dtype> {
 };
 
 /**
+ * @brief Does an LSTM thingie.
+ *
+ * TODO(dox): thorough documentation for Forward, Backward, and proto params.
+ */
+template <typename Dtype>
+class LSTMUnitLayer : public Layer<Dtype> {
+ public:
+  explicit LSTMUnitLayer(const LayerParameter& param)
+      : Layer<Dtype>(param) {}
+  virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline LayerParameter_LayerType type() const {
+    return LayerParameter_LayerType_LSTM_UNIT;
+  }
+  // Inputs are c_{t-1}, x_t = \sigmoid[i_t, f_t, o_t, g_t]
+  // Normally, g_t goes through a tanh non-linearity so this layer shifts it
+  // from range [0, 1] to [-1, 1].
+  virtual inline int ExactNumBottomBlobs() const { return 2; }
+  // Output is c_t, h_t
+  virtual inline int ExactNumTopBlobs() const { return 2; }
+
+ protected:
+  virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+  virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  /// @brief The hidden and output dimension.
+  int hidden_dim_;
+};
+
+/**
  * @brief Normalizes the input to have 0-mean and/or unit (1) variance.
  *
  * TODO(dox): thorough documentation for Forward, Backward, and proto params.
