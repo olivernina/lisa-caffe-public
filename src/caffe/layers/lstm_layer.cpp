@@ -169,37 +169,22 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       w_param->add_bottom("input_" + ts);
       w_param->add_top("gate_input_" + ts);
     }
-    {
-      LayerParameter* gate_neuron = net_param.add_layers();
-      gate_neuron->CopyFrom(sigmoid_param);
-      gate_neuron->add_bottom("gate_input_" + ts);
-      gate_neuron->add_top("gate_input_" + ts);
-      gate_neuron->set_name("gate_neuron_" + ts);
-    }
 
     // Add layers to compute the cell vector c.
     //
-    // Inputs: c_{t-1}, i_t, f_t, o_t, g_t_sigmoid
+    // Inputs: c_{t-1}, i_t, f_t, o_t, g_t
     // Outputs: c_t, h_t
     //
-    // g_t = 2 * g_t_sigmoid - 1
     // c_t_term_1 = f_t .* c_{t-1}
     // c_t_term_2 = i_t .* g_t
     // c_t = c_t_term_1 + c_t_term_2
     // tanh_c_t = \tanh[c_t]
     // h_t = o_t .* tanh_c_t
     //
-    // g_t used the sigmoid non-linearity, but is supposed to use the tanh
-    // non-linearity.  We project the output into a [-1, 1] range
-    // (from the [0, 1] output of the sigmoid) by doing 2 * g_t - 1.
-    // This is not quite the same as the tanh unit as we'd have to scale the
-    // sigmoid input by 2 as well, but the linear transformation of the input
-    // can handle that if needed.
-    //
     // Backward:
     //
     // Inputs: dE/dc_t, dE/dh_t (and all inputs & outputs from Forward)
-    // Outputs: dE/dc_{t-1}, dE/di_t, dE/df_t, dE/do_t, dE/dg_t_sigmoid
+    // Outputs: dE/dc_{t-1}, dE/di_t, dE/df_t, dE/do_t, dE/dg_t
     //
     // dE/do_t = dE/dh_t * dh_t/do_t = dE/dh_t * tanh_c_t
     //
@@ -209,7 +194,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     // dE/df_t = dE/dc_t_term_1 * c_{t-1}
     // dE/dc_{t-1} = dE/dc_t_term_1 * f_t
     // dE/dg_t = dE/dc_t_term_2 * i_t
-    // dE/dg_t_sigmoid = 2 * dE/dg_t = 2 * dE/dc_t_term_2 * i_t
     //
     {
       LayerParameter* lstm_unit_param = net_param.add_layers();

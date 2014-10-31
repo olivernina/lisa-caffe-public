@@ -445,6 +445,7 @@ class LSTMUnitLayer : public Layer<Dtype> {
 
   /// @brief The hidden and output dimension.
   int hidden_dim_;
+  Blob<Dtype> X_acts_;
 };
 
 /**
