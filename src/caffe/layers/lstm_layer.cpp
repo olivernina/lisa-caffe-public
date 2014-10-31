@@ -90,13 +90,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   net_param.add_input_dim(1);
   net_param.add_input_dim(1);
   net_param.add_input_dim(1);
-  string ts = int_to_str(0);
-  net_param.add_input("c_" + ts);
+  net_param.add_input("c_0");
   net_param.add_input_dim(buffer_size_);
   net_param.add_input_dim(hidden_dim_);
   net_param.add_input_dim(1);
   net_param.add_input_dim(1);
-  net_param.add_input("h_" + ts);
+  net_param.add_input("h_0");
   net_param.add_input_dim(buffer_size_);
   net_param.add_input_dim(hidden_dim_);
   net_param.add_input_dim(1);
@@ -111,7 +110,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     LayerParameter* x_transform_param = net_param.add_layers();
     x_transform_param->CopyFrom(biased_hidden_param);
     x_transform_param->set_name("x_transform");
-    x_transform_param->add_param("W_xh");
+    x_transform_param->add_param("W_xc");
     x_transform_param->add_param("b");
     x_transform_param->add_bottom("x");
     x_transform_param->add_top("x_transformed");
@@ -151,7 +150,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       LayerParameter* w_param = net_param.add_layers();
       w_param->CopyFrom(hidden_param);
       w_param->set_name("transform_" + ts);
-      w_param->add_param("W_hh");
+      w_param->add_param("W_hc");
       w_param->add_bottom("h_" + tm1s + "_flushed");
       w_param->add_top("h_transformed_" + tm1s);
     }
@@ -201,13 +200,13 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     }
     output_concat_layer.add_bottom("h_" + ts);
   }
-  net_param.add_layers()->CopyFrom(output_concat_layer);
   {
     LayerParameter* c_T_copy_param = net_param.add_layers();
     c_T_copy_param->CopyFrom(split_param);
     c_T_copy_param->add_bottom("c_" + int_to_str(T_));
     c_T_copy_param->add_top("c_T");
   }
+  net_param.add_layers()->CopyFrom(output_concat_layer);
 
   const string& layer_name = this->layer_param_.name();
   for (int i = 0; i < net_param.layers_size(); ++i) {
@@ -224,7 +223,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   h_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_0").get());
   c_input_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_0").get());
   output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h").get());
-  ts = int_to_str(T_);
+  string ts = int_to_str(T_);
   h_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_" + ts).get());
   c_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_T").get());
 
