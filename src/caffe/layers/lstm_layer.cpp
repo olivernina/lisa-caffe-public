@@ -20,9 +20,6 @@ string LSTMLayer<Dtype>::int_to_str(const int t) {
 template <typename Dtype>
 void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
-  const bool identity_prior = this->layer_param_.lstm_param().identity_prior();
-  const bool diag_cell_gates =
-      this->layer_param_.lstm_param().diagonal_cell_gates();
   hidden_dim_ = this->layer_param_.lstm_param().hidden_dim();
   CHECK_GT(hidden_dim_, 0) << "hidden_dim must be positive.";
   buffer_size_ = this->layer_param_.lstm_param().buffer_size();
@@ -43,7 +40,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   // use to save redundant code.
   LayerParameter hidden_param;
   hidden_param.set_type(LayerParameter_LayerType_INNER_PRODUCT);
-  hidden_param.mutable_inner_product_param()->set_num_output(hidden_dim_);
+  hidden_param.mutable_inner_product_param()->set_num_output(hidden_dim_ * 4);
   hidden_param.mutable_inner_product_param()->set_bias_term(false);
   hidden_param.mutable_inner_product_param()->
       mutable_weight_filler()->CopyFrom(weight_filler);
@@ -52,11 +49,6 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   biased_hidden_param.mutable_inner_product_param()->set_bias_term(true);
   biased_hidden_param.mutable_inner_product_param()->
       mutable_bias_filler()->CopyFrom(bias_filler);
-
-  LayerParameter diag_hidden_param;
-  diag_hidden_param.set_type(LayerParameter_LayerType_DIAG_INNER_PRODUCT);
-  diag_hidden_param.mutable_diag_inner_product_param()->
-      mutable_weight_filler()->CopyFrom(weight_filler);
 
   LayerParameter sum_param;
   sum_param.set_type(LayerParameter_LayerType_ELTWISE);
@@ -115,61 +107,16 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   flush_slice_param->add_bottom("flush");
   flush_slice_param->set_name("flush slice");
 
-  {
-    LayerParameter* w_xi_param = net_param.add_layers();
-    w_xi_param->CopyFrom(biased_hidden_param);
-    w_xi_param->add_bottom("x");
-    w_xi_param->add_param("W_{xi}");
-    w_xi_param->add_param("b_i");
-    w_xi_param->add_top("W_{xi} x + b_i");
-    w_xi_param->set_name("W_{xi} x + b_i");
-  }
-  LayerParameter* w_xi_slice_param = net_param.add_layers();
-  w_xi_slice_param->CopyFrom(slice_param);
-  w_xi_slice_param->add_bottom("W_{xi} x + b_i");
-  w_xi_slice_param->set_name("W_{xi} x + b_i slice");
+  LayerParameter* x_flatten_param = net_param.add_layers();
+  x_flatten_param->set_type(LayerParameter_LayerType_FLATTEN);
+  x_flatten_param->add_bottom("x");
+  x_flatten_param->add_top("x_flat");
+  x_flatten_param->set_name("x flatten");
 
-  {
-    LayerParameter* w_xf_param = net_param.add_layers();
-    w_xf_param->CopyFrom(biased_hidden_param);
-    w_xf_param->add_bottom("x");
-    w_xf_param->add_param("W_{xf}");
-    w_xf_param->add_param("b_f");
-    w_xf_param->add_top("W_{xf} x + b_f");
-    w_xf_param->set_name("W_{xf} x + b_f");
-  }
-  LayerParameter* w_xf_slice_param = net_param.add_layers();
-  w_xf_slice_param->CopyFrom(slice_param);
-  w_xf_slice_param->add_bottom("W_{xf} x + b_f");
-  w_xf_slice_param->set_name("W_{xf} x + b_f slice");
-
-  {
-    LayerParameter* w_xc_param = net_param.add_layers();
-    w_xc_param->CopyFrom(biased_hidden_param);
-    w_xc_param->add_bottom("x");
-    w_xc_param->add_param("W_{xc}");
-    w_xc_param->add_param("b_c");
-    w_xc_param->add_top("W_{xc} x + b_c");
-    w_xc_param->set_name("W_{xc} x + b_c");
-  }
-  LayerParameter* w_xc_slice_param = net_param.add_layers();
-  w_xc_slice_param->CopyFrom(slice_param);
-  w_xc_slice_param->add_bottom("W_{xc} x + b_c");
-  w_xc_slice_param->set_name("W_{xc} x + b_c slice");
-
-  {
-    LayerParameter* w_xo_param = net_param.add_layers();
-    w_xo_param->CopyFrom(biased_hidden_param);
-    w_xo_param->add_bottom("x");
-    w_xo_param->add_param("W_{xo}");
-    w_xo_param->add_param("b_o");
-    w_xo_param->add_top("W_{xo} x + b_o");
-    w_xo_param->set_name("W_{xo} x + b_o");
-  }
-  LayerParameter* w_xo_slice_param = net_param.add_layers();
-  w_xo_slice_param->CopyFrom(slice_param);
-  w_xo_slice_param->add_bottom("W_{xo} x + b_o");
-  w_xo_slice_param->set_name("W_{xo} x + b_o slice");
+  LayerParameter* x_slice_param = net_param.add_layers();
+  x_slice_param->CopyFrom(slice_param);
+  x_slice_param->add_bottom("x_flat");
+  x_slice_param->set_name("x slice");
 
   LayerParameter output_concat_layer;
   output_concat_layer.set_name("h_concat");
@@ -184,11 +131,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     string ts = int_to_str(t);
 
     flush_slice_param->add_top("flush_" + tm1s);
-
-    w_xi_slice_param->add_top("W_{xi} x_" + ts + " + b_i");
-    w_xf_slice_param->add_top("W_{xf} x_" + ts + " + b_f");
-    w_xc_slice_param->add_top("W_{xc} x_" + ts + " + b_c");
-    w_xo_slice_param->add_top("W_{xo} x_" + ts + " + b_o");
+    x_slice_param->add_top("x_" + ts);
 
     // Add layers to flush the hidden and cell state, when beginning a new clip.
     {
@@ -209,101 +152,67 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       flush_h_param->add_top("h_" + tm1s + "_flushed");
       flush_h_param->set_name("h_" + tm1s + " flush");
     }
-
-    // Add layers to compute the input vector i.
-    // i_t = \sigmoid[
-    //   W_{xi} x_t + W_{hi} h_{t-1} + W_{ci} c_{t-1} + b_i
-    // ]
-    //
-    // (b_i computed in the W_{xi} InnerProductLayer, W_{ci} diagonal)
     {
-      LayerParameter* w_hi_param = net_param.add_layers();
-      w_hi_param->CopyFrom(hidden_param);
-      w_hi_param->add_bottom("h_" + tm1s + "_flushed");
-      w_hi_param->add_param("W_{hi}");
-      w_hi_param->add_top("W_{hi} h_" + tm1s);
-      w_hi_param->set_name("W_{hi} h_" + tm1s);
-    }
-    if (diag_cell_gates) {
-      LayerParameter* w_ci_param = net_param.add_layers();
-      w_ci_param->CopyFrom(diag_hidden_param);
-      w_ci_param->add_bottom("c_" + tm1s + "_flushed");
-      w_ci_param->add_param("W_{ci}");
-      w_ci_param->add_top("W_{ci} c_" + tm1s);
-      w_ci_param->set_name("W_{ci} c_" + tm1s);
+      LayerParameter* input_concat_layer = net_param.add_layers();
+      input_concat_layer->set_name("input_concat_" + ts);
+      input_concat_layer->set_type(LayerParameter_LayerType_CONCAT);
+      input_concat_layer->add_bottom("h_" + tm1s + "_flushed");
+      input_concat_layer->add_bottom("x_" + ts);
+      input_concat_layer->add_top("input_" + ts);
     }
     {
-      LayerParameter* i_input_param = net_param.add_layers();
-      i_input_param->CopyFrom(sum_param);
-      i_input_param->add_bottom("W_{xi} x_" + ts + " + b_i");
-      i_input_param->add_bottom("W_{hi} h_" + tm1s);
-      if (diag_cell_gates) {
-        i_input_param->add_bottom("W_{ci} c_" + tm1s);
-        // identity component of W_{ci}
-        if (identity_prior) {
-          i_input_param->add_bottom("c_" + tm1s + "_flushed");
-        }
-      }
-      i_input_param->add_top("i_" + ts + "_input");
-      i_input_param->set_name("i_" + ts + "_input");
+      LayerParameter* w_param = net_param.add_layers();
+      w_param->CopyFrom(biased_hidden_param);
+      w_param->set_name("transform_" + ts);
+      w_param->add_param("W");
+      w_param->add_param("b");
+      w_param->add_bottom("input_" + ts);
+      w_param->add_top("gate_input_" + ts);
     }
     {
-      LayerParameter* i_param = net_param.add_layers();
-      i_param->CopyFrom(sigmoid_param);
-      i_param->add_bottom("i_" + ts + "_input");
-      i_param->add_top("i_" + ts);
-      i_param->set_name("i_" + ts);
-    }
-
-    // Add layers to compute the forgetting vector f.
-    // f_t = \sigmoid[
-    //   W_{xf} x_t + W_{hf} h_{t-1} + W_{cf} c_{t-1} + b_f
-    // ]
-    //
-    // (b_f computed in the W_{xf} InnerProductLayer, W_{cf} diagonal)
-    {
-      LayerParameter* w_hf_param = net_param.add_layers();
-      w_hf_param->CopyFrom(hidden_param);
-      w_hf_param->add_bottom("h_" + tm1s + "_flushed");
-      w_hf_param->add_param("W_{hf}");
-      w_hf_param->add_top("W_{hf} h_" + tm1s);
-      w_hf_param->set_name("W_{hf} h_" + tm1s);
-    }
-    if (diag_cell_gates) {
-      LayerParameter* w_cf_param = net_param.add_layers();
-      w_cf_param->CopyFrom(diag_hidden_param);
-      w_cf_param->add_bottom("c_" + tm1s + "_flushed");
-      w_cf_param->add_param("W_{cf}");
-      w_cf_param->add_top("W_{cf} c_" + tm1s);
-      w_cf_param->set_name("W_{cf} c_" + tm1s);
+      LayerParameter* gate_input_slice = net_param.add_layers();
+      gate_input_slice->CopyFrom(slice_param);
+      gate_input_slice->mutable_slice_param()->set_slice_dim(1);
+      gate_input_slice->set_name("gate_input_slice_" + ts);
+      gate_input_slice->add_bottom("gate_input_" + ts);
+      gate_input_slice->add_top("i_" + ts);
+      gate_input_slice->add_top("f_" + ts);
+      gate_input_slice->add_top("o_" + ts);
+      gate_input_slice->add_top("g_" + ts);
     }
     {
-      LayerParameter* f_input_param = net_param.add_layers();
-      f_input_param->CopyFrom(sum_param);
-      f_input_param->add_bottom("W_{xf} x_" + ts + " + b_f");
-      f_input_param->add_bottom("W_{hf} h_" + tm1s);
-      if (diag_cell_gates) {
-        f_input_param->add_bottom("W_{cf} c_" + tm1s);
-        // identity component of W_{cf}
-        if (identity_prior) {
-          f_input_param->add_bottom("c_" + tm1s + "_flushed");
-        }
-      }
-      f_input_param->add_top("f_" + ts + "_input");
-      f_input_param->set_name("f_" + ts + "_input");
+      LayerParameter* input = net_param.add_layers();
+      input->CopyFrom(sigmoid_param);
+      input->add_bottom("i_" + ts);
+      input->add_top("i_" + ts);
+      input->set_name("i_nonlinearity_" + ts);
     }
     {
-      LayerParameter* f_param = net_param.add_layers();
-      f_param->CopyFrom(sigmoid_param);
-      f_param->add_bottom("f_" + ts + "_input");
-      f_param->add_top("f_" + ts);
-      f_param->set_name("f_" + ts);
+      LayerParameter* forget = net_param.add_layers();
+      forget->CopyFrom(sigmoid_param);
+      forget->add_bottom("f_" + ts);
+      forget->add_top("f_" + ts);
+      forget->set_name("f_nonlinearity_" + ts);
+    }
+    {
+      LayerParameter* output = net_param.add_layers();
+      output->CopyFrom(sigmoid_param);
+      output->add_bottom("o_" + ts);
+      output->add_top("o_" + ts);
+      output->set_name("o_nonlinearity_" + ts);
+    }
+    {
+      LayerParameter* modulation = net_param.add_layers();
+      modulation->CopyFrom(tanh_param);
+      modulation->add_bottom("g_" + ts);
+      modulation->add_top("g_" + ts);
+      modulation->set_name("g_nonlinearity_" + ts);
     }
 
     // Add layers to compute the cell vector c.
     // c_t = c_t_term_1 + c_t_term_2
     // c_t_term_1 = f_t .* c_{t-1}
-    // c_t_term_2 = i_t .* \tanh[ W_{xc} x_t + W_{hc} h_{t-1} + b_c ]
+    // c_t_term_2 = i_t .* g_t
     //
     // (b_c computed in the W_{xc} InnerProductLayer.)
     {
@@ -315,33 +224,10 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       c_t_term_1_param->set_name("c_" + ts + "_term_1");
     }
     {
-      LayerParameter* w_hc_param = net_param.add_layers();
-      w_hc_param->CopyFrom(hidden_param);
-      w_hc_param->add_bottom("h_" + tm1s + "_flushed");
-      w_hc_param->add_param("W_{hc}");
-      w_hc_param->add_top("W_{hc} h_" + tm1s);
-      w_hc_param->set_name("W_{hc} h_" + tm1s);
-    }
-    {
-      LayerParameter* c_input_param = net_param.add_layers();
-      c_input_param->CopyFrom(sum_param);
-      c_input_param->add_bottom("W_{xc} x_" + ts + " + b_c");
-      c_input_param->add_bottom("W_{hc} h_" + tm1s);
-      c_input_param->add_top("c_" + ts + "_input");
-      c_input_param->set_name("c_" + ts + "_input");
-    }
-    {
-      LayerParameter* c_act_param = net_param.add_layers();
-      c_act_param->CopyFrom(tanh_param);
-      c_act_param->add_bottom("c_" + ts + "_input");
-      c_act_param->add_top("c_" + ts + "_act");
-      c_act_param->set_name("c_" + ts + "_act");
-    }
-    {
       LayerParameter* c_t_term_2_param = net_param.add_layers();
       c_t_term_2_param->CopyFrom(prod_param);
       c_t_term_2_param->add_bottom("i_" + ts);
-      c_t_term_2_param->add_bottom("c_" + ts + "_act");
+      c_t_term_2_param->add_bottom("g_" + ts);
       c_t_term_2_param->add_top("c_" + ts + "_term_2");
       c_t_term_2_param->set_name("c_" + ts + "_term_2");
     }
@@ -350,68 +236,8 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       c_param->CopyFrom(sum_param);
       c_param->add_bottom("c_" + ts + "_term_1");
       c_param->add_bottom("c_" + ts + "_term_2");
-      if (t == T_) {
-        c_param->add_top("c_" + ts + "_copy");
-        c_param->set_name("c_" + ts + "_copy");
-      } else {
-        c_param->add_top("c_" + ts);
-        c_param->set_name("c_" + ts);
-      }
-    }
-    string c_t_name = "c_" + ts;
-    if (t == T_) {
-      LayerParameter* c_split_param = net_param.add_layers();
-      c_split_param->CopyFrom(split_param);
-      c_split_param->add_bottom("c_" + ts + "_copy");
-      c_t_name += "_internal";
-      c_split_param->add_top(c_t_name);
-      c_split_param->add_top("c_" + ts);
-      c_split_param->set_name("c_" + ts + " split");
-    }
-
-    // Add layers to compute the output vector o.
-    // o_t = \sigmoid[
-    //   W_{xo} x_t + W_{ho} h_{t-1} + W_{co} c_t + b_o
-    // ]
-    //
-    // (b_c computed in the W_{xc} InnerProductLayer, W_{co} diagonal)
-    {
-      LayerParameter* w_ho_param = net_param.add_layers();
-      w_ho_param->CopyFrom(hidden_param);
-      w_ho_param->add_bottom("h_" + tm1s + "_flushed");
-      w_ho_param->add_param("W_{ho}");
-      w_ho_param->add_top("W_{ho} h_" + tm1s);
-      w_ho_param->set_name("W_{ho} h_" + tm1s);
-    }
-    if (diag_cell_gates) {
-      LayerParameter* w_co_param = net_param.add_layers();
-      w_co_param->CopyFrom(diag_hidden_param);
-      w_co_param->add_bottom(c_t_name);
-      w_co_param->add_param("W_{co}");
-      w_co_param->add_top("W_{co} c_" + ts);
-      w_co_param->set_name("W_{co} c_" + ts);
-    }
-    {
-      LayerParameter* o_input_param = net_param.add_layers();
-      o_input_param->CopyFrom(sum_param);
-      o_input_param->add_bottom("W_{xo} x_" + ts + " + b_o");
-      o_input_param->add_bottom("W_{ho} h_" + tm1s);
-      if (diag_cell_gates) {
-        o_input_param->add_bottom("W_{co} c_" + ts);
-        // identity component of W_{co}
-        if (identity_prior) {
-          o_input_param->add_bottom(c_t_name);
-        }
-      }
-      o_input_param->add_top("o_" + ts + "_input");
-      o_input_param->set_name("o_" + ts + "_input");
-    }
-    {
-      LayerParameter* o_param = net_param.add_layers();
-      o_param->CopyFrom(sigmoid_param);
-      o_param->add_bottom("o_" + ts + "_input");
-      o_param->add_top("o_" + ts);
-      o_param->set_name("o_" + ts);
+      c_param->add_top("c_" + ts);
+      c_param->set_name("c_" + ts);
     }
 
     // Add layers to compute the hidden vector h.
@@ -419,7 +245,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     {
       LayerParameter* c_t_act_param = net_param.add_layers();
       c_t_act_param->CopyFrom(tanh_param);
-      c_t_act_param->add_bottom(c_t_name);
+      c_t_act_param->add_bottom("c_" + ts);
       c_t_act_param->add_top("c_" + ts + "_tanh");
       c_t_act_param->set_name("c_" + ts + "_tanh");
     }
@@ -434,6 +260,12 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     output_concat_layer.add_bottom("h_" + ts);
   }
   net_param.add_layers()->CopyFrom(output_concat_layer);
+  {
+    LayerParameter* c_T_copy_param = net_param.add_layers();
+    c_T_copy_param->CopyFrom(split_param);
+    c_T_copy_param->add_bottom("c_" + int_to_str(T_));
+    c_T_copy_param->add_top("c_T");
+  }
 
   const string& layer_name = this->layer_param_.name();
   for (int i = 0; i < net_param.layers_size(); ++i) {
@@ -452,7 +284,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h").get());
   ts = int_to_str(T_);
   h_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("h_" + ts).get());
-  c_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_" + ts).get());
+  c_output_blob_ = CHECK_NOTNULL(lstm_->blob_by_name("c_T").get());
 
   // 4 inputs: x, flush, h_0, and c_0.
   CHECK_EQ(4, lstm_->input_blobs().size());
@@ -474,7 +306,7 @@ void LSTMLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
 
   this->param_propagate_down_.resize(this->blobs_.size(), true);
-  CHECK_EQ(12 + 3 * diag_cell_gates, this->blobs_.size());
+  CHECK_EQ(2, this->blobs_.size());
 
   const int hidden_timestep_dim = buffer_size_ * hidden_dim_;
   Dtype* hidden_output_diff = h_output_blob_->mutable_cpu_diff();
