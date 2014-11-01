@@ -73,9 +73,8 @@ void InnerProductLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   const Dtype* weight = this->blobs_[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
   if (index_input_dim_) {
-    int index;
     for (int n = 0; n < bottom[0]->num(); ++n) {
-      index = static_cast<int>(bottom_data[n]);
+      const int index = static_cast<int>(bottom_data[n]);
       DCHECK_EQ(static_cast<Dtype>(index), bottom_data[n])
           << "index_input_dim_ used with non-integer inputs.";
       for (int d = 0; d < N_; ++d) {
@@ -102,10 +101,9 @@ void InnerProductLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const Dtype* bottom_data = bottom[0]->cpu_data();
     // Gradient with respect to weight
     if (index_input_dim_) {
-      int index;
       Dtype* weight_diff = this->blobs_[0]->mutable_cpu_diff();
       for (int n = 0; n < bottom[0]->num(); ++n) {
-        index = static_cast<int>(bottom_data[n]);
+        const int index = static_cast<int>(bottom_data[n]);
         DCHECK_EQ(static_cast<Dtype>(index), bottom_data[n])
             << "index_input_dim_ used with non-integer inputs.";
         for (int d = 0; d < N_; ++d) {
