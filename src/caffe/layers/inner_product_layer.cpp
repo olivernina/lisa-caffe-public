@@ -30,7 +30,13 @@ void InnerProductLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       this->blobs_.resize(1);
     }
     // Intialize the weight
-    this->blobs_[0].reset(new Blob<Dtype>(1, 1, N_, K_));
+    if (index_input_dim_) {
+      // Use transposed weights for one-hot inputs so that the column copy is
+      // direct, instead of strided over K_.
+      this->blobs_[0].reset(new Blob<Dtype>(1, 1, K_, N_));
+    } else {
+      this->blobs_[0].reset(new Blob<Dtype>(1, 1, N_, K_));
+    }
     // fill the weights
     shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(
         this->layer_param_.inner_product_param().weight_filler()));
@@ -78,9 +84,9 @@ void InnerProductLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const int index = static_cast<int>(bottom_data[n]);
       DCHECK_EQ(static_cast<Dtype>(index), bottom_data[n])
           << "index_input_dim_ used with non-integer inputs.";
-      for (int d = 0; d < N_; ++d) {
-        top_data[n * N_ + d] = weight[d * K_ + index];
-      }
+      const Dtype* weight_offset = weight + index * N_;
+      Dtype* top_data_offset = top_data + n * N_;
+      caffe_copy(N_, weight_offset, top_data_offset);
     }
   } else {
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasTrans, M_, N_, K_, (Dtype)1.,
@@ -107,9 +113,9 @@ void InnerProductLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
         const int index = static_cast<int>(bottom_data[n]);
         DCHECK_EQ(static_cast<Dtype>(index), bottom_data[n])
             << "index_input_dim_ used with non-integer inputs.";
-        for (int d = 0; d < N_; ++d) {
-          weight_diff[d * K_ + index] += top_diff[n * N_ + d];
-        }
+        const Dtype* top_diff_offset = top_diff + n * N_;
+        Dtype* weight_diff_offset = weight_diff + index * N_;
+        caffe_axpy(N_, Dtype(1), top_diff_offset, weight_diff_offset);
       }
     } else {
       caffe_cpu_gemm<Dtype>(CblasTrans, CblasNoTrans, N_, K_, M_, (Dtype)1.,
