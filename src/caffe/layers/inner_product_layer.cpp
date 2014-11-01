@@ -73,6 +73,7 @@ void InnerProductLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   const Dtype* weight = this->blobs_[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
   if (index_input_dim_) {
+    #pragma omp parallel for schedule(static)
     for (int n = 0; n < bottom[0]->num(); ++n) {
       const int index = static_cast<int>(bottom_data[n]);
       DCHECK_EQ(static_cast<Dtype>(index), bottom_data[n])
