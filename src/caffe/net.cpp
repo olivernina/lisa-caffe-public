@@ -802,10 +802,13 @@ void Net<Dtype>::SaveTrainedLayersToHDF5(const char* hdf5_filename) {
     if (param_owners_[i] >= 0) { continue; }  // Non-owned parameter.
     string hdf5_param_name = layer_names_[param_layer_indices_[i].first] +
         "." + param_display_names_[i];
+    LOG(INFO) << "(" << i << "/" << params_.size() << ") "
+              << "Snapshotting param to HDF5: " << hdf5_param_name;
     hdf5_save_nd_dataset(file_id, hdf5_param_name, *params_[i]);
   }
   CHECK_GE(H5Fclose(file_id), 0)
       << "Failed to close HDF5 file: " << hdf5_filename;
+  LOG(INFO) << "Successfully wrote HDF5 file: " << hdf5_filename;
 }
 
 template <typename Dtype>

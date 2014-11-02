@@ -599,8 +599,14 @@ void SGDSolver<Dtype>::SnapshotSolverState(SolverState* state) {
   for (int i = 0; i < history_.size(); ++i) {
     // Add history
     BlobProto* history_blob = state->add_history();
-    if (history_[i]->data()) {
+    if (history_[i]->data() &&
+        history_[i]->data()->head() != SyncedMemory::UNINITIALIZED) {
+      LOG(INFO) << "(" << i << "/" << history_.size() << ") "
+                << "Saving solver history blob";
       history_[i]->ToProto(history_blob);
+    } else {
+      LOG(INFO) << "(" << i << "/" << history_.size() << ") "
+                << "Not saving solver history blob";
     }
   }
 }
