@@ -127,8 +127,8 @@ template <> void Blob<int>::Update() { NOT_IMPLEMENTED; }
 
 template <typename Dtype>
 void Blob<Dtype>::Update() {
-  // We will perform update based on where the data is located.
-  switch (data_->head()) {
+  // We will perform update based on where the diff is located.
+  switch (diff_->head()) {
   case SyncedMemory::HEAD_AT_CPU:
     // perform computation on CPU
     caffe_axpy<Dtype>(count_, Dtype(-1),
@@ -147,7 +147,9 @@ void Blob<Dtype>::Update() {
 #endif
     break;
   default:
-    LOG(FATAL) << "Syncedmem not initialized.";
+    // If the diff is uninitialized, assume the update value is 0.
+    // LOG(FATAL) << "Syncedmem not initialized.";
+    break;
   }
 }
 

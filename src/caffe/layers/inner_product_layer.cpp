@@ -50,6 +50,15 @@ void InnerProductLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     }
   }  // parameter initialization
   this->param_propagate_down_.resize(this->blobs_.size(), true);
+  backward_update_lr_ =
+      this->layer_param_.inner_product_param().backward_update_lr();
+  if (backward_update_lr_ != Dtype(0)) {
+    CHECK(this->layer_param_.blobs_lr_size() == 0 ||
+          this->layer_param_.blobs_lr(0) == 0)
+        << "backward_update_lr only supported with blobs_lr(0) == 0";
+    CHECK_NE(index_input_dim_, 0)
+        << "backward_update_lr only supported for one-hot inputs.";
+  }
 }
 
 template <typename Dtype>
@@ -108,14 +117,18 @@ void InnerProductLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const Dtype* bottom_data = bottom[0]->cpu_data();
     // Gradient with respect to weight
     if (index_input_dim_) {
-      Dtype* weight_diff = this->blobs_[0]->mutable_cpu_diff();
+      Dtype* weight_diff = (backward_update_lr_ == Dtype(0)) ?
+          this->blobs_[0]->mutable_cpu_diff() :
+          this->blobs_[0]->mutable_cpu_data();
+      const Dtype alpha = (backward_update_lr_ == Dtype(0)) ?
+          Dtype(1) : -backward_update_lr_;
       for (int n = 0; n < bottom[0]->num(); ++n) {
         const int index = static_cast<int>(bottom_data[n]);
         DCHECK_EQ(static_cast<Dtype>(index), bottom_data[n])
             << "index_input_dim_ used with non-integer inputs.";
         const Dtype* top_diff_offset = top_diff + n * N_;
         Dtype* weight_diff_offset = weight_diff + index * N_;
-        caffe_axpy(N_, Dtype(1), top_diff_offset, weight_diff_offset);
+        caffe_axpy(N_, alpha, top_diff_offset, weight_diff_offset);
       }
     } else {
       caffe_cpu_gemm<Dtype>(CblasTrans, CblasNoTrans, N_, K_, M_, (Dtype)1.,

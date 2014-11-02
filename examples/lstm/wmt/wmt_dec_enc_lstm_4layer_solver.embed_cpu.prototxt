@@ -15,10 +15,10 @@ max_iter: 200000
 momentum: 0.9
 # weight_decay: 0.0005
 weight_decay: 0.0000
-snapshot: 1000
-snapshot_prefix: "snapshots/wmt_lstm_four_layer_enc_dec_lr0.1_mom0.9_bs160_embedcpu"
+snapshot: 10000
+snapshot_prefix: "snapshots/wmt_lstm_four_layer_enc_dec_lr0.1_mom0.9_bs1200_embedcpu"
 solver_mode: GPU
 random_seed: 1701
 average_loss: 100
-clip_gradients: 5
+# clip_gradients: 5
 # debug_info: true

@@ -692,6 +692,10 @@ message InnerProductParameter {
   // If >0, assume the input is given as integers to be interpreted as one-hot
   // vector indices with dimension index_input_dim.
   optional uint32 index_input_dim = 5 [default = 0];
+
+  // Learning rate for the weights to update during Backward.
+  // blobs_lr should probably be set to 0 if you use this.
+  optional float backward_update_lr = 6 [default = 0.0];
 }
 
 // Message that stores parameters used by LRNLayer
