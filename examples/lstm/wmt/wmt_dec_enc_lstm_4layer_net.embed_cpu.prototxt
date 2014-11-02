@@ -13,7 +13,7 @@ layers {
   top: "encoder_to_decoder"
   hdf5_data_param {
     source: "./wmt_hdf5/fr_i-en_o/buffer_100/train_batches/hdf5_chunk_list.txt"
-    batch_size: 1200
+    batch_size: 2000
   }
   include: { phase: TRAIN }
 }
@@ -95,7 +95,7 @@ layers {
     bias_term: false
     index_input_dim: 80001
     num_output: 10000
-    backward_update_lr: 0.1
+    backward_update_lr: 0.7
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -125,7 +125,7 @@ layers {
     bias_term: false
     index_input_dim: 160001
     num_output: 10000
-    backward_update_lr: 0.1
+    backward_update_lr: 0.7
     weight_filler {
       type: "uniform"
       min: -0.08
