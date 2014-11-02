@@ -778,7 +778,39 @@ void Net<Dtype>::CopyTrainedLayersFrom(const string trained_filename) {
 }
 
 template <typename Dtype>
-void Net<Dtype>::ToProto(NetParameter* param, bool write_diff) {
+void Net<Dtype>::LoadTrainedLayersFromHDF5(const char* hdf5_filename) {
+  hid_t file_id = H5Fopen(hdf5_filename, H5F_ACC_RDONLY, H5P_DEFAULT);
+  CHECK_GE(file_id, 0) << "Failed to open HDF5 file: " << hdf5_filename;
+  for (int i = 0; i < params_.size(); ++i) {
+    if (param_owners_[i] >= 0) { continue; }  // Non-owned parameter.
+    string hdf5_param_name = layer_names_[param_layer_indices_[i].first] +
+        "." + param_display_names_[i];
+    Blob<Dtype> temp_blob;
+    hdf5_load_nd_dataset(file_id, hdf5_param_name.c_str(), 4, 4, &temp_blob);
+    params_[i]->CopyFrom(temp_blob);
+  }
+  CHECK_GE(H5Fclose(file_id), 0)
+      << "Failed to close HDF5 file: " << hdf5_filename;
+}
+
+template <typename Dtype>
+void Net<Dtype>::SaveTrainedLayersToHDF5(const char* hdf5_filename) {
+  hid_t file_id =
+      H5Fcreate(hdf5_filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+  CHECK_GE(file_id, 0) << "Failed to open HDF5 file: " << hdf5_filename;
+  for (int i = 0; i < params_.size(); ++i) {
+    if (param_owners_[i] >= 0) { continue; }  // Non-owned parameter.
+    string hdf5_param_name = layer_names_[param_layer_indices_[i].first] +
+        "." + param_display_names_[i];
+    hdf5_save_nd_dataset(file_id, hdf5_param_name, *params_[i]);
+  }
+  CHECK_GE(H5Fclose(file_id), 0)
+      << "Failed to close HDF5 file: " << hdf5_filename;
+}
+
+template <typename Dtype>
+void Net<Dtype>::ToProto(NetParameter* param,
+                         bool write_data, bool write_diff) {
   param->Clear();
   param->set_name(name_);
   // Add bottom and top
@@ -794,7 +826,7 @@ void Net<Dtype>::ToProto(NetParameter* param, bool write_diff) {
     for (int j = 0; j < top_id_vecs_[i].size(); ++j) {
       layer_param->add_top(blob_names_[top_id_vecs_[i][j]]);
     }
-    layers_[i]->ToProto(layer_param, write_diff);
+    layers_[i]->ToProto(layer_param, write_data, write_diff);
   }
 }
 

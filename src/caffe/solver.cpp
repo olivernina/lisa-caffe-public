@@ -341,7 +341,8 @@ template <typename Dtype>
 void Solver<Dtype>::Snapshot() {
   NetParameter net_param;
   // For intermediate results, we will also dump the gradient values.
-  net_->ToProto(&net_param, param_.snapshot_diff());
+  const bool blob_data_to_hdf5 = param_.snapshot_blobs_hdf5();
+  net_->ToProto(&net_param, !blob_data_to_hdf5, param_.snapshot_diff());
   string filename(param_.snapshot_prefix());
   string model_filename, snapshot_filename;
   const int kBufferSize = 20;
@@ -351,10 +352,19 @@ void Solver<Dtype>::Snapshot() {
   model_filename = filename + ".caffemodel";
   LOG(INFO) << "Snapshotting to " << model_filename;
   WriteProtoToBinaryFile(net_param, model_filename.c_str());
+  string params_filename;
+  if (blob_data_to_hdf5) {
+    params_filename = model_filename + ".params.h5";
+    LOG(INFO) << "Snapshotting params to HDF5 file " << params_filename;
+    net_->SaveTrainedLayersToHDF5(params_filename.c_str());
+  }
   SolverState state;
   SnapshotSolverState(&state);
   state.set_iter(iter_);
   state.set_learned_net(model_filename);
+  if (params_filename.size() > 0) {
+    state.set_hdf5_learned_net_blobs(params_filename);
+  }
   snapshot_filename = filename + ".solverstate";
   LOG(INFO) << "Snapshotting solver state to " << snapshot_filename;
   WriteProtoToBinaryFile(state, snapshot_filename.c_str());
@@ -365,9 +375,15 @@ void Solver<Dtype>::Restore(const char* state_file) {
   SolverState state;
   NetParameter net_param;
   ReadProtoFromBinaryFile(state_file, &state);
+  const bool params_from_hdf5 = state.has_hdf5_learned_net_blobs();
   if (state.has_learned_net()) {
     ReadProtoFromBinaryFile(state.learned_net().c_str(), &net_param);
-    net_->CopyTrainedLayersFrom(net_param);
+    if (!params_from_hdf5) {
+      net_->CopyTrainedLayersFrom(net_param);
+    }
+  }
+  if (params_from_hdf5) {
+    net_->LoadTrainedLayersFromHDF5(state.hdf5_learned_net_blobs().c_str());
   }
   iter_ = state.iter();
   RestoreSolverState(state);
