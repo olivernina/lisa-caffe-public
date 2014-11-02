@@ -19,7 +19,7 @@ void SoftmaxWithLossLayer<Dtype>::LayerSetUp(
   softmax_layer_->SetUp(softmax_bottom_vec_, softmax_top_vec_);
   if (bottom.size() > 2) {
     CHECK_EQ(bottom[0]->num(), bottom[2]->num());
-    CHECK_EQ(bottom[2]->num(), bottom[2]->count());
+    CHECK_EQ(bottom[1]->count(), bottom[2]->count());
   }
 }
 
@@ -31,6 +31,11 @@ void SoftmaxWithLossLayer<Dtype>::Reshape(
   if (top.size() >= 2) {
     // softmax output
     top[1]->ReshapeLike(*bottom[0]);
+  }
+  loss_multiplier_.ReshapeLike(*bottom[1]);
+  if (bottom.size() <= 2) {
+    caffe_set(loss_multiplier_.count(), Dtype(1),
+              loss_multiplier_.mutable_cpu_data());
   }
 }
 
@@ -51,11 +56,8 @@ void SoftmaxWithLossLayer<Dtype>::Forward_cpu(
   Dtype loss = 0;
   Dtype weight = 1;
   for (int i = 0; i < num; ++i) {
-    if (weights) {
-      weight = weights[i];
-    }
     for (int j = 0; j < spatial_dim; j++) {
-      const int int_label = static_cast<int>(label[i * spatial_dim + j]);
+     const int int_label = static_cast<int>(label[i * spatial_dim + j]);
       DCHECK_LT(int_label, dim) << "Label for (" << i << ", " << j << ") is greater than number of classes.";
       loss -= weight * log(std::max(prob_data[i * dim + int_label * spatial_dim + j],
 		Dtype(FLT_MIN)));
@@ -84,19 +86,21 @@ void SoftmaxWithLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     if (bottom.size() > 2) {
       weights = bottom[2]->cpu_data();
     }
+    int count = prob_.count();
     int num = prob_.num();
-    int dim = prob_.count() / num;
+    int dim = count / num;
     int spatial_dim = prob_.height() * prob_.width();
     Dtype weight = 1;
     for (int i = 0; i < num; ++i) {
-      if (weights) {
-        weight = weights[i];
-        if (weight != Dtype(1)) {
-          caffe_scal(dim, weight, &bottom_diff[i * dim]);
-        }
-      }
-      if (weight == Dtype(0)) { continue; }
       for (int j = 0; j < spatial_dim; ++j) {
+        if (weights) {
+          weight = *weights;
+          for (int k = i * dim + j; k < (i + 1) * dim + j; k += spatial_dim) {
+            bottom_diff[k] *= weight;
+          }
+          ++weights;
+        }
+        if (weight == Dtype(0)) { continue; }
         bottom_diff[i * dim + static_cast<int>(label[i * spatial_dim + j])
             * spatial_dim + j] -= weight;
       }
