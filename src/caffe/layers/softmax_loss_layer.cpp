@@ -33,7 +33,8 @@ void SoftmaxWithLossLayer<Dtype>::Reshape(
     top[1]->ReshapeLike(*bottom[0]);
   }
   loss_multiplier_.ReshapeLike(*bottom[1]);
-  if (bottom.size() <= 2) {
+  if (bottom.size() <= 2 &&
+      loss_multiplier_.cpu_data()[loss_multiplier_.count() - 1] != Dtype(1)) {
     caffe_set(loss_multiplier_.count(), Dtype(1),
               loss_multiplier_.mutable_cpu_data());
   }
