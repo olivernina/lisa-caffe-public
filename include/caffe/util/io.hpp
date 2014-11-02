@@ -146,7 +146,7 @@ void hdf5_load_nd_dataset(
 
 template <typename Dtype>
 void hdf5_save_nd_dataset(
-  const hid_t file_id, const string dataset_name, const Blob<Dtype>& blob);
+  const hid_t file_id, const string& dataset_name, const Blob<Dtype>& blob);
 
 }  // namespace caffe
 
