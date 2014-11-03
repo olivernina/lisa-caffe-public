@@ -90,7 +90,6 @@ layers {
   bottom: "data_fr"
   top: "embed_encoder"
   blobs_lr: 0
-  weight_decay: 1
   inner_product_param {
     bias_term: false
     index_input_dim: 80001
@@ -120,7 +119,6 @@ layers {
   bottom: "data_en"
   top: "embed_decoder"
   blobs_lr: 0
-  weight_decay: 1
   inner_product_param {
     bias_term: false
     index_input_dim: 160001
@@ -428,16 +426,45 @@ layers {
   loss_weight: 0
   loss_weight: 1
 }
+layers {
+  type: REDUCTION
+  bottom: "cross_entropy_loss_copy"
+  top: "batch_loss_sum"
+  reduction_param {
+    operation: SUM
+    coeff: 2000
+  }
+}
+layers {
+  type: REDUCTION
+  bottom: "stage_indicators"
+  top: "sample_size_internal"
+  reduction_param { operation: ASUM }
+}
+layers {
+  type: SPLIT
+  bottom: "sample_size_internal"
+  top: "sample_size"
+}
+layers {
+  type: POWER
+  bottom: "sample_size_internal"
+  top: "inverse_sample_size"
+  power_param { power: -1.0 }
+}
+layers {
+  type: ELTWISE
+  bottom: "batch_loss_sum"
+  bottom: "inverse_sample_size"
+  top: "mean_loss_per_sample"
+  eltwise_param { operation: PROD }
+}
 # perplexity = 2 ^ (log_2(e) * L), where L is the cross-entropy loss
 layers {
   name: "perplexity"
   type: EXP
-  bottom: "cross_entropy_loss_copy"
+  bottom: "mean_loss_per_sample"
   top: "perplexity"
-  exp_param {
-    base: 2
-    scale: 1.44269504089 # ~= log_2(e)
-  }
 }
 
 # layers {
