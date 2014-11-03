@@ -245,7 +245,14 @@ void DataLayer<Dtype>::InternalThreadEntry() {
 
       db_->Get(leveldb::ReadOptions(), my_key, &value);
       datum.ParseFromString(value);
-      //datum.ParseFromString(iter_->value().ToString());
+      //AWFUL SOL TO GET RID OF CLIPS THAT ARE TOO SMALL
+      while (datum.height() < 227){
+        ++this->video_id_;
+        current_video = this->video_id_;
+        length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
+        db_->Get(leveldb::ReadOptions(), my_key, &value);
+        datum.ParseFromString(value);
+      }
       break;
     case DataParameter_DB_LMDB:
       CHECK_EQ(mdb_cursor_get(mdb_cursor_, &mdb_key_,
