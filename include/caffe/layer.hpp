@@ -205,6 +205,11 @@ class Layer {
   }
 
   /**
+   * @brief Returns the layer mode.
+   */
+  virtual inline const Caffe::Brew& layer_mode() const { return layer_mode_; }
+
+  /**
    * @brief Returns the exact number of bottom blobs required by the layer,
    *        or -1 if no exact number is required.
    *

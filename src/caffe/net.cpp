@@ -781,16 +781,20 @@ template <typename Dtype>
 void Net<Dtype>::LoadTrainedLayersFromHDF5(const char* hdf5_filename) {
   hid_t file_id = H5Fopen(hdf5_filename, H5F_ACC_RDONLY, H5P_DEFAULT);
   CHECK_GE(file_id, 0) << "Failed to open HDF5 file: " << hdf5_filename;
+  const Caffe::Brew& orig_layer_mode = Caffe::mode();
   for (int i = 0; i < params_.size(); ++i) {
     if (param_owners_[i] >= 0) { continue; }  // Non-owned parameter.
-    string hdf5_param_name = layer_names_[param_layer_indices_[i].first] +
-        "." + param_display_names_[i];
+    const int layer_id = param_layer_indices_[i].first;
+    string hdf5_param_name = layer_names_[layer_id] + "." +
+        param_display_names_[i];
     Blob<Dtype> temp_blob;
     hdf5_load_nd_dataset(file_id, hdf5_param_name.c_str(), 4, 4, &temp_blob);
+    Caffe::set_mode(layers_[layer_id]->layer_mode());
     params_[i]->CopyFrom(temp_blob);
   }
   CHECK_GE(H5Fclose(file_id), 0)
       << "Failed to close HDF5 file: " << hdf5_filename;
+  Caffe::set_mode(orig_layer_mode);
 }
 
 template <typename Dtype>
