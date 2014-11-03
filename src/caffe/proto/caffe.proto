@@ -279,6 +279,7 @@ message LayerParameter {
     MVN = 34;
     POOLING = 17;
     POWER = 26;
+    REDUCTION = 1004;
     RELU = 18;
     RESET_RNN = 1002;
     SIGMOID = 19;
@@ -344,7 +345,7 @@ message LayerParameter {
   optional HDF5DataParameter hdf5_data_param = 13;
   optional HDF5OutputParameter hdf5_output_param = 14;
   optional HingeLossParameter hinge_loss_param = 29;
-  optional Idx2OneHotParameter idx21hot_param = 1200;
+  optional Idx2OneHotParameter idx21hot_param = 102;
   optional ImageDataParameter image_data_param = 15;
   optional InfogainLossParameter infogain_loss_param = 16;
   optional InnerProductParameter inner_product_param = 17;
@@ -354,6 +355,7 @@ message LayerParameter {
   optional MVNParameter mvn_param = 34;
   optional PoolingParameter pooling_param = 19;
   optional PowerParameter power_param = 21;
+  optional ReductionParameter reduction_param = 103;
   optional ReLUParameter relu_param = 30;
   optional SigmoidParameter sigmoid_param = 38;
   optional SoftmaxParameter softmax_param = 39;
@@ -792,6 +794,17 @@ message PowerParameter {
   optional float power = 1 [default = 1.0];
   optional float scale = 2 [default = 1.0];
   optional float shift = 3 [default = 0.0];
+}
+
+// Message that stores parameters used by ReductionLayer
+message ReductionParameter {
+  enum ReductionOp {
+    SUM = 1;
+    ASUM = 2;
+    SUM_OF_SQUARES = 3;
+  }
+  optional ReductionOp operation = 1 [default = SUM]; // reduction operation
+  optional float coeff = 2 [default = 1.0]; // coefficient for output
 }
 
 // Message that stores parameters used by ReLULayer
