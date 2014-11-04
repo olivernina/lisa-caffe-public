@@ -56,6 +56,8 @@ class FlickrSequenceGenerator(SequenceGenerator):
     self.index = 0
     self.num_resets = 0
     self.num_truncates = 0
+    self.num_pads = 0
+    self.num_outs = 0
     self.init_vocabulary(vocab_filename)
     random.shuffle(self.image_sentence_pairs)
     self.image_list = []
@@ -96,11 +98,16 @@ class FlickrSequenceGenerator(SequenceGenerator):
         vocab_file.write('%s\n' % word)
     print 'Done.'
 
-  def dump_image_file(self, image_filename):
-    print 'Dumping image to file: %s' % image_filename
+  def dump_image_file(self, image_filename, dummy_image_filename=None):
+    print 'Dumping image list to file: %s' % image_filename
     with open(image_filename, 'wb') as image_file:
       for word in self.image_list:
         image_file.write('%s\n' % word)
+    if dummy_image_filename is not None:
+      print 'Dumping image list with dummy labels to file: %s' % dummy_image_filename
+      with open(dummy_image_filename, 'wb') as image_file:
+        for word in self.image_list:
+          image_file.write('%s 0\n' % word)
     print 'Done.'
 
   def next_line(self):
@@ -130,10 +137,14 @@ class FlickrSequenceGenerator(SequenceGenerator):
     out = {}
     if self.max_words < len(stream) + 1:
       self.num_truncates += 1
-      print 'Warning (#%d): truncating length %d stream' % (self.num_truncates, len(stream))
+      # print 'Warning (#%d): truncating length %d stream' % (self.num_truncates, len(stream))
       stream = stream[:(self.max_words - 1)]
       assert self.max_words == len(stream) + 1
     pad = self.max_words - (len(stream) + 1)
+    assert pad >= 0
+    if pad > 0:
+      self.num_pads += 1
+    self.num_outs += 1
     padding = [0] * pad
     out['stage_indicators'] = [1] * (len(stream) + 1) + padding
     out['input_sentence'] = [0] + stream + padding
@@ -177,7 +188,14 @@ def preprocess_flickr():
     vocab_out_path = '%s/vocabulary.txt' % OUTPUT_DIR
     sg.dump_vocabulary(vocab_out_path)
     image_out_path = '%s/image_list.txt' % output_path
-    sg.dump_image_file(image_out_path)
+    image_dummy_labels_out_path = '%s/image_list.with_dummy_labels.txt' % output_path
+    sg.dump_image_file(image_out_path, image_dummy_labels_out_path)
+    num_outs = sg.num_outs
+    num_pads = sg.num_pads
+    num_truncates = sg.num_truncates
+    print 'Padded %d/%d sequences; truncated %d/%d sequences' % \
+        (num_pads, num_outs, num_truncates, num_outs)
+
 
 if __name__ == "__main__":
   preprocess_flickr()
