@@ -1,11 +1,11 @@
 net: "./alexnet_to_lstm_net.prototxt"
-# test_iter: 50
-# test_state: { stage: 'test-on-train' }
-# test_iter: 50
-# test_state: { stage: 'test-on-test' }
+test_iter: 50
+test_state: { stage: 'test-on-train' }
+test_iter: 50
+test_state: { stage: 'test-on-val' }
 test_interval: 1000
 test_net_reset: true
-base_lr: 0.1
+base_lr: 0.01
 # base_lr: 0.7
 lr_policy: "step"
 gamma: 0.5
@@ -16,9 +16,10 @@ momentum: 0.9
 # weight_decay: 0.0005
 weight_decay: 0.0000
 snapshot: 1000
-snapshot_prefix: "snapshots/flickr_30k_alexnet_to_lstm_4layer"
+snapshot_prefix: "snapshots/flickr_30k_alexnet_to_lstm_4layer_lr0.01"
 solver_mode: GPU
 # debug_info: true
 random_seed: 1701
 average_loss: 100
 clip_gradients: 5
+snapshot_blobs_hdf5: false
