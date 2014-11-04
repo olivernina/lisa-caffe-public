@@ -147,7 +147,7 @@ message SolverParameter {
   optional bool snapshot_diff = 16 [default = false];
 
   // Whether to save the blobs to HDF5 files, rather than protos.
-  optional bool snapshot_blobs_hdf5 = 36 [default = true];
+  optional bool snapshot_blobs_hdf5 = 36 [default = false];
 
   // the mode solver will use: 0 for CPU and 1 for GPU. Use GPU in default.
   enum SolverMode {
