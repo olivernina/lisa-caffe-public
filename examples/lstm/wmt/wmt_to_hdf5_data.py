@@ -189,6 +189,7 @@ class WMTSequenceGenerator(SequenceGenerator):
     # Loop again to create the dict of output data.
     out = {}
     out['stage_indicators'] = [0] * (input_length + 1) + [1] * (output_length + 1)
+    out['encoder_to_decoder'] = [0] * input_length + [1] + [0] * (output_length + 1)
     for lang, lang_stream, input, output in \
         zip(self.langs, streams, inputs, outputs):
       # encoding stage
@@ -272,7 +273,7 @@ def preprocess_en_to_fr_chars():
     writer.write_filelists()
 
 def preprocess_en_to_fr_words():
-  BUFFER_SIZE = 20
+  BUFFER_SIZE = 100
   BATCH_STREAM_LENGTH = 100000 # 100k
   DATASET_PATH_PATTERN = './wmt14_data/ptb.%s.txt'
   DATASETS = [
@@ -291,8 +292,8 @@ def preprocess_en_to_fr_words():
   VOCAB = './wmt14_data/%sVocab.txt'
   LANGS = ['fr', 'en']
   LANG_SPECS = {
-    'fr': {'input': True, 'output': True},
-    'en': {'input': False, 'output': True},
+    'fr': {'input': False, 'output': True},
+    'en': {'input': True, 'output': False},
   }
   OUTPUT_DIR = './wmt_hdf5/%s/buffer_%d' % (lang_specs_to_str(LANGS, LANG_SPECS), BUFFER_SIZE)
   OUTPUT_DIR_PATTERN = '%s/%%s_batches' % OUTPUT_DIR

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-DEVICE_ID = -1
+DEVICE_ID = 3
 # DATA_FILE = './ptb_hdf5/train_batches/batch_0.h5'
 # VOCAB_FILE = './ptb_hdf5/ptb_vocabulary.txt'
 # MODEL_FILE = './snapshots/ptb_lstm_accum_grads_without_buggy_slicelayer_mom0.99_iter_9000.caffemodel'
@@ -40,11 +40,17 @@ DEVICE_ID = -1
 # MODEL_FILE = './snapshots/wmt_char_memorize_1layer_lr0.1_mom_0.9_nesterov_iter_54000.caffemodel'
 # NET_FILE = './wmt_char_lstm_1layer_eval_net.prototxt'
 
-DATA_FILE = './wmt_hdf5/fr_io-en_o/buffer_20/train_batches/batch_0.h5'
+# DATA_FILE = './wmt_hdf5/fr_io-en_o/buffer_20/train_batches/batch_0.h5'
+# LANGS = ['fr', 'en']
+# VOCAB_FILES = ['./wmt_hdf5/fr_io-en_o/buffer_20/vocabulary.%s.txt' % lang for lang in LANGS]
+# MODEL_FILE = './snapshots/wmt_fixed_lstm_two_layer_input_skips_1000d_400d_lr0.1_mom0.9_bs400_buf20_iter_82000.caffemodel'
+# NET_FILE = './wmt_lstm_2layer_inputskips_eval_net.prototxt'
+
+DATA_FILE = './wmt_hdf5/fr_o-en_i/buffer_100/train_batches/batch_0.h5'
 LANGS = ['fr', 'en']
-VOCAB_FILES = ['./wmt_hdf5/fr_io-en_o/buffer_20/vocabulary.%s.txt' % lang for lang in LANGS]
-MODEL_FILE = './snapshots/wmt_fixed_lstm_two_layer_input_skips_1000d_400d_lr0.1_mom0.9_bs400_buf20_iter_17000.caffemodel'
-NET_FILE = './wmt_lstm_2layer_inputskips_eval_net.prototxt'
+VOCAB_FILES = ['./wmt_hdf5/fr_o-en_i/buffer_100/vocabulary.%s.txt' % lang for lang in LANGS]
+MODEL_FILE = './snapshots/wmt_en2fr_lstm_four_layer_enc_dec_lr0.7_mom0.0_bs2000_embed1000_undoseqlengthdiv_iter_10000.caffemodel'
+NET_FILE = './wmt_dec_enc_lstm_4layer_net.en_to_fr.prototxt'
 
 import h5py
 import numpy as np
@@ -126,12 +132,13 @@ def do_iteration():
     'net_data': 0,
     'net_data_fr': 0,
     'net_data_en': 1,
-    'net_targets': 1,
+#     'net_targets': 1,
+    'net_targets': 0,
     'net_targets_fr': 0,
     'net_targets_en': 1,
     'net_encoder_data': 0,
     'net_decoder_data': 1,
-    'net_predind': 1,
+    'net_predind': 0,
     'net_predind_en': 1,
     'net_predind_fr': 0,
   }
@@ -166,9 +173,9 @@ def do_iteration():
                                  for i in range(len(sdata))]
   return shaped_data
 
-num_iterations = 50
+num_iterations = 10
 # num_iterations = 1
-num_streams = 10
+num_streams = 100
 num_timesteps = -1
 displays = [
   ('cont', 'net_cont', 'net_cont', 'input_cont'),

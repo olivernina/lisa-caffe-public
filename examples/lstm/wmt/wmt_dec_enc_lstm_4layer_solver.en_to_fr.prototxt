@@ -1,0 +1,27 @@
+net: "./wmt_dec_enc_lstm_4layer_net.en_to_fr.prototxt"
+# test_iter: 50
+# test_state: { stage: 'test-on-train' }
+# test_iter: 50
+# test_state: { stage: 'test-on-test' }
+test_interval: 1000
+test_net_reset: true
+snapshot_blobs_hdf5: false
+# base_lr: 0.1
+base_lr: 0.7
+# base_lr: 3.0
+lr_policy: "step"
+gamma: 0.8
+stepsize: 20000
+display: 1
+max_iter: 200000
+# max_iter: 1
+# momentum: 0.9
+# weight_decay: 0.0005
+weight_decay: 0.0000
+snapshot: 5000
+snapshot_prefix: "snapshots/wmt_en2fr_lstm_four_layer_enc_dec_lr0.7_mom0.0_bs2000_embed1000_undoseqlengthdiv"
+solver_mode: GPU
+random_seed: 1701
+average_loss: 100
+clip_gradients: 5
+# debug_info: true
