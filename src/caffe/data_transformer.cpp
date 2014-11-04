@@ -130,12 +130,12 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
           datum_element =
             static_cast<Dtype>(static_cast<uint8_t>(data[data_index]));
           //need to think of generic way to adjust for flow
-          if (flow && c == 2) {
+          if (flow && c == 2 && do_mirror_[track_index]) {
             datum_element = 255-datum_element;
           }
         } else {
           datum_element = datum.float_data(data_index);
-          if (flow && c != 2) {
+          if (flow && c == 2 && do_mirror_[track_index]) {
             datum_element = 255-datum_element;
           }
         }
