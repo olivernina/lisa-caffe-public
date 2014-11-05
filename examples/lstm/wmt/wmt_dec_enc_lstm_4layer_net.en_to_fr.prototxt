@@ -1,5 +1,7 @@
 name: "CaffeNet"
 
+force_backward: true
+
 # input data
 layers {
   name: "data"
@@ -93,7 +95,8 @@ layers {
     bias_term: false
     index_input_dim: 160001
     num_output: 1000
-    backward_update_lr: 0.7
+#     backward_update_lr: 0.7
+    backward_update_lr: 1.0
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -123,7 +126,8 @@ layers {
     bias_term: false
     index_input_dim: 80001
     num_output: 1000
-    backward_update_lr: 0.7
+#     backward_update_lr: 0.7
+    backward_update_lr: 1.0
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -141,7 +145,7 @@ layers {
   top: "lstm1"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 100
+    buffer_size: 100  # lstm_debug_info: true
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -173,7 +177,7 @@ layers {
   top: "lstm2"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 100
+    buffer_size: 100  # lstm_debug_info: true
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -205,7 +209,7 @@ layers {
   top: "lstm3"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 100
+    buffer_size: 100  # lstm_debug_info: true
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -237,7 +241,7 @@ layers {
   top: "lstm4"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 100
+    buffer_size: 100  # lstm_debug_info: true
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -279,7 +283,7 @@ layers {
   top: "lstm1decode"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 100
+    buffer_size: 100  # lstm_debug_info: true
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -307,7 +311,7 @@ layers {
   top: "lstm2decode"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 100
+    buffer_size: 100  # lstm_debug_info: true
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -335,7 +339,7 @@ layers {
   top: "lstm3decode"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 100
+    buffer_size: 100  # lstm_debug_info: true
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -363,7 +367,7 @@ layers {
   top: "lstm4decode"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 100
+    buffer_size: 100  # lstm_debug_info: true
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -424,7 +428,7 @@ layers {
   top: "loss"
   loss_weight: 0
 #   loss_weight: 20 # undo division by sequence length
-  loss_weight: 35 # undo division by sequence length
+  loss_weight: 25 # undo division by sequence length
 }
 layers {
   type: REDUCTION
