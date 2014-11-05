@@ -83,6 +83,7 @@ class AccuracyLayer : public Layer<Dtype> {
   }
 
   int top_k_;
+  Dtype denominator_;
 };
 
 /**
