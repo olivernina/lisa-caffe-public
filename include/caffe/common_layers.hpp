@@ -339,6 +339,11 @@ class InnerProductLayer : public Layer<Dtype> {
   virtual inline int ExactNumBottomBlobs() const { return 1; }
   virtual inline int ExactNumTopBlobs() const { return 1; }
 
+  virtual inline bool AllowForceBackward(const int bottom_index) const {
+    // Can't propagate to sequence continuation indicators.
+    return this->layer_param_.inner_product_param().index_input_dim() == 0;
+  }
+
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
@@ -379,6 +384,11 @@ class LSTMLayer : public Layer<Dtype> {
   }
   virtual inline int ExactNumBottomBlobs() const { return 2; }
   virtual inline int ExactNumTopBlobs() const { return 1; }
+
+  virtual inline bool AllowForceBackward(const int bottom_index) const {
+    // Can't propagate to sequence continuation indicators.
+    return bottom_index != 1;
+  }
 
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
