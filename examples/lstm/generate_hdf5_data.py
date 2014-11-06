@@ -22,8 +22,7 @@ class SequenceGenerator():
   def init_streams(self):
     self.streams = [None] * self.batch_num_streams
     self.stream_indices = [0] * self.batch_num_streams
-    for i in range(self.batch_num_streams):
-      self.reset_stream(i)
+    self.reset_stream(0)
     self.streams_initialized = True
 
   def reset_stream(self, stream_index):
@@ -41,26 +40,48 @@ class SequenceGenerator():
       self.streams[stream_index][k] = v
     self.stream_indices[stream_index] = 0
 
-  def get_next_batch(self):
+  def get_next_batch(self, truncate_at_exhaustion=True):
     if not self.streams_initialized:
       self.init_streams()
     batch_size = self.batch_num_streams * self.batch_stream_length
     batch = {}
     for name in self.substream_names:
-      batch[name] = -1 * np.ones((batch_size, 1, 1, 1))
+      batch[name] = np.zeros((batch_size, 1, 1, 1))
     batch_indicators = np.ones((batch_size, 1))
-    for i in range(self.batch_num_streams):
-      for t in range(self.batch_stream_length):
+    exhausted = [False] * self.batch_num_streams
+    all_exhausted = False
+    reached_exhaustion = False
+    num_completed_streams = 0
+    for t in range(self.batch_stream_length):
+      all_exhausted = True
+      for i in range(self.batch_num_streams):
         index_in_batch = t * self.batch_num_streams + i
-        for name in self.substream_names:
-          if i >= len(self.stream_indices) or i > len(self.streams):
-            import pdb; pdb.set_trace()
-          batch[name][index_in_batch] = self.streams[i][name][self.stream_indices[i]]
-        if self.stream_indices[i] == 0:
+        if not exhausted[i]:
+          if self.streams[i] is None or \
+              self.stream_indices[i] == len(self.streams[i][self.substream_names[0]]):
+            self.stream_indices[i] = 0
+            reached_exhaustion = reached_exhaustion or self.streams_exhausted()
+            if reached_exhaustion: exhausted[i] = True
+            if not reached_exhaustion or not truncate_at_exhaustion:
+              self.reset_stream(i)
+            else:
+              continue
+          for name in self.substream_names:
+            batch[name][index_in_batch] = self.streams[i][name][self.stream_indices[i]]
+          self.stream_indices[i] += 1
+          if self.stream_indices[i] == len(self.streams[i][self.substream_names[0]]):
+            num_completed_streams += 1
+        if not exhausted[i]: all_exhausted = False
+        if self.stream_indices[i] == 0 or exhausted[i]:
           batch_indicators[index_in_batch] = 0
-        self.stream_indices[i] += 1
-        if self.stream_indices[i] == len(self.streams[i][self.substream_names[0]]):
-          self.reset_stream(i)
+      if all_exhausted and truncate_at_exhaustion:
+        last_index = t * self.batch_num_streams
+        print ('Exhausted all data; cutting off batch at index %d/%d ' +
+               'with %d streams completed') % (last_index, batch_size, num_completed_streams)
+        for name in self.substream_names:
+          batch[name] = batch[name][:last_index]
+        batch_indicators = batch_indicators[:last_index]
+        break
     return batch, batch_indicators
 
   def get_streams(self):
@@ -92,7 +113,7 @@ class HDF5SequenceWriter():
     self.verbose = verbose
     self.filenames = []
 
-  def write_batch(self):
+  def write_batch(self, stop_at_exhaustion=False):
     batch_comps, cont_indicators = self.generator.get_next_batch()
     batch_index = len(self.filenames)
     filename = '%s/batch_%d.h5' % (self.output_dir, batch_index)
@@ -122,7 +143,7 @@ class HDF5SequenceWriter():
 
   def write_to_exhaustion(self):
     while not self.generator.streams_exhausted():
-      self.write_batch()
+      self.write_batch(stop_at_exhaustion=True)
 
   def write_filelists(self):
     assert self.filenames is not None
