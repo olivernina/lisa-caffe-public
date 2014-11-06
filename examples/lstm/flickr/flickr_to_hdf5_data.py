@@ -15,27 +15,40 @@ UNK_IDENTIFIER = '<unk>'
 class FlickrSequenceGenerator(SequenceGenerator):
   # filenames should be a list of
   #     [(french1, english1), ..., (frenchK, englishK)]
-  def __init__(self, dataset, vocab_filename, langs=[], max_words=20):
+  def __init__(self, datasets, vocab_filename, batch_num_streams, langs=[], max_words=20):
     self.max_words = max_words
     num_empty_lines = 0
     self.images = []
+    num_total = 0
     num_missing = 0
     known_images = {}
-    for image_list_path, image_root in zip(dataset['image_list'], dataset['image_root']):
-      with open(image_list_path, 'rb') as image_list:
-        image_filenames = image_list.readlines()
-      for image_filename in image_filenames:
-        image_filename = image_filename.strip()
-        image_path = '%s/%s' % (image_root, image_filename)
-        if os.path.isfile(image_path):
-          assert image_filename not in known_images  # no duplicates allowed
-          known_images[image_filename] = {}
-          known_images[image_filename]['path'] = image_path
-          known_images[image_filename]['sentences'] = []
-        else:
-          num_missing += 1
-          print 'Warning (#%d): image not found: %s' % (num_missing, image_path)
-    for caption_list_path in dataset['caption_list']:
+    for dataset in datasets:
+      image_root = dataset['image_root']
+      pattern = dataset['image_id_to_name'] \
+          if 'image_id_to_name' in dataset else None
+      with open(dataset['image_list'], 'rb') as image_list:
+        image_ids = image_list.readlines()
+        for image_id in image_ids:
+          image_id = image_id.strip()
+          if pattern is None:
+            image_filename = image_id
+          else:
+            image_filename = pattern % int(image_id)
+          image_path = '%s/%s' % (image_root, image_filename)
+          if os.path.isfile(image_path):
+            assert image_id not in known_images  # no duplicates allowed
+            known_images[image_id] = {}
+            known_images[image_id]['path'] = image_path
+            known_images[image_id]['sentences'] = []
+          else:
+            num_missing += 1
+            print 'Warning (#%d): image not found: %s' % (num_missing, image_path)
+          num_total += 1
+    print '%d/%d images missing' % (num_missing, num_total)
+    num_captions = 0
+    num_captions_missing_images = 0
+    for dataset in datasets:
+      caption_list_path = dataset['caption_list']
       with open(caption_list_path, 'rb') as caption_list:
         captions = caption_list.readlines()
       for caption in captions:
@@ -45,12 +58,16 @@ class FlickrSequenceGenerator(SequenceGenerator):
         if caption_filename in known_images:
           sentence = caption_words[1:]
           known_images[caption_filename]['sentences'].append(sentence)
+        else:
+          num_captions_missing_images += 1
+        num_captions += 1
+    print '%d/%d captions missing images' % (num_captions_missing_images, num_captions)
     self.image_sentence_pairs = []
     num_no_sentences = 0
     for image_filename, metadata in known_images.iteritems():
       if not metadata['sentences']:
         num_no_sentences += 1
-        print 'Warning (#%d): image with no sentences: %s' % (num_no_sentences, image_filename)
+        # print 'Warning (#%d): image with no sentences: %s' % (num_no_sentences, image_filename)
       for sentence in metadata['sentences']:
         self.image_sentence_pairs.append((metadata['path'], sentence))
     self.index = 0
@@ -59,9 +76,20 @@ class FlickrSequenceGenerator(SequenceGenerator):
     self.num_pads = 0
     self.num_outs = 0
     self.init_vocabulary(vocab_filename)
-    random.shuffle(self.image_sentence_pairs)
     self.image_list = []
     SequenceGenerator.__init__(self)
+    self.batch_num_streams = batch_num_streams
+    # make the number of image/sentence pairs a multiple of the buffer size
+    # so each timestep of each batch is useful and we can align the images
+    num_pairs = len(self.image_sentence_pairs) 
+    remainder = num_pairs % batch_num_streams
+    if remainder > 0:
+      num_needed = batch_num_streams - remainder
+      for i in range(num_needed):
+        choice = random.randint(0, num_pairs - 1)
+        self.image_sentence_pairs.append(self.image_sentence_pairs[choice])
+    assert len(self.image_sentence_pairs) % batch_num_streams == 0
+    random.shuffle(self.image_sentence_pairs)
 
   def streams_exhausted(self):
     return self.num_resets > 0
@@ -112,10 +140,10 @@ class FlickrSequenceGenerator(SequenceGenerator):
 
   def next_line(self):
     num_lines = float(len(self.image_sentence_pairs))
-    if self.index % 10000 == 0:
+    self.index += 1
+    if self.index == 1 or self.index == num_lines or self.index % 10000 == 0:
       print 'Processed %d/%d (%f%%) lines' % (self.index, num_lines,
                                               100 * self.index / num_lines)
-    self.index += 1
     if self.index == num_lines:
       self.index = 0
       self.num_resets += 1
@@ -155,33 +183,48 @@ class FlickrSequenceGenerator(SequenceGenerator):
 
 def preprocess_flickr():
   VOCAB_FILE = './vocabs/vocab_coco_flickr1M_30k.txt'
-  IMAGE_LIST_PATTERN = './flickr30k/flickr30k_%s_names.txt'
-  IMAGE_PATTERN = './flickr30k/flickr30k-%s-images'
-  CAPTION_PATTERN = './cocoflickr/mix_data/flickr30k_%s_CleanCaptions.txt'
+
+  FLICKR30K_IMAGE_LIST_PATTERN = './flickr30k/flickr30k_%s_names.txt'
+  FLICKR30K_IMAGE_PATTERN = './flickr30k/flickr30k-%s-images'
+  FLICKR30K_CAPTION_PATTERN = './cocoflickr/mix_data/flickr30k_%s_CleanCaptions.txt'
+
+  COCO_IMAGE_LIST_PATTERN = './coco2014/coco_%s_img_ids.txt'
+  COCO_IMAGE_PATTERN = './coco2014/%s2014'
+  COCO_CAPTION_PATTERN = './cocoflickr/mix_data/coco2014_%s_CleanCaptions.txt'
+  COCO_IMAGE_ID_PATTERN = 'COCO_%s2014_%%012d.jpg'
 
   BUFFER_SIZE = 100
   DATASETS = [
-    ('train', 30000, {
-      'image_list' : [IMAGE_LIST_PATTERN % 'train'],
-      'image_root' : [IMAGE_PATTERN % 'train'],
-      'caption_list' : [CAPTION_PATTERN % 'train'],
-    }),
-    ('valid', 1500, {
-      'image_list' : [IMAGE_LIST_PATTERN % 'val'],
-      'image_root' : [IMAGE_PATTERN % 'val'],
-      'caption_list' : [CAPTION_PATTERN % 'val'],
-    }),
+    ('train', 200000, [{
+      'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'train',
+      'image_root' : FLICKR30K_IMAGE_PATTERN % 'train',
+      'caption_list' : FLICKR30K_CAPTION_PATTERN % 'train',
+     }, {
+      'image_list' : COCO_IMAGE_LIST_PATTERN % 'train',
+      'image_root' : COCO_IMAGE_PATTERN % 'train',
+      'caption_list' : COCO_CAPTION_PATTERN % 'train',
+      'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'train'
+     }]),
+    ('valid', 200000, [{
+      'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'val',
+      'image_root' : FLICKR30K_IMAGE_PATTERN % 'val',
+      'caption_list' : FLICKR30K_CAPTION_PATTERN % 'val',
+     }, {
+      'image_list' : COCO_IMAGE_LIST_PATTERN % 'val',
+      'image_root' : COCO_IMAGE_PATTERN % 'val',
+      'caption_list' : COCO_CAPTION_PATTERN % 'val',
+      'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'val'
+     }]),
   ]
   MAX_WORDS = 20
-  OUTPUT_DIR = './cocoflickr/flickr30k_hdf5/buffer_%d_maxwords_%d' % (BUFFER_SIZE, MAX_WORDS)
+  OUTPUT_DIR = './cocoflickr/coco_flickr30k_hdf5/buffer_%d_maxwords_%d' % (BUFFER_SIZE, MAX_WORDS)
   OUTPUT_DIR_PATTERN = '%s/%%s_batches' % OUTPUT_DIR
 
   vocab = None
   for dataset_name, batch_stream_length, dataset in DATASETS:
     output_path = OUTPUT_DIR_PATTERN % dataset_name
-    sg = FlickrSequenceGenerator(dataset, VOCAB_FILE)
+    sg = FlickrSequenceGenerator(dataset, VOCAB_FILE, BUFFER_SIZE)
     sg.batch_stream_length = batch_stream_length
-    sg.batch_num_streams = BUFFER_SIZE
     writer = HDF5SequenceWriter(sg, output_dir=output_path)
     writer.write_to_exhaustion()
     writer.write_filelists()
