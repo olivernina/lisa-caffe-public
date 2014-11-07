@@ -6,6 +6,7 @@ TODO:
   :: don't forget to update hdf5_daa_layer.cu accordingly
 - add ability to shuffle filenames if flag is set
 */
+#include <algorithm>
 #include <fstream>  // NOLINT(readability/streams)
 #include <string>
 #include <vector>
@@ -19,6 +20,8 @@ TODO:
 #include "caffe/vision_layers.hpp"
 
 namespace caffe {
+
+using std::min;
 
 template <typename Dtype>
 HDF5DataLayer<Dtype>::~HDF5DataLayer<Dtype>() { }
@@ -98,8 +101,10 @@ template <typename Dtype>
 void HDF5DataLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const int batch_size = this->layer_param_.hdf5_data_param().batch_size();
-  for (int i = 0; i < batch_size; ++i, ++current_row_) {
-    if (current_row_ == hdf_blobs_[0]->num()) {
+  int num_rows_copied = 0;
+  while (num_rows_copied < batch_size) {
+    int num_rows_available = hdf_blobs_[0]->num() - current_row_;
+    if (!num_rows_available) {
       if (num_files_ > 1) {
         ++current_file_;
         if (current_file_ == num_files_) {
@@ -109,13 +114,18 @@ void HDF5DataLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
         LoadHDF5FileData(hdf_filenames_[current_file_].c_str());
       }
       current_row_ = 0;
+      num_rows_available = hdf_blobs_[0]->num();
     }
+    const int num_rows_needed = batch_size - num_rows_copied;
+    const int num_rows_to_copy = min(num_rows_needed, num_rows_available);
     for (int j = 0; j < this->layer_param_.top_size(); ++j) {
-      int data_dim = top[j]->count() / top[j]->num();
-      caffe_copy(data_dim,
+      const int data_dim = top[j]->count() / top[j]->num();
+      caffe_copy(data_dim * num_rows_to_copy,
           &hdf_blobs_[j]->cpu_data()[current_row_ * data_dim],
-          &top[j]->mutable_cpu_data()[i * data_dim]);
+          &top[j]->mutable_cpu_data()[num_rows_copied * data_dim]);
     }
+    current_row_ += num_rows_to_copy;
+    num_rows_copied += num_rows_to_copy;
   }
 }
 
