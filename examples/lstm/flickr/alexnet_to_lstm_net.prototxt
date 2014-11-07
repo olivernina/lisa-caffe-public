@@ -6,7 +6,7 @@ layers {
   type: DATA
   top: "data"
   data_param {
-    source: "./cocoflickr/flickr30k_lmdb/train"
+    source: "./cocoflickr/coco_flickr30k_hdf5/buffer_100_maxwords_20/lmdb/train"
     backend: LMDB
     batch_size: 100
   }
@@ -37,7 +37,7 @@ layers {
   type: DATA
   top: "data"
   data_param {
-    source: "./cocoflickr/flickr30k_lmdb/train"
+    source: "./cocoflickr/coco_flickr30k_hdf5/buffer_100_maxwords_20/lmdb/train"
     backend: LMDB
     batch_size: 100
   }
@@ -68,7 +68,7 @@ layers {
   type: DATA
   top: "data"
   data_param {
-    source: "./cocoflickr/flickr30k_lmdb/valid"
+    source: "./cocoflickr/coco_flickr30k_hdf5/buffer_100_maxwords_20/lmdb/valid"
     backend: LMDB
     batch_size: 100
   }
@@ -453,7 +453,7 @@ layers {
   blobs_lr: 1.0
   inner_product_param {
     bias_term: false
-    index_input_dim: 41718
+    index_input_dim: 41719
     # wc -l cocoflickr/flickr30k_hdf5/buffer_100_maxwords_20/vocabulary.txt
     # 41718 cocoflickr/flickr30k_hdf5/buffer_100_maxwords_20/vocabulary.txt
     num_output: 1000
@@ -561,7 +561,7 @@ layers {
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
-    num_output: 41718
+    num_output: 41719
     weight_filler {
       type: "uniform"
       min: -0.08
