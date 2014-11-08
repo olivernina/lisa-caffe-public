@@ -43,9 +43,9 @@ class Layer {
       }
       layer_mode_ =
           (layer_param_.layer_mode() == LayerParameter_LayerMode_NET_DEFAULT) ?
-          Caffe::mode() :
-            ((layer_param_.layer_mode() == LayerParameter_LayerMode_CPU) ?
-              Caffe::CPU : Caffe::GPU);
+          Caffe::DEFAULT :
+          ((layer_param_.layer_mode() == LayerParameter_LayerMode_CPU) ?
+                Caffe::CPU : Caffe::GPU);
     }
   virtual ~Layer() {}
 
@@ -429,6 +429,8 @@ template <typename Dtype>
 inline Dtype Layer<Dtype>::Forward(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   Dtype loss = 0;
+  const bool default_mode = (layer_mode_ == Caffe::DEFAULT);
+  if (default_mode) { layer_mode_ = Caffe::mode(); }
   switch (layer_mode_) {
   case Caffe::CPU:
     Forward_cpu(bottom, top);
@@ -457,6 +459,7 @@ inline Dtype Layer<Dtype>::Forward(const vector<Blob<Dtype>*>& bottom,
   default:
     LOG(FATAL) << "Unknown caffe mode.";
   }
+  if (default_mode) { layer_mode_ = Caffe::DEFAULT; }
   return loss;
 }
 
@@ -464,6 +467,8 @@ template <typename Dtype>
 inline void Layer<Dtype>::Backward(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
+  const bool default_mode = (layer_mode_ == Caffe::DEFAULT);
+  if (default_mode) { layer_mode_ = Caffe::mode(); }
   switch (layer_mode_) {
   case Caffe::CPU:
     Backward_cpu(top, propagate_down, bottom);
@@ -474,6 +479,7 @@ inline void Layer<Dtype>::Backward(const vector<Blob<Dtype>*>& top,
   default:
     LOG(FATAL) << "Unknown caffe mode.";
   }
+  if (default_mode) { layer_mode_ = Caffe::DEFAULT; }
 }
 
 // Serialize LayerParameter to protocol buffer
