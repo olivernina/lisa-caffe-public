@@ -53,7 +53,7 @@ layers {
 layers {
   name: "data"
   type: HDF5_DATA
-  top: "cont"
+  top: "cont_sentence"
   top: "input_sentence"
   top: "target_sentence"
   top: "stage_indicators"
@@ -84,7 +84,7 @@ layers {
 layers {
   name: "data"
   type: HDF5_DATA
-  top: "cont"
+  top: "cont_sentence"
   top: "input_sentence"
   top: "target_sentence"
   top: "stage_indicators"
@@ -597,7 +597,7 @@ layers {
   name: "lstm1"
   type: LSTM
   bottom: "embedded_input_sentence"
-  bottom: "cont"
+  bottom: "cont_sentence"
   top: "lstm1"
   lstm_param {
     hidden_dim: 1000
@@ -624,8 +624,7 @@ layers {
   name: "lstm2"
   type: LSTM
   bottom: "lstm2_input"
-  bottom: "lstm1"
-  bottom: "cont"
+  bottom: "cont_sentence"
   top: "lstm2"
   lstm_param {
     hidden_dim: 1000
@@ -645,7 +644,7 @@ layers {
   name: "lstm3"
   type: LSTM
   bottom: "lstm2"
-  bottom: "cont"
+  bottom: "cont_sentence"
   top: "lstm3"
   lstm_param {
     hidden_dim: 1000
@@ -665,7 +664,7 @@ layers {
   name: "lstm4"
   type: LSTM
   bottom: "lstm3"
-  bottom: "cont"
+  bottom: "cont_sentence"
   top: "lstm4"
   lstm_param {
     hidden_dim: 1000
