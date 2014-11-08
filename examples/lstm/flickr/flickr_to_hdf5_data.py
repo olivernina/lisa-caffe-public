@@ -174,6 +174,7 @@ class FlickrSequenceGenerator(SequenceGenerator):
       self.num_pads += 1
     self.num_outs += 1
     padding = [0] * pad
+    out['cont_sentence'] = [0] + [1] * len(stream) + padding
     out['stage_indicators'] = [1] * (len(stream) + 1) + padding
     out['input_sentence'] = [0] + stream + padding
     out['target_sentence'] = stream + [0] + padding
