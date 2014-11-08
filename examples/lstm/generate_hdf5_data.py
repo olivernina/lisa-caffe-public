@@ -47,7 +47,7 @@ class SequenceGenerator():
     batch = {}
     for name in self.substream_names:
       batch[name] = np.zeros((batch_size, 1, 1, 1))
-    batch_indicators = np.ones((batch_size, 1))
+    batch_indicators = np.zeros((batch_size, ))
     exhausted = [False] * self.batch_num_streams
     all_exhausted = False
     reached_exhaustion = False
@@ -68,12 +68,11 @@ class SequenceGenerator():
               continue
           for name in self.substream_names:
             batch[name][index_in_batch] = self.streams[i][name][self.stream_indices[i]]
+          batch_indicators[index_in_batch] = 0 if self.stream_indices[i] == 0 else 1
           self.stream_indices[i] += 1
           if self.stream_indices[i] == len(self.streams[i][self.substream_names[0]]):
             num_completed_streams += 1
         if not exhausted[i]: all_exhausted = False
-        if self.stream_indices[i] == 0 or exhausted[i]:
-          batch_indicators[index_in_batch] = 0
       if all_exhausted and truncate_at_exhaustion:
         last_index = t * self.batch_num_streams
         print ('Exhausted all data; cutting off batch at index %d/%d ' +
