@@ -1,4 +1,5 @@
 name: "caffenet_to_lstm"
+state: { phase: TEST stage: "test-on-train" }
 
 # data layers
 layers {
@@ -22,7 +23,7 @@ layers {
 layers {
   name: "data"
   type: HDF5_DATA
-  top: "cont"
+  top: "cont_sentence"
   top: "input_sentence"
   top: "target_sentence"
   top: "stage_indicators"
