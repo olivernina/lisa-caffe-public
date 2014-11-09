@@ -19,13 +19,18 @@ def vocab_inds_to_sentence(vocab, inds):
   
 def preprocess_image(net, image_path):
   image = plt.imread(image_path)
-  print 'Read image with shape %s from: %s' % (image.shape, image_path)
+  print 'Read image with shape %s, range (%f, %f) from: %s' % \
+      (image.shape, image.min(), image.max(), image_path)
   # Crop the center 224 / 256 of the image.
   crop_edge_ratio = (256. - 224.) / 256. / 2
   ch = int(image.shape[0] * crop_edge_ratio + 0.5)
   cw = int(image.shape[1] * crop_edge_ratio + 0.5)
   cropped_image = image[ch:-ch, cw:-cw]
   preprocessed_image = net.preprocess('data', cropped_image)[np.newaxis]
+  print 'Preprocessed image has shape %s, range (%f, %f)' % \
+      (preprocessed_image.shape,
+       preprocessed_image.min(),
+       preprocessed_image.max())
   return preprocessed_image
 
 def predict_image_caption(net, image_path):
@@ -98,7 +103,6 @@ def main():
   net = caffe.Net(NET_FILE, MODEL_FILE)
   channel_mean = np.array([104, 117, 123])[:, np.newaxis, np.newaxis]
   net.set_mean('data', channel_mean, mode='channel')
-  net.set_raw_scale('data', 255)
   net.set_channel_swap('data', (2, 1, 0))
   net.set_phase_test()
   if DEVICE_ID >= 0:
