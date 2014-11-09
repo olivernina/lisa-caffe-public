@@ -7,6 +7,7 @@ from math import log
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import random
 import sys
 
 sys.path.append('../../../python/')
@@ -57,14 +58,46 @@ def predict_single_word_from_all_previous(net, image, previous_words):
     probs = predict_single_word(net, image, word)
   return probs
 
-def predict_image_caption(net, image_path, beam_size=1):
+# Strategy must be either 'beam' or 'sample'.
+# If 'beam', do a max likelihood beam search with beam size num_samples
+def predict_image_caption(net, image_path, strategy='beam', num_samples=None):
+  if num_samples is None: num_samples = 1
+  image = preprocess_image(net, image_path)
+  if strategy == 'beam':
+    return predict_image_caption_beam_search(net, image, beam_size=num_samples)
+  samples = []
+  sample_probs = []
+  for _ in range(num_samples):
+    sample, sample_prob = sample_image_caption(net, image)
+    samples.append(sample)
+    sample_probs.append(sample_prob)
+  return samples, sample_probs
+
+def random_choice_from_probs(probs):
+  r = random.random()
+  cum_sum = 0.
+  for i, p in enumerate(probs):
+    cum_sum += p
+    if cum_sum > r: return i
+
+def sample_image_caption(net, image):
+  sentence = []
+  log_prob = 0.
+  while not sentence or sentence[-1] != 0:
+    previous_word = sentence[-1] if sentence else 0
+    probs = predict_single_word(net, image, previous_word)
+    word = random_choice_from_probs(probs)
+    sentence.append(word)
+    log_prob += log(probs[word])
+  return sentence, log_prob
+
+def predict_image_caption_beam_search(net, image, beam_size=1):
   assert beam_size >= 1
   beams = [[]]
   beams_complete = 0
   beam_log_probs = [0.]
   current_input_word = 0  # first input is EOS
   max_length = 50
-  image = preprocess_image(net, image_path)
   while beams_complete < len(beams):
     expansions = []
     for beam_index, beam_log_prob, beam in \
@@ -116,28 +149,29 @@ def to_html_output(outputs, vocab):
     out += '<br>' * 2
   return out
 
-def run_pred_iter(fsg, net, beam_size=1):
+def run_pred_iter(fsg, net, strategy='beam', num_samples=1):
   streams = fsg.get_streams(do_padding=False, do_truncation=False)
   image_path = fsg.image_list[-1]
   num_bad_iters = 0
-  try:
-    preds, pred_probs = predict_image_caption(net, image_path,
-        beam_size=beam_size)
-  except Exception as e:
-    num_bad_iters += 1
-    print '(#%d) Warning: skipping image %s; got exception:' % \
-        (num_bad_iters, image_path)
-    print e
-    return {}
+#   try:
+  preds, pred_probs = predict_image_caption(net, image_path,
+      strategy=strategy, num_samples=num_samples)
+#   except Exception as e:
+#     num_bad_iters += 1
+#     print '(#%d) Warning: skipping image %s; got exception:' % \
+#         (num_bad_iters, image_path)
+#     print e
+#     return {}
   gt = streams['target_sentence']
   output = {'gt': gt, 'preds': preds, 'pred_probs': pred_probs,
             'image_path': image_path}
   return output
 
-def run_pred_iters(fsg, net, num_iterations, beam_size=1, display_vocab=None):
+def run_pred_iters(fsg, net, num_iterations, strategy='beam',
+                   num_samples=1, display_vocab=None):
   outputs = []
   for _ in range(num_iterations):
-    output = run_pred_iter(fsg, net, beam_size=beam_size)
+    output = run_pred_iter(fsg, net, strategy=strategy, num_samples=num_samples)
     if not output: continue
     outputs.append(output)
     if display_vocab is not None:
@@ -167,8 +201,10 @@ def main():
     net.set_mode_cpu()
 
   RESULTS_DIR = './html_results'
-  BEAM_SIZE = 1
-  NUM_CHUNKS = 8
+  # STRATEGY = 'beam'
+  STRATEGY = 'sample'
+  NUM_SAMPLES = 10
+  NUM_CHUNKS = 1
   NUM_OUT_PER_CHUNK = 25
 
   _, _, val_datasets = DATASETS[1]
@@ -184,11 +220,12 @@ def main():
     offset = 0
     for c in range(NUM_CHUNKS):
       outputs = run_pred_iters(fsg, net, NUM_OUT_PER_CHUNK,
-          beam_size=BEAM_SIZE, display_vocab=vocab)
+          strategy=STRATEGY, num_samples=NUM_SAMPLES, display_vocab=vocab)
       html_out = to_html_output(outputs, vocab)
       if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)
-      html_out_filename = '%s/%s.beam_%d.%d.offset_%d.html' % \
-          (RESULTS_DIR, dataset_name, BEAM_SIZE, NUM_OUT_PER_CHUNK, offset)
+      html_out_filename = '%s/%s.%s_%d.%d.offset_%d.html' % \
+          (RESULTS_DIR, dataset_name, STRATEGY,
+           NUM_SAMPLES, NUM_OUT_PER_CHUNK, offset)
       html_out_file = open(html_out_filename, 'w')
       html_out_file.write(html_out)
       html_out_file.close()
