@@ -15,7 +15,7 @@ UNK_IDENTIFIER = '<unk>'
 class FlickrSequenceGenerator(SequenceGenerator):
   # filenames should be a list of
   #     [(french1, english1), ..., (frenchK, englishK)]
-  def __init__(self, datasets, vocab_filename, batch_num_streams, langs=[], max_words=20):
+  def __init__(self, datasets, vocab_filename, batch_num_streams, langs=[], max_words=20, align=True):
     self.max_words = max_words
     num_empty_lines = 0
     self.images = []
@@ -81,14 +81,15 @@ class FlickrSequenceGenerator(SequenceGenerator):
     self.batch_num_streams = batch_num_streams
     # make the number of image/sentence pairs a multiple of the buffer size
     # so each timestep of each batch is useful and we can align the images
-    num_pairs = len(self.image_sentence_pairs) 
-    remainder = num_pairs % batch_num_streams
-    if remainder > 0:
-      num_needed = batch_num_streams - remainder
-      for i in range(num_needed):
-        choice = random.randint(0, num_pairs - 1)
-        self.image_sentence_pairs.append(self.image_sentence_pairs[choice])
-    assert len(self.image_sentence_pairs) % batch_num_streams == 0
+    if align:
+      num_pairs = len(self.image_sentence_pairs)
+      remainder = num_pairs % batch_num_streams
+      if remainder > 0:
+        num_needed = batch_num_streams - remainder
+        for i in range(num_needed):
+          choice = random.randint(0, num_pairs - 1)
+          self.image_sentence_pairs.append(self.image_sentence_pairs[choice])
+      assert len(self.image_sentence_pairs) % batch_num_streams == 0
     random.shuffle(self.image_sentence_pairs)
 
   def streams_exhausted(self):
@@ -159,16 +160,16 @@ class FlickrSequenceGenerator(SequenceGenerator):
     stream = [s + 1 for s in stream]
     return stream
 
-  def get_streams(self):
+  def get_streams(self, do_padding=True, do_truncation=True):
     image_filename, line = self.image_sentence_pairs[self.index]
     stream = self.line_to_stream(line)
     out = {}
-    if self.max_words < len(stream) + 1:
+    if self.max_words < len(stream) + 1 and do_truncation:
       self.num_truncates += 1
       # print 'Warning (#%d): truncating length %d stream' % (self.num_truncates, len(stream))
       stream = stream[:(self.max_words - 1)]
       assert self.max_words == len(stream) + 1
-    pad = self.max_words - (len(stream) + 1)
+    pad = self.max_words - (len(stream) + 1) if do_padding else 0
     assert pad >= 0
     if pad > 0:
       self.num_pads += 1
@@ -182,64 +183,65 @@ class FlickrSequenceGenerator(SequenceGenerator):
     self.next_line()
     return out
 
+VOCAB_FILE = './vocabs/vocab_coco_flickr1M_30k.txt'
+
+FLICKR30K_IMAGE_LIST_PATTERN = './flickr30k/flickr30k_%s_names.txt'
+FLICKR30K_IMAGE_PATTERN = './flickr30k/flickr30k-%s-images'
+FLICKR30K_CAPTION_PATTERN = './cocoflickr/mix_data/flickr30k_%s_CleanCaptions.txt'
+
+COCO_IMAGE_LIST_PATTERN = './coco2014/coco_%s_img_ids.txt'
+COCO_IMAGE_PATTERN = './coco2014/%s2014'
+COCO_CAPTION_PATTERN = './cocoflickr/mix_data/coco2014_%s_CleanCaptions.txt'
+COCO_IMAGE_ID_PATTERN = 'COCO_%s2014_%%012d.jpg'
+
+BUFFER_SIZE = 100
+DATASETS = [
+  ('train', 200000, [{
+    'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'train',
+    'image_root' : FLICKR30K_IMAGE_PATTERN % 'train',
+    'caption_list' : FLICKR30K_CAPTION_PATTERN % 'train',
+   }, {
+    'image_list' : COCO_IMAGE_LIST_PATTERN % 'train',
+    'image_root' : COCO_IMAGE_PATTERN % 'train',
+    'caption_list' : COCO_CAPTION_PATTERN % 'train',
+    'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'train'
+   }]),
+  ('valid', 200000, [{
+    'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'val',
+    'image_root' : FLICKR30K_IMAGE_PATTERN % 'val',
+    'caption_list' : FLICKR30K_CAPTION_PATTERN % 'val',
+   }, {
+    'image_list' : COCO_IMAGE_LIST_PATTERN % 'val',
+    'image_root' : COCO_IMAGE_PATTERN % 'val',
+    'caption_list' : COCO_CAPTION_PATTERN % 'val',
+    'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'val'
+   }]),
+]
+MAX_WORDS = 20
+OUTPUT_DIR = './cocoflickr/coco_flickr30k_hdf5/buffer_%d_maxwords_%d' % (BUFFER_SIZE, MAX_WORDS)
+OUTPUT_DIR_PATTERN = '%s/%%s_batches' % OUTPUT_DIR
+
+def preprocess_dataset(dataset_name, batch_stream_length, dataset):
+  output_path = OUTPUT_DIR_PATTERN % dataset_name
+  sg = FlickrSequenceGenerator(dataset, VOCAB_FILE, BUFFER_SIZE)
+  sg.batch_stream_length = batch_stream_length
+  writer = HDF5SequenceWriter(sg, output_dir=output_path)
+  writer.write_to_exhaustion()
+  writer.write_filelists()
+  vocab_out_path = '%s/vocabulary.txt' % OUTPUT_DIR
+  sg.dump_vocabulary(vocab_out_path)
+  image_out_path = '%s/image_list.txt' % output_path
+  image_dummy_labels_out_path = '%s/image_list.with_dummy_labels.txt' % output_path
+  sg.dump_image_file(image_out_path, image_dummy_labels_out_path)
+  num_outs = sg.num_outs
+  num_pads = sg.num_pads
+  num_truncates = sg.num_truncates
+  print 'Padded %d/%d sequences; truncated %d/%d sequences' % \
+      (num_pads, num_outs, num_truncates, num_outs)
+
 def preprocess_flickr():
-  VOCAB_FILE = './vocabs/vocab_coco_flickr1M_30k.txt'
-
-  FLICKR30K_IMAGE_LIST_PATTERN = './flickr30k/flickr30k_%s_names.txt'
-  FLICKR30K_IMAGE_PATTERN = './flickr30k/flickr30k-%s-images'
-  FLICKR30K_CAPTION_PATTERN = './cocoflickr/mix_data/flickr30k_%s_CleanCaptions.txt'
-
-  COCO_IMAGE_LIST_PATTERN = './coco2014/coco_%s_img_ids.txt'
-  COCO_IMAGE_PATTERN = './coco2014/%s2014'
-  COCO_CAPTION_PATTERN = './cocoflickr/mix_data/coco2014_%s_CleanCaptions.txt'
-  COCO_IMAGE_ID_PATTERN = 'COCO_%s2014_%%012d.jpg'
-
-  BUFFER_SIZE = 100
-  DATASETS = [
-    ('train', 200000, [{
-      'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'train',
-      'image_root' : FLICKR30K_IMAGE_PATTERN % 'train',
-      'caption_list' : FLICKR30K_CAPTION_PATTERN % 'train',
-     }, {
-      'image_list' : COCO_IMAGE_LIST_PATTERN % 'train',
-      'image_root' : COCO_IMAGE_PATTERN % 'train',
-      'caption_list' : COCO_CAPTION_PATTERN % 'train',
-      'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'train'
-     }]),
-    ('valid', 200000, [{
-      'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'val',
-      'image_root' : FLICKR30K_IMAGE_PATTERN % 'val',
-      'caption_list' : FLICKR30K_CAPTION_PATTERN % 'val',
-     }, {
-      'image_list' : COCO_IMAGE_LIST_PATTERN % 'val',
-      'image_root' : COCO_IMAGE_PATTERN % 'val',
-      'caption_list' : COCO_CAPTION_PATTERN % 'val',
-      'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'val'
-     }]),
-  ]
-  MAX_WORDS = 20
-  OUTPUT_DIR = './cocoflickr/coco_flickr30k_hdf5/buffer_%d_maxwords_%d' % (BUFFER_SIZE, MAX_WORDS)
-  OUTPUT_DIR_PATTERN = '%s/%%s_batches' % OUTPUT_DIR
-
-  vocab = None
   for dataset_name, batch_stream_length, dataset in DATASETS:
-    output_path = OUTPUT_DIR_PATTERN % dataset_name
-    sg = FlickrSequenceGenerator(dataset, VOCAB_FILE, BUFFER_SIZE)
-    sg.batch_stream_length = batch_stream_length
-    writer = HDF5SequenceWriter(sg, output_dir=output_path)
-    writer.write_to_exhaustion()
-    writer.write_filelists()
-    vocab_out_path = '%s/vocabulary.txt' % OUTPUT_DIR
-    sg.dump_vocabulary(vocab_out_path)
-    image_out_path = '%s/image_list.txt' % output_path
-    image_dummy_labels_out_path = '%s/image_list.with_dummy_labels.txt' % output_path
-    sg.dump_image_file(image_out_path, image_dummy_labels_out_path)
-    num_outs = sg.num_outs
-    num_pads = sg.num_pads
-    num_truncates = sg.num_truncates
-    print 'Padded %d/%d sequences; truncated %d/%d sequences' % \
-        (num_pads, num_outs, num_truncates, num_outs)
-
+    preprocess_dataset(dataset_name, batch_stream_length, dataset)
 
 if __name__ == "__main__":
   preprocess_flickr()
