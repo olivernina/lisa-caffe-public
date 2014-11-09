@@ -112,20 +112,26 @@ def main():
     net.set_mode_cpu()
 
   NUM_ITERATIONS = 100
+  NUM_OFFSET = 0
 
   _, _, val_datasets = DATASETS[1]
+  flickr_dataset = [val_datasets[0]]
   coco_dataset = [val_datasets[1]]
+  datasets = [flickr_dataset, coco_dataset]
+  dataset_names = ['flickr', 'coco']
 
-  fsg = FlickrSequenceGenerator(coco_dataset, VOCAB_FILE, 0, align=False)
-  eos_string = '<EOS>'
-  vocab = [eos_string] + fsg.vocabulary_inverted
-  outputs = run_pred_iters(fsg, net, NUM_ITERATIONS, display_vocab=vocab)
-  html_out = to_html_output(outputs, vocab)
-  html_out_filename = 'flickr_beam_search_out.iter_%d.html' % NUM_ITERATIONS
-  html_out_file = open(html_out_filename, 'w')
-  html_out_file.write(html_out)
-  html_out_file.close()
-  print 'Wrote HTML output to:', html_out_filename
+  for dataset, dataset_name in zip(datasets, dataset_names):
+    fsg = FlickrSequenceGenerator(dataset, VOCAB_FILE, 0, align=False)
+    eos_string = '<EOS>'
+    vocab = [eos_string] + fsg.vocabulary_inverted
+    outputs = run_pred_iters(fsg, net, NUM_ITERATIONS, display_vocab=vocab)
+    html_out = to_html_output(outputs, vocab)
+    html_out_filename = '%s_beam_search_out.iter_%d.offset_%d.html' % \
+        (dataset_name, NUM_ITERATIONS, NUM_OFFSET)
+    html_out_file = open(html_out_filename, 'w')
+    html_out_file.write(html_out)
+    html_out_file.close()
+    print 'Wrote HTML output to:', html_out_filename
 
 if __name__ == "__main__":
   main()
