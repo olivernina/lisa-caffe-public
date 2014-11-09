@@ -42,15 +42,13 @@ def preprocess_image(net, image_path):
        preprocessed_image.max())
   return preprocessed_image
 
-def predict_single_word(net, image, previous_word):
+def predict_single_word(net, image, previous_word, output='probs'):
   cont = 0 if previous_word == 0 else 1
   cont_input = np.array([[[[cont]]]])
   word_input = np.array([[[[previous_word]]]])
-  outputs = net.forward(data=image,
-                        cont_sentence=cont_input,
-                        input_sentence=word_input)
-  probs = outputs['probs'].reshape(-1)
-  return probs
+  net.forward(data=image, cont_sentence=cont_input, input_sentence=word_input)
+  output_preds = net.blobs[output].data.reshape(-1)
+  return output_preds
 
 def predict_single_word_from_all_previous(net, image, previous_words):
   probs = predict_single_word(net, image, 0)
@@ -60,35 +58,40 @@ def predict_single_word_from_all_previous(net, image, previous_words):
 
 # Strategy must be either 'beam' or 'sample'.
 # If 'beam', do a max likelihood beam search with beam size num_samples
-def predict_image_caption(net, image_path, strategy='beam', num_samples=None):
-  if num_samples is None: num_samples = 1
+def predict_image_caption(net, image_path, strategy='beam', num_samples=1, temp=1.0):
   image = preprocess_image(net, image_path)
   if strategy == 'beam':
     return predict_image_caption_beam_search(net, image, beam_size=num_samples)
   samples = []
   sample_probs = []
   for _ in range(num_samples):
-    sample, sample_prob = sample_image_caption(net, image)
+    sample, sample_prob = sample_image_caption(net, image, temp=temp)
     samples.append(sample)
     sample_probs.append(sample_prob)
   return samples, sample_probs
 
-def random_choice_from_probs(probs):
+def softmax(softmax_inputs, temp=1.0):
+  exp_inputs = np.exp(temp * softmax_inputs)
+  return exp_inputs / exp_inputs.sum()
+
+def random_choice_from_probs(softmax_inputs, temp=1.0):
+  probs = softmax(softmax_inputs, temp=temp)
   r = random.random()
   cum_sum = 0.
   for i, p in enumerate(probs):
     cum_sum += p
-    if cum_sum > r: return i
+    if cum_sum > r: return i, p
 
-def sample_image_caption(net, image):
+def sample_image_caption(net, image, temp=1.0, net_output='predict'):
   sentence = []
   log_prob = 0.
   while not sentence or sentence[-1] != 0:
     previous_word = sentence[-1] if sentence else 0
-    probs = predict_single_word(net, image, previous_word)
-    word = random_choice_from_probs(probs)
+    softmax_inputs = \
+        predict_single_word(net, image, previous_word, output=net_output)
+    word, prob = random_choice_from_probs(softmax_inputs, temp=temp)
     sentence.append(word)
-    log_prob += log(probs[word])
+    log_prob += log(prob)
   return sentence, log_prob
 
 def predict_image_caption_beam_search(net, image, beam_size=1):
@@ -153,15 +156,15 @@ def run_pred_iter(fsg, net, strategy='beam', num_samples=1):
   streams = fsg.get_streams(do_padding=False, do_truncation=False)
   image_path = fsg.image_list[-1]
   num_bad_iters = 0
-#   try:
-  preds, pred_probs = predict_image_caption(net, image_path,
-      strategy=strategy, num_samples=num_samples)
-#   except Exception as e:
-#     num_bad_iters += 1
-#     print '(#%d) Warning: skipping image %s; got exception:' % \
-#         (num_bad_iters, image_path)
-#     print e
-#     return {}
+  try:
+    preds, pred_probs = predict_image_caption(net, image_path,
+        strategy=strategy, num_samples=num_samples)
+  except Exception as e:
+    num_bad_iters += 1
+    print '(#%d) Warning: skipping image %s; got exception:' % \
+        (num_bad_iters, image_path)
+    print e
+    return {}
   gt = streams['target_sentence']
   output = {'gt': gt, 'preds': preds, 'pred_probs': pred_probs,
             'image_path': image_path}
@@ -203,9 +206,10 @@ def main():
   RESULTS_DIR = './html_results'
   # STRATEGY = 'beam'
   STRATEGY = 'sample'
+  TEMP = 1.0
   NUM_SAMPLES = 10
-  NUM_CHUNKS = 1
-  NUM_OUT_PER_CHUNK = 25
+  NUM_CHUNKS = 10
+  NUM_OUT_PER_CHUNK = 10
 
   _, _, val_datasets = DATASETS[1]
   flickr_dataset = [val_datasets[0]]
@@ -223,8 +227,9 @@ def main():
           strategy=STRATEGY, num_samples=NUM_SAMPLES, display_vocab=vocab)
       html_out = to_html_output(outputs, vocab)
       if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)
+      strategy_tag = 'beam' if STRATEGY == 'beam' else 'sample_%f' % TEMP
       html_out_filename = '%s/%s.%s_%d.%d.offset_%d.html' % \
-          (RESULTS_DIR, dataset_name, STRATEGY,
+          (RESULTS_DIR, dataset_name, strategy_tag,
            NUM_SAMPLES, NUM_OUT_PER_CHUNK, offset)
       html_out_file = open(html_out_filename, 'w')
       html_out_file.write(html_out)
