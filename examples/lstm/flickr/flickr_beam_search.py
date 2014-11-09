@@ -5,6 +5,7 @@ DEVICE_ID = 2
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import sys
 
 sys.path.append('../../../python/')
@@ -13,9 +14,15 @@ import caffe
 from flickr_to_hdf5_data import *
 
 def vocab_inds_to_sentence(vocab, inds):
-  # Make sure the sentence ends with <EOS>.
-  assert inds[-1] == 0
-  return ' '.join([vocab[i] for i in inds[:-1]]) + '.'
+  sentence = ' '.join([vocab[i] for i in inds])
+  # Capitalize first character.
+  sentence = sentence[0].upper() + sentence[1:]
+  # Replace <EOS> with '.', or append '...'.
+  if sentence.endswith(' ' + vocab[0]):
+    sentence = sentence[:-(len(vocab[0]) + 1)] + '.'
+  else:
+    sentence += '...'
+  return sentence
   
 def preprocess_image(net, image_path):
   image = plt.imread(image_path)
@@ -67,6 +74,7 @@ def to_html_output(outputs, vocab):
 def run_pred_iter(fsg, net):
   streams = fsg.get_streams(do_padding=False, do_truncation=False)
   image_path = fsg.image_list[-1]
+  num_bad_iters = 0
   try:
     pred = predict_image_caption(net, image_path)
   except Exception as e:
@@ -81,7 +89,6 @@ def run_pred_iter(fsg, net):
 
 def run_pred_iters(fsg, net, num_iterations, display_vocab=None):
   outputs = []
-  num_bad_iters = 0
   for _ in range(num_iterations):
     output = run_pred_iter(fsg, net)
     if output:
@@ -111,8 +118,9 @@ def main():
   else:
     net.set_mode_cpu()
 
-  NUM_ITERATIONS = 100
-  NUM_OFFSET = 0
+  RESULTS_DIR = './html_results'
+  NUM_CHUNKS = 8
+  NUM_OUT_PER_CHUNK = 25
 
   _, _, val_datasets = DATASETS[1]
   flickr_dataset = [val_datasets[0]]
@@ -124,14 +132,18 @@ def main():
     fsg = FlickrSequenceGenerator(dataset, VOCAB_FILE, 0, align=False)
     eos_string = '<EOS>'
     vocab = [eos_string] + fsg.vocabulary_inverted
-    outputs = run_pred_iters(fsg, net, NUM_ITERATIONS, display_vocab=vocab)
-    html_out = to_html_output(outputs, vocab)
-    html_out_filename = '%s_beam_search_out.iter_%d.offset_%d.html' % \
-        (dataset_name, NUM_ITERATIONS, NUM_OFFSET)
-    html_out_file = open(html_out_filename, 'w')
-    html_out_file.write(html_out)
-    html_out_file.close()
-    print 'Wrote HTML output to:', html_out_filename
+    offset = 0
+    for c in range(NUM_CHUNKS):
+      outputs = run_pred_iters(fsg, net, NUM_OUT_PER_CHUNK, display_vocab=vocab)
+      html_out = to_html_output(outputs, vocab)
+      if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)
+      html_out_filename = '%s/%s.%d.offset_%d.html' % \
+          (RESULTS_DIR, dataset_name, NUM_OUT_PER_CHUNK, offset)
+      html_out_file = open(html_out_filename, 'w')
+      html_out_file.write(html_out)
+      html_out_file.close()
+      offset += NUM_OUT_PER_CHUNK
+      print 'Wrote HTML output to:', html_out_filename
 
 if __name__ == "__main__":
   main()
