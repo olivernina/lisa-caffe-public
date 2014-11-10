@@ -42,11 +42,18 @@ def preprocess_image(net, image_path):
        preprocessed_image.max())
   return preprocessed_image
 
-def predict_single_word(net, image, previous_word, output='probs'):
+def image_to_descriptor(net, image_path, output_name='fc8'):
+  image = preprocess_image(net, image_path)
+  net.forward(data=image)
+  output_blob = net.blobs[output_name].data.copy()
+  return output_blob
+  
+def predict_single_word(net, image_features, previous_word, output='probs'):
   cont = 0 if previous_word == 0 else 1
   cont_input = np.array([[[[cont]]]])
   word_input = np.array([[[[previous_word]]]])
-  net.forward(data=image, cont_sentence=cont_input, input_sentence=word_input)
+  net.forward(image_features=image_features,
+      cont_sentence=cont_input, input_sentence=word_input)
   output_preds = net.blobs[output].data.reshape(-1)
   return output_preds
 
@@ -204,19 +211,21 @@ def gen_stats(prob):
     stats['perplex_word'] = float('inf')
   return stats
 
-def run_pred_iters(fsg, net, num_iterations, strategies=[{'type': 'beam'}],
-                   display_vocab=None):
+def run_pred_iters(fsg, image_net, pred_net, num_iterations,
+                   strategies=[{'type': 'beam'}], display_vocab=None):
   outputs = {}
   num_pairs = 0
+  last_image_path = ''
   while num_pairs < num_iterations:
     image_path, gt_caption = next_image_gt_pair(fsg)
     num_pairs += 1
-    image = preprocess_image(net, image_path)
     did_predictions = False
+    if last_image_path != image_path:
+      image_features = image_to_descriptor(image_net, image_path)
     if image_path not in outputs:
       did_predictions = True
-      outputs[image_path] = run_pred_iter(net, image, strategies=strategies)
-    outputs[image_path].append(score_caption(net, image, gt_caption))
+      outputs[image_path] = run_pred_iter(pred_net, image_features, strategies=strategies)
+    outputs[image_path].append(score_caption(pred_net, image_features, gt_caption))
     if display_vocab is not None:
       if did_predictions:
         display_outputs = outputs[image_path]
@@ -286,20 +295,26 @@ def to_html_output(outputs, vocab):
   return out
 
 def main():
-  NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
+  # NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
+  IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.deploy.prototxt'
+  LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.deploy.prototxt'
   MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_lr0.1_mom_0.9_iter_37000.caffemodel'
 
   # Set up the net.
-  net = caffe.Net(NET_FILE, MODEL_FILE)
+  # net = caffe.Net(NET_FILE, MODEL_FILE)
+  image_net = caffe.Net(IMAGE_NET_FILE, MODEL_FILE)
+  lstm_net = caffe.Net(LSTM_NET_FILE, MODEL_FILE)
+  nets = [image_net, lstm_net]
   channel_mean = np.array([104, 117, 123])[:, np.newaxis, np.newaxis]
-  net.set_mean('data', channel_mean, mode='channel')
-  net.set_channel_swap('data', (2, 1, 0))
-  net.set_phase_test()
-  if DEVICE_ID >= 0:
-    net.set_mode_gpu()
-    net.set_device(DEVICE_ID)
-  else:
-    net.set_mode_cpu()
+  image_net.set_mean('data', channel_mean, mode='channel')
+  image_net.set_channel_swap('data', (2, 1, 0))
+  image_net.set_phase_test()
+  for net in nets:
+    if DEVICE_ID >= 0:
+      net.set_mode_gpu()
+      net.set_device(DEVICE_ID)
+    else:
+      net.set_mode_cpu()
 
   RESULTS_DIR = './html_multiresults'
   STRATEGIES = [
@@ -330,7 +345,7 @@ def main():
           (RESULTS_DIR, dataset_name, 'multistrategy', offset, offset + NUM_OUT_PER_CHUNK)
       if os.path.exists(html_out_filename):
         raise Exception('HTML out path exists: %s' % html_out_filename)
-      outputs = run_pred_iters(fsg, net, NUM_OUT_PER_CHUNK,
+      outputs = run_pred_iters(fsg, image_net, lstm_net, NUM_OUT_PER_CHUNK,
           strategies=STRATEGIES, display_vocab=vocab)
       html_out = to_html_output(outputs, vocab)
       if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)
