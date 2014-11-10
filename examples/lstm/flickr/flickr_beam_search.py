@@ -217,13 +217,14 @@ def run_pred_iters(fsg, image_net, pred_net, num_iterations,
                    strategies=[{'type': 'beam'}], display_vocab=None):
   outputs = {}
   num_pairs = 0
-  last_image_path = ''
+  descriptor_image_path = ''
   while num_pairs < num_iterations:
     image_path, gt_caption = next_image_gt_pair(fsg)
     num_pairs += 1
     did_predictions = False
-    if last_image_path != image_path:
+    if descriptor_image_path != image_path:
       image_features = image_to_descriptor(image_net, image_path)
+      descriptor_image_path = image_path
     if image_path not in outputs:
       did_predictions = True
       outputs[image_path] = run_pred_iter(pred_net, image_features, strategies=strategies)
@@ -301,8 +302,8 @@ def main():
   # NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
   IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.deploy.prototxt'
   LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.deploy.prototxt'
-  # TAG = 'ft_all'
-  TAG = 'fc8_raw'
+  TAG = 'ft_all'
+  # TAG = 'fc8_raw'
   if TAG == 'fc8_raw':
     ITER = 37000
     MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
