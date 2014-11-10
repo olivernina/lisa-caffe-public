@@ -114,6 +114,11 @@ int train() {
   } else if (FLAGS_weights.size()) {
     LOG(INFO) << "Finetuning from " << FLAGS_weights;
     solver->net()->CopyTrainedLayersFrom(FLAGS_weights);
+    for (int i = 0; i < solver_param.weights_size(); ++i) {
+      const std::string& weights_file = solver_param.weights(i);
+      solver->net()->CopyTrainedLayersFrom(weights_file);
+      LOG(INFO) << "Finetuning from " << weights_file;
+    }
     solver->Solve();
   } else {
     solver->Solve();
