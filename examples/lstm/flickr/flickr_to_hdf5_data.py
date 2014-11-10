@@ -15,7 +15,8 @@ UNK_IDENTIFIER = '<unk>'
 class FlickrSequenceGenerator(SequenceGenerator):
   # filenames should be a list of
   #     [(french1, english1), ..., (frenchK, englishK)]
-  def __init__(self, datasets, vocab_filename, batch_num_streams, langs=[], max_words=20, align=True):
+  def __init__(self, datasets, vocab_filename, batch_num_streams, langs=[],
+               max_words=20, align=True, shuffle=True):
     self.max_words = max_words
     num_empty_lines = 0
     self.images = []
@@ -90,7 +91,8 @@ class FlickrSequenceGenerator(SequenceGenerator):
           choice = random.randint(0, num_pairs - 1)
           self.image_sentence_pairs.append(self.image_sentence_pairs[choice])
       assert len(self.image_sentence_pairs) % batch_num_streams == 0
-    random.shuffle(self.image_sentence_pairs)
+    if shuffle:
+      random.shuffle(self.image_sentence_pairs)
 
   def streams_exhausted(self):
     return self.num_resets > 0

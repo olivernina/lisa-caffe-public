@@ -100,12 +100,13 @@ def random_choice_from_probs(softmax_inputs, temp):
     if cum_sum >= r: return i
   return 1  # return UNK?
 
-def sample_image_caption(net, image, strategy, net_output='predict'):
+def sample_image_caption(net, image, strategy, net_output='predict', max_length=50):
   sentence = []
   probs = []
   eps_prob = 1e-8
   temp = strategy['temp'] if 'temp' in strategy else 1.0
-  while not sentence or sentence[-1] != 0:
+  if max_length < 0: max_length = float('inf')
+  while len(sentence) < max_length and (not sentence or sentence[-1] != 0):
     previous_word = sentence[-1] if sentence else 0
     softmax_inputs = \
         predict_single_word(net, image, previous_word, output=net_output)
@@ -114,7 +115,7 @@ def sample_image_caption(net, image, strategy, net_output='predict'):
     probs.append(softmax(softmax_inputs, 1.0)[word])
   return sentence, probs
 
-def predict_image_caption_beam_search(net, image, strategy):
+def predict_image_caption_beam_search(net, image, strategy, max_length=50):
   beam_size = strategy['beam_size'] if 'beam_size' in strategy else 1
   assert beam_size >= 1
   beams = [[]]
@@ -122,18 +123,19 @@ def predict_image_caption_beam_search(net, image, strategy):
   beam_probs = [[]]
   beam_log_probs = [0.]
   current_input_word = 0  # first input is EOS
-  max_length = 50
   while beams_complete < len(beams):
     expansions = []
     for beam_index, beam_log_prob, beam in \
         zip(range(len(beams)), beam_log_probs, beams):
       if beam:
         previous_word = beam[-1]
-        if previous_word == 0:
+        if len(beam) >= max_length or previous_word == 0:
           exp = {'prefix_beam_index': beam_index, 'extension': [],
                  'prob_extension': [], 'log_prob': beam_log_prob}
           expansions.append(exp)
-          continue  # don't expand this beam; it was already ended with an EOS
+          # Don't expand this beam; it was already ended with an EOS,
+          # or is the max length.
+          continue
       else:
         previous_word = 0  # EOS is first word
       if beam_size == 1:
@@ -156,8 +158,8 @@ def predict_image_caption_beam_search(net, image, strategy):
         [beam_probs[e['prefix_beam_index']] + e['prob_extension'] for e in expansions]
     beam_log_probs = [e['log_prob'] for e in expansions]
     beams_complete = 0
-    for new_beam, expansion in zip(new_beams, expansions):
-      if new_beam[-1] == 0: beams_complete += 1
+    for beam in new_beams:
+      if beam[-1] == 0 or len(beam) >= max_length: beams_complete += 1
     beams, beam_probs = new_beams, new_beam_probs
   return beams, beam_probs
 
@@ -292,13 +294,24 @@ def to_html_output(outputs, vocab):
     out += '</table>\n'
     out += '<br>\n\n' 
     out += '<br>' * 2
+  out.replace('<unk>', 'UNK')  # sanitize...
   return out
 
 def main():
   # NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
   IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.deploy.prototxt'
   LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.deploy.prototxt'
-  MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_lr0.1_mom_0.9_iter_37000.caffemodel'
+  # TAG = 'ft_all'
+  TAG = 'fc8_raw'
+  if TAG == 'fc8_raw':
+    ITER = 37000
+    MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
+                 'lr0.1_mom_0.9_iter_%d.caffemodel' % ITER
+  elif TAG == 'ft_all':
+    ITER = 20000
+    MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
+                 'lr0.01_mom_0.9_ftend2end_iter_%d.caffemodel' % ITER
+  NET_TAG = '%s_iter_%d' % (TAG, ITER)
 
   # Set up the net.
   # net = caffe.Net(NET_FILE, MODEL_FILE)
@@ -327,13 +340,13 @@ def main():
     {'type': 'beam', 'beam_size': 5},
   ]
   NUM_CHUNKS = 5
-  NUM_OUT_PER_CHUNK = 10
+  NUM_OUT_PER_CHUNK = 50
 
   _, _, val_datasets = DATASETS[1]
   flickr_dataset = [val_datasets[0]]
   coco_dataset = [val_datasets[1]]
   datasets = [flickr_dataset, coco_dataset]
-  dataset_names = ['coco', 'flickr']
+  dataset_names = ['flickr', 'coco']
 
   for dataset, dataset_name in zip(datasets, dataset_names):
     fsg = FlickrSequenceGenerator(dataset, VOCAB_FILE, 0, align=False, shuffle=False)
@@ -342,7 +355,7 @@ def main():
     offset = 0
     for c in range(NUM_CHUNKS):
       html_out_filename = '%s/%s.%s.%d_to_%d.html' % \
-          (RESULTS_DIR, dataset_name, 'multistrategy', offset, offset + NUM_OUT_PER_CHUNK)
+          (RESULTS_DIR, dataset_name, NET_TAG, offset, offset + NUM_OUT_PER_CHUNK)
       if os.path.exists(html_out_filename):
         raise Exception('HTML out path exists: %s' % html_out_filename)
       outputs = run_pred_iters(fsg, image_net, lstm_net, NUM_OUT_PER_CHUNK,
