@@ -2,6 +2,8 @@
 
 DEVICE_ID = 2
 
+from collections import OrderedDict
+import cPickle as pickle
 import h5py
 import math
 import matplotlib.pyplot as plt
@@ -194,6 +196,21 @@ def next_image_gt_pair(fsg):
   gt = streams['target_sentence']
   return image_path, gt
 
+def all_image_gt_pairs(fsg):
+  data = OrderedDict()
+  prev_image_path = None
+  while True:
+    image_path, gt = next_image_gt_pair(fsg)
+    if image_path in data:
+      if image_path != prev_image_path:
+        break
+      data[image_path].append(gt)
+    else:
+      data[image_path] = [gt]
+    prev_image_path = image_path
+  print 'Found %d images with %d captions' % (len(data.keys()), len(data.values()))
+  return data
+
 def gen_stats(prob):
   stats = {}
   stats['length'] = len(prob)
@@ -213,28 +230,24 @@ def gen_stats(prob):
     stats['perplex_word'] = float('inf')
   return stats
 
-def run_pred_iters(fsg, image_net, pred_net, num_iterations,
+def run_pred_iters(image_net, pred_net, image_gt_pairs,
                    strategies=[{'type': 'beam'}], display_vocab=None):
-  outputs = {}
+  outputs = OrderedDict()
   num_pairs = 0
   descriptor_image_path = ''
-  while num_pairs < num_iterations:
-    image_path, gt_caption = next_image_gt_pair(fsg)
+  for image_path, gt_captions in image_gt_pairs.iteritems():
+    assert image_path not in outputs
     num_pairs += 1
-    did_predictions = False
     if descriptor_image_path != image_path:
       image_features = image_to_descriptor(image_net, image_path)
       descriptor_image_path = image_path
-    if image_path not in outputs:
-      did_predictions = True
-      outputs[image_path] = run_pred_iter(pred_net, image_features, strategies=strategies)
-    outputs[image_path].append(score_caption(pred_net, image_features, gt_caption))
+    outputs[image_path] = \
+        run_pred_iter(pred_net, image_features, strategies=strategies)
+    for gt_caption in gt_captions:
+      outputs[image_path].append(
+          score_caption(pred_net, image_features, gt_caption))
     if display_vocab is not None:
-      if did_predictions:
-        display_outputs = outputs[image_path]
-      else:
-        display_outputs = [outputs[image_path][-1]]
-      for output in display_outputs:
+      for output in outputs[image_path]:
         caption, prob, gt, source = \
             output['caption'], output['prob'], output['gt'], output['source']
         caption_string = vocab_inds_to_sentence(display_vocab, caption)
@@ -267,7 +280,9 @@ def to_html_row(columns, header=False):
 def to_html_output(outputs, vocab):
   out = ''
   for image_path, captions in outputs.iteritems():
-    for c in captions: c['stats'] = gen_stats(c['prob'])
+    for c in captions:
+      if not 'stats' in c:
+        c['stats'] = gen_stats(c['prob'])
     # Sort captions by log probability.
     captions.sort(key=lambda c: -c['stats']['log_p_word'])
     out += '<img src="%s"><br>\n' % image_path
@@ -280,7 +295,11 @@ def to_html_output(outputs, vocab):
       caption_string = vocab_inds_to_sentence(vocab, caption)
       if gt:
         source = 'ground truth'
-        caption_string = '<em>%s</em>' % caption_string
+        if 'correct' in c:
+          caption_string = '<font color="%s">%s</font>' % \
+              ('green' if c['correct'] else 'red', caption_string)
+        else:
+          caption_string = '<em>%s</em>' % caption_string
       else:
         if source['type'] == 'beam':
           source = 'beam (size %d)' % source['beam_size']
@@ -298,76 +317,271 @@ def to_html_output(outputs, vocab):
   out.replace('<unk>', 'UNK')  # sanitize...
   return out
 
+def retrieval_image_list(dataset, cache_dir):
+  image_list_filename = '%s/image_paths.txt' % cache_dir
+  if os.path.exists(image_list_filename):
+    with open(image_list_filename, 'r') as image_list_file:
+      image_paths = [i.strip() for i in image_list_file.readlines()]
+      assert set(image_paths) == set(dataset.keys())
+  else:
+    image_paths = dataset.keys()
+    with open(image_list_filename, 'w') as image_list_file:
+      image_list_file.write('\n'.join(image_paths) + '\n')
+  return image_paths
+
+def compute_descriptors(net, image_list, output_name='fc8'):
+  batch = np.zeros_like(net.blobs['data'].data)
+  batch_shape = batch.shape
+  batch_size = batch_shape[0]
+  descriptors_shape = (len(image_list), ) + net.blobs[output_name].data.shape[1:]
+  descriptors = np.zeros(descriptors_shape)
+  for batch_start_index in range(0, len(image_list), batch_size):
+    batch_list = image_list[batch_start_index:(batch_start_index + batch_size)]
+    for batch_index, image_path in enumerate(batch_list):
+      batch[batch_index:(batch_index + 1)] = preprocess_image(net, image_path)
+    print 'Computing descriptors for images %d-%d of %d' % \
+        (batch_start_index, batch_start_index + batch_size - 1, len(image_list))
+    net.forward(data=batch)
+    print 'Done'
+    descriptors[batch_start_index:(batch_start_index + batch_size)] = \
+        net.blobs[output_name].data
+  return descriptors
+
+def retrieval_descriptors(net, image_list, cache_dir):
+  descriptor_filename = '%s/descriptors.npz' % cache_dir
+  if os.path.exists(descriptor_filename):
+    descriptors = np.load(descriptor_filename)['descriptors']
+  else:
+    descriptors = compute_descriptors(net, image_list)
+    np.savez_compressed(descriptor_filename, descriptors=descriptors)
+  return descriptors
+
+def retrieval_caption_list(dataset, image_list, cache_dir):
+  caption_list_filename = '%s/captions.pkl' % cache_dir
+  if os.path.exists(caption_list_filename):
+    with open(caption_list_filename, 'rb') as caption_list_file:
+      captions = pickle.load(caption_list_file)
+  else:
+    captions = []
+    for image in image_list:
+      for caption in dataset[image]:
+        captions.append({'source_image': image, 'caption': caption})
+    # Sort by length for performance.
+    captions.sort(key=lambda c: len(c['caption']))
+    with open(caption_list_filename, 'wb') as caption_list_file:
+      pickle.dump(captions, caption_list_file)
+  return captions
+
+def score_captions(net, image_index, descriptor, captions,
+                   output_name='probs', caption_source='gt'):
+  cont_input = np.zeros_like(net.blobs['cont_sentence'].data)
+  word_input = np.zeros_like(net.blobs['input_sentence'].data)
+  image_features = np.zeros_like(net.blobs['image_features'].data)
+  batch_size = image_features.shape[0]
+  assert descriptor.shape == image_features.shape[1:]
+  for index in range(batch_size):
+    image_features[index] = descriptor
+  outputs = []
+  for batch_start_index in range(0, len(captions), batch_size):
+    caption_batch = captions[batch_start_index:(batch_start_index + batch_size)]
+    caption_index = 0
+    probs_batch = [[] for b in range(batch_size)]
+    num_done = 0
+    while num_done < batch_size:
+      if caption_index == 0:
+        cont_input[:] = 0
+      elif caption_index == 1:
+        cont_input[:] = 1
+      for index, caption in enumerate(caption_batch):
+        word_input[index] = \
+            caption['caption'][caption_index - 1] if \
+            0 < caption_index < len(caption['caption']) else 0
+      net.forward(image_features=image_features,
+          cont_sentence=cont_input, input_sentence=word_input)
+      output_probs = net.blobs[output_name].data
+      for index, probs, caption in \
+          zip(range(batch_size), probs_batch, caption_batch):
+        if caption_index == len(caption['caption']) - 1:
+          num_done += 1
+        if caption_index < len(caption['caption']):
+          word = caption['caption'][caption_index]
+          probs.append(output_probs[index, word].reshape(-1)[0])
+      print '(Image %d) Computed probs for word %d of captions %d-%d (%d done)' % \
+          (image_index, caption_index, batch_start_index,
+           batch_start_index + batch_size - 1, num_done)
+      caption_index += 1
+    for prob, caption in zip(probs_batch, caption_batch):
+      output = {}
+      output['caption'] = caption['caption']
+      output['prob'] = prob
+      output['gt'] = True
+      output['source'] = caption_source
+      outputs.append(output)
+  return outputs
+
+def retrieval_caption_scores(net, index, descriptor, captions, cache_dir,
+                             output_name='probs', caption_source='gt'):
+  caption_scores_dir = '%s/caption_scores' % cache_dir
+  if not os.path.exists(caption_scores_dir):
+    os.makedirs(caption_scores_dir)
+  caption_scores_filename  = '%s/scores_image_%06d.pkl' % \
+      (caption_scores_dir, index)
+  if os.path.exists(caption_scores_filename):
+    with open(caption_scores_filename, 'rb') as caption_scores_file:
+      outputs = pickle.load(caption_scores_file)
+  else:
+    outputs = score_captions(net, index, descriptor, captions,
+        output_name=output_name, caption_source=caption_source)
+    with open(caption_scores_filename, 'wb') as caption_scores_file:
+      pickle.dump(outputs, caption_scores_file)
+  return outputs
+
+def retrieval_eval_image_to_caption(caption_list, image_path, caption_scores,
+                                    image_index, cache_dir, vocab):
+  num_correct = 0
+  for caption, score in zip(caption_list, caption_scores):
+    assert caption['caption'] == score['caption']
+    score['stats'] = gen_stats(score['prob'])
+    score['correct'] = (image_path == caption['source_image'])
+    num_correct += score['correct']
+  caption_scores_by_prob_desc = sorted(caption_scores, \
+      key=lambda s: -s['stats']['log_p'])
+  caption_scores_by_prob_per_word_desc = sorted(caption_scores, \
+      key=lambda s: -s['stats']['log_p_word'])
+  for method, score_list in [('prob', caption_scores_by_prob_desc),
+      ('prob_per_word', caption_scores_by_prob_per_word_desc)]:
+    correct = np.array([s['correct'] for s in score_list])
+    correct_indices = np.where(correct)
+    print 'Method %s: (mean, median) correct index of GT label: (%d, %d)' % \
+        (method, np.mean(correct_indices), np.mean(correct_indices))
+    recall = np.cumsum(correct)
+    for rank in [1, 5, 10, 50, 100]:
+      print 'Method %s: recall at rank %d is %d / %d = %f' % \
+          (method, rank, recall[rank - 1], num_correct,
+           recall[rank - 1] / float(num_correct))
+  html_im2cap_dir = '%s/html_im2cap' % cache_dir
+  if not os.path.exists(html_im2cap_dir):
+    os.makedirs(html_im2cap_dir)
+  html_out_filename = '%s/ranked_captions_image_%d.html' % \
+      (html_im2cap_dir, image_index)
+  if os.path.exists(html_out_filename):
+    print 'HTML report already exists at %s; skipping' % html_out_filename
+    return
+  html_out = to_html_output({image_path: caption_scores}, vocab)
+  html_out_file = open(html_out_filename, 'w')
+  html_out_file.write(html_out)
+  html_out_file.close()
+  print 'Wrote HTML report to: %s' % html_out_filename
+
+# Does an end-to-end retrieval experiment on dataset, which must be a dict
+# mapping an image path to a list of "correct" captions for for that path.
+def retrieval_experiment(image_net, word_net, dataset, vocab, cache_dir):
+  if not os.path.exists(cache_dir):
+    os.makedirs(cache_dir)
+  image_list = retrieval_image_list(dataset, cache_dir)
+  descriptors = retrieval_descriptors(image_net, image_list, cache_dir)
+  caption_list = retrieval_caption_list(dataset, image_list, cache_dir)
+  caption_scores = {}
+  for image_index, image_path, descriptor in \
+      zip(range(len(image_list)), image_list, descriptors):
+    caption_scores[image_path] = retrieval_caption_scores(
+        word_net, image_index, descriptor, caption_list, cache_dir)
+    retrieval_eval_image_to_caption(caption_list, image_path,
+        caption_scores[image_path], image_index, cache_dir, vocab)
+
 def main():
   # NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
-  IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.deploy.prototxt'
-  LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.deploy.prototxt'
-  TAG = 'ft_all'
+  IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.batch50.deploy.prototxt'
+  LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.batch500.deploy.prototxt'
+  # TAG = 'ft_all'
   # TAG = 'fc8_raw'
-  if TAG == 'fc8_raw':
-    ITER = 37000
-    MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
-                 'lr0.1_mom_0.9_iter_%d.caffemodel' % ITER
-  elif TAG == 'ft_all':
-    ITER = 20000
-    MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
-                 'lr0.01_mom_0.9_ftend2end_iter_%d.caffemodel' % ITER
-  NET_TAG = '%s_iter_%d' % (TAG, ITER)
-
-  # Set up the net.
-  # net = caffe.Net(NET_FILE, MODEL_FILE)
-  image_net = caffe.Net(IMAGE_NET_FILE, MODEL_FILE)
-  lstm_net = caffe.Net(LSTM_NET_FILE, MODEL_FILE)
-  nets = [image_net, lstm_net]
-  channel_mean = np.array([104, 117, 123])[:, np.newaxis, np.newaxis]
-  image_net.set_mean('data', channel_mean, mode='channel')
-  image_net.set_channel_swap('data', (2, 1, 0))
-  image_net.set_phase_test()
-  for net in nets:
-    if DEVICE_ID >= 0:
-      net.set_mode_gpu()
-      net.set_device(DEVICE_ID)
+  # for TAG in ['ft_lm_plus_alexnet']:
+  for TAG in ['ft_all']:
+    if TAG == 'fc8_raw':
+      ITER = 37000
+      MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
+                   'lr0.1_mom_0.9_iter_%d.caffemodel' % ITER
+    elif TAG == 'ft_all':
+      ITER = 30000
+      MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
+                   'lr0.01_mom_0.9_ftend2end_iter_%d.caffemodel' % ITER
+    elif TAG == 'ft_lm_plus_alexnet':
+      ITER = 6000
+      IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.deploy.prototxt'
+      LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.deploy.prototxt'
+      MODEL_FILE = './snapshots/flickr_30k_alexnet_to_lstm_4layer_lr0.1_' + \
+          'mom0.9_noimagebaseline_add_alexnet_iter_%d.caffemodel' % ITER
     else:
-      net.set_mode_cpu()
+      raise Exception('Unknown tag: %s' % TAG)
+    NET_TAG = '%s_iter_%d' % (TAG, ITER)
 
-  RESULTS_DIR = './html_multiresults'
-  STRATEGIES = [
-    {'type': 'sample', 'temp': 0.75, 'num': 3},
-    {'type': 'sample', 'temp': 1.0, 'num': 3},
-    {'type': 'sample', 'temp': 3.0, 'num': 3},
-    {'type': 'sample', 'temp': 5.0, 'num': 3},
-    {'type': 'beam', 'beam_size': 1},
-    {'type': 'beam', 'beam_size': 3},
-    {'type': 'beam', 'beam_size': 5},
-  ]
-  NUM_CHUNKS = 5
-  NUM_OUT_PER_CHUNK = 50
+    # Set up the nets.
+    image_net = caffe.Net(IMAGE_NET_FILE, MODEL_FILE)
+    lstm_net = caffe.Net(LSTM_NET_FILE, MODEL_FILE)
+    nets = [image_net, lstm_net]
+    channel_mean = np.array([104, 117, 123])[:, np.newaxis, np.newaxis]
+    image_net.set_mean('data', channel_mean, mode='channel')
+    image_net.set_channel_swap('data', (2, 1, 0))
+    for net in nets:
+      net.set_phase_test()
+      if DEVICE_ID >= 0:
+        net.set_mode_gpu()
+        net.set_device(DEVICE_ID)
+      else:
+        net.set_mode_cpu()
 
-  _, _, val_datasets = DATASETS[1]
-  flickr_dataset = [val_datasets[0]]
-  coco_dataset = [val_datasets[1]]
-  datasets = [flickr_dataset, coco_dataset]
-  dataset_names = ['flickr', 'coco']
+    RESULTS_DIR = './html_multiresults'
+    STRATEGIES = [
+      {'type': 'sample', 'temp': 0.75, 'num': 3},
+      {'type': 'sample', 'temp': 1.0, 'num': 3},
+      {'type': 'sample', 'temp': 3.0, 'num': 3},
+      {'type': 'sample', 'temp': 5.0, 'num': 3},
+      {'type': 'beam', 'beam_size': 1},
+      {'type': 'beam', 'beam_size': 3},
+      {'type': 'beam', 'beam_size': 5},
+    ]
+    NUM_CHUNKS = 30
+    NUM_OUT_PER_CHUNK = 50
+    # START_CHUNK = 0
+    START_CHUNK = 5
 
-  for dataset, dataset_name in zip(datasets, dataset_names):
-    fsg = FlickrSequenceGenerator(dataset, VOCAB_FILE, 0, align=False, shuffle=False)
+    _, _, val_datasets = DATASETS[1]
+    flickr_dataset = [val_datasets[0]]
+    coco_dataset = [val_datasets[1]]
+    datasets = [flickr_dataset, coco_dataset]
+    # dataset_names = ['flickr', 'coco']
+
+    fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
+    image_gt_pairs = all_image_gt_pairs(fsg)
     eos_string = '<EOS>'
     vocab = [eos_string] + fsg.vocabulary_inverted
-    offset = 0
-    for c in range(NUM_CHUNKS):
-      html_out_filename = '%s/%s.%s.%d_to_%d.html' % \
-          (RESULTS_DIR, dataset_name, NET_TAG, offset, offset + NUM_OUT_PER_CHUNK)
-      if os.path.exists(html_out_filename):
-        raise Exception('HTML out path exists: %s' % html_out_filename)
-      outputs = run_pred_iters(fsg, image_net, lstm_net, NUM_OUT_PER_CHUNK,
-          strategies=STRATEGIES, display_vocab=vocab)
-      html_out = to_html_output(outputs, vocab)
-      if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)
-      html_out_file = open(html_out_filename, 'w')
-      html_out_file.write(html_out)
-      html_out_file.close()
-      offset += NUM_OUT_PER_CHUNK
-      print 'Wrote HTML output to:', html_out_filename
+    retrieval_cache_dir = './cocoflickr/flickr_val_retrieval/%s' % NET_TAG
+    retrieval_experiment(image_net, lstm_net, image_gt_pairs, vocab,
+        retrieval_cache_dir)
+    import pdb; pdb.set_trace()
+
+    for dataset, dataset_name in zip(datasets, dataset_names):
+      fsg = FlickrSequenceGenerator(dataset, VOCAB_FILE, 0, align=False, shuffle=False)
+      image_gt_pairs = all_image_gt_pairs(fsg)
+      eos_string = '<EOS>'
+      vocab = [eos_string] + fsg.vocabulary_inverted
+      offset = 0
+      for c in range(NUM_CHUNKS):
+        html_out_filename = '%s/%s.%s.%d_to_%d.html' % \
+            (RESULTS_DIR, dataset_name, NET_TAG, offset, offset + NUM_OUT_PER_CHUNK)
+        outputs = run_pred_iters(image_net, lstm_net, NUM_OUT_PER_CHUNK,
+            strategies=STRATEGIES, display_vocab=vocab, run=(c >= START_CHUNK))
+        if c < START_CHUNK or os.path.exists(html_out_filename):
+          # raise Exception('HTML out path exists: %s' % html_out_filename)
+          continue
+        if c < START_CHUNK: continue
+        html_out = to_html_output(outputs, vocab)
+        if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)
+        html_out_file = open(html_out_filename, 'w')
+        html_out_file.write(html_out)
+        html_out_file.close()
+        offset += NUM_OUT_PER_CHUNK
+        print 'Wrote HTML output to:', html_out_filename
 
 if __name__ == "__main__":
   main()
