@@ -93,8 +93,12 @@ def softmax(softmax_inputs, temp):
   eps_sum = 1e-8
   return exp_inputs / max(exp_inputs_sum, eps_sum)
 
-def random_choice_from_probs(softmax_inputs, temp):
-  probs = softmax(softmax_inputs, temp)
+def random_choice_from_probs(softmax_inputs, temp=1.0, already_softmaxed=False):
+  if already_softmaxed:
+    probs = softmax_inputs
+    assert temp == 1.0
+  else:
+    probs = softmax(softmax_inputs, temp)
   r = random.random()
   cum_sum = 0.
   for i, p in enumerate(probs):
@@ -386,6 +390,51 @@ def retrieval_caption_list(dataset, image_list, cache_dir):
       pickle.dump(captions, caption_list_file)
   return captions
 
+def sample_captions(net, image_features,
+    output_name='probs', caption_source='sample'):
+  cont_input = np.zeros_like(net.blobs['cont_sentence'].data)
+  word_input = np.zeros_like(net.blobs['input_sentence'].data)
+  batch_size = image_features.shape[0]
+  outputs = []
+  output_captions = [[] for b in range(batch_size)]
+  output_probs = [[] for b in range(batch_size)]
+  caption_index = 0
+  num_done = 0
+  while num_done < batch_size:
+    if caption_index == 0:
+      cont_input[:] = 0
+    elif caption_index == 1:
+      cont_input[:] = 1
+    if caption_index == 0:
+      word_input[:] = 0
+    else:
+      for index in range(batch_size):
+        word_input[index] = \
+            output_captions[index][caption_index - 1] if \
+            caption_index <= len(output_captions[index]) else 0
+    net.forward(image_features=image_features,
+        cont_sentence=cont_input, input_sentence=word_input)
+    net_output_probs = net.blobs[output_name].data
+    for index in range(batch_size):
+      # If the caption is empty, or non-empty but the last word isn't EOS,
+      # predict another word.
+      if not output_captions[index] or output_captions[index][-1] != 0:
+        next_word_sample = random_choice_from_probs(net_output_probs[index],
+                                                    already_softmaxed=True)
+        output_captions[index].append(next_word_sample)
+        output_probs[index].append(net_output_probs[index, next_word_sample])
+        if next_word_sample == 0: num_done += 1
+    print '%d/%d done after word %d' % (num_done, batch_size, caption_index)
+    caption_index += 1
+  for prob, caption in zip(output_probs, output_captions):
+    output = {}
+    output['caption'] = caption
+    output['prob'] = prob
+    output['gt'] = False
+    output['source'] = caption_source
+    outputs.append(output)
+  return outputs
+
 def score_captions(net, image_index, descriptor, captions,
                    output_name='probs', caption_source='gt'):
   cont_input = np.zeros_like(net.blobs['cont_sentence'].data)
@@ -598,6 +647,80 @@ def retrieval_experiment(image_net, word_net, dataset, vocab, cache_dir):
       print 'Caption to image: method %s: mean recall at %d is %f' % \
           (method, recall_rank, recall)
 
+def flickr_sample_all():
+  NUM_SAMPLES_PER_IMAGE = 10
+  IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.batch50.deploy.prototxt'
+  LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.batch500.deploy.prototxt'
+  TAG = 'ft_all'
+  if TAG == 'fc8_raw':
+    ITER = 37000
+    MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
+                 'lr0.1_mom_0.9_iter_%d.caffemodel' % ITER
+  elif TAG == 'ft_all':
+    ITER = 30000
+    MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
+                 'lr0.01_mom_0.9_ftend2end_iter_%d.caffemodel' % ITER
+  else:
+    raise Exception('Unknown tag: %s' % TAG)
+  NET_TAG = '%s_iter_%d' % (TAG, ITER)
+  # Set up the nets.
+  image_net = caffe.Net(IMAGE_NET_FILE, MODEL_FILE)
+  lstm_net = caffe.Net(LSTM_NET_FILE, MODEL_FILE)
+  nets = [image_net, lstm_net]
+  channel_mean = np.array([104, 117, 123])[:, np.newaxis, np.newaxis]
+  image_net.set_mean('data', channel_mean, mode='channel')
+  image_net.set_channel_swap('data', (2, 1, 0))
+  for net in nets:
+    net.set_phase_test()
+    if DEVICE_ID >= 0:
+      net.set_mode_gpu()
+      net.set_device(DEVICE_ID)
+    else:
+      net.set_mode_cpu()
+  _, _, val_datasets = DATASETS[1]
+  flickr_dataset = [val_datasets[0]]
+  coco_dataset = [val_datasets[1]]
+  datasets = [flickr_dataset]
+  dataset_names = ['flickr30k', 'coco']
+  fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
+  image_gt_pairs = all_image_gt_pairs(fsg)
+  image_list = image_gt_pairs.keys()
+  eos_string = '<EOS>'
+  vocab = [eos_string] + fsg.vocabulary_inverted
+  descriptors = compute_descriptors(image_net, image_list)
+  image_features = np.zeros_like(lstm_net.blobs['image_features'].data)
+  word_batch_size = image_features.shape[0]
+  assert word_batch_size % NUM_SAMPLES_PER_IMAGE == 0
+  images_per_batch = word_batch_size / NUM_SAMPLES_PER_IMAGE
+  num_samples = len(image_list) * NUM_SAMPLES_PER_IMAGE
+  num_batches = num_samples / word_batch_size + (num_samples % word_batch_size > 0)
+  num_images_done = 0
+  image_sample_index = 0
+  out_samples = []
+  sample_dir = './cocoflickr/samples'
+  sample_filename = '%s/%s_flickr_val_samples.pkl' % (sample_dir, NET_TAG)
+  if not os.path.exists(sample_dir):
+    os.makedirs(sample_dir)
+  if os.path.exists(sample_filename):
+    raise Exception('Sample file already exists: %s' % sample_filename)
+  for batch_index in range(num_batches):
+    sample_image_paths = []
+    for batch_offset in range(word_batch_size):
+      image_index = batch_index * images_per_batch + batch_offset / NUM_SAMPLES_PER_IMAGE
+      image_features[batch_offset] = descriptors[image_index]
+      sample_image_paths.append(image_list[image_index])
+    print '(%d/%d) Computing %d samples for %d images' % \
+        (batch_index, num_batches, NUM_SAMPLES_PER_IMAGE, images_per_batch)
+    samples = sample_captions(lstm_net, image_features)
+    assert len(samples) == word_batch_size
+    for sample_image_path, sample in zip(sample_image_paths, samples):
+      sample['source'] = sample_image_path
+    out_samples += samples
+  print 'Saving samples to: %s' % sample_filename
+  with open(sample_filename, 'wb') as sample_file:
+    pickle.dump(out_samples, sample_file)
+  print 'Done.'
+
 def main():
   # NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
 #   IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.batch50.deploy.prototxt'
@@ -663,11 +786,13 @@ def main():
     datasets = [flickr_dataset]
     dataset_names = ['flickr30k', 'coco']
 
-    fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
-    image_gt_pairs = all_image_gt_pairs(fsg)
-    eos_string = '<EOS>'
-    vocab = [eos_string] + fsg.vocabulary_inverted
-    retrieval_cache_dir = './cocoflickr/flickr_val_retrieval/%s' % NET_TAG
+    do_retrieval_experiment = False
+    if do_retrieval_experiment:
+      fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
+      image_gt_pairs = all_image_gt_pairs(fsg)
+      eos_string = '<EOS>'
+      vocab = [eos_string] + fsg.vocabulary_inverted
+      retrieval_cache_dir = './cocoflickr/flickr_val_retrieval/%s' % NET_TAG
 #     retrieval_cache_dir = './cocoflickr/mini_flickr_val_retrieval/%s' % NET_TAG
 #     mini_num = 10
 #     mini_image_gt_pairs = {}
@@ -676,40 +801,41 @@ def main():
 #       if len(mini_image_gt_pairs.keys()) >= mini_num: break
 #     retrieval_experiment(image_net, lstm_net, mini_image_gt_pairs, vocab,
 #         retrieval_cache_dir)
-    retrieval_experiment(image_net, lstm_net, image_gt_pairs, vocab,
-        retrieval_cache_dir)
-    import pdb; pdb.set_trace()
-    # kiros_images = [l.strip() for l in open('./compare_kiros/kiros_images.txt', 'r').readlines()]
-    # image_gt_pairs = OrderedDict()
-    # for image in kiros_images:
-    #   image_gt_pairs[image] = []
-
-    for dataset, dataset_name in zip(datasets, dataset_names):
-      fsg = FlickrSequenceGenerator(dataset, VOCAB_FILE, 0, align=False, shuffle=False)
-#       image_gt_pairs = all_image_gt_pairs(fsg)
-      eos_string = '<EOS>'
-      vocab = [eos_string] + fsg.vocabulary_inverted
-      offset = 0
-      for c in range(START_CHUNK, NUM_CHUNKS):
-        chunk_start = c * NUM_OUT_PER_CHUNK
-        chunk_end = (c + 1) * NUM_OUT_PER_CHUNK
-        chunk = kiros_images[chunk_start:chunk_end]
-        html_out_filename = '%s/%s.%s.%d_to_%d.html' % \
-            (RESULTS_DIR, dataset_name, NET_TAG, chunk_start, chunk_end)
-        if os.path.exists(html_out_filename):
-          print 'HTML output exists, skipping:', html_out_filename
-          continue
-        else:
-          print 'HTML output will be written to:', html_out_filename
-        outputs = run_pred_iters(image_net, lstm_net, chunk, image_gt_pairs,
-            strategies=STRATEGIES, display_vocab=vocab)
-        html_out = to_html_output(outputs, vocab)
-        if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)
-        html_out_file = open(html_out_filename, 'w')
-        html_out_file.write(html_out)
-        html_out_file.close()
-        offset += NUM_OUT_PER_CHUNK
-        print 'Wrote HTML output to:', html_out_filename
+      retrieval_experiment(image_net, lstm_net, image_gt_pairs, vocab,
+          retrieval_cache_dir)
+      import pdb; pdb.set_trace()
+    else:
+      # kiros_images = [l.strip() for l in open('./compare_kiros/kiros_images.txt', 'r').readlines()]
+      # image_gt_pairs = OrderedDict()
+      # for image in kiros_images:
+      #   image_gt_pairs[image] = []
+      for dataset, dataset_name in zip(datasets, dataset_names):
+        fsg = FlickrSequenceGenerator(dataset, VOCAB_FILE, 0, align=False, shuffle=False)
+        image_gt_pairs = all_image_gt_pairs(fsg)
+        eos_string = '<EOS>'
+        vocab = [eos_string] + fsg.vocabulary_inverted
+        offset = 0
+        for c in range(START_CHUNK, NUM_CHUNKS):
+          chunk_start = c * NUM_OUT_PER_CHUNK
+          chunk_end = (c + 1) * NUM_OUT_PER_CHUNK
+          chunk = kiros_images[chunk_start:chunk_end]
+          html_out_filename = '%s/%s.%s.%d_to_%d.html' % \
+              (RESULTS_DIR, dataset_name, NET_TAG, chunk_start, chunk_end)
+          if os.path.exists(html_out_filename):
+            print 'HTML output exists, skipping:', html_out_filename
+            continue
+          else:
+            print 'HTML output will be written to:', html_out_filename
+          outputs = run_pred_iters(image_net, lstm_net, chunk, image_gt_pairs,
+              strategies=STRATEGIES, display_vocab=vocab)
+          html_out = to_html_output(outputs, vocab)
+          if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)
+          html_out_file = open(html_out_filename, 'w')
+          html_out_file.write(html_out)
+          html_out_file.close()
+          offset += NUM_OUT_PER_CHUNK
+          print 'Wrote HTML output to:', html_out_filename
 
 if __name__ == "__main__":
-  main()
+  # main()
+  flickr_sample_all()
