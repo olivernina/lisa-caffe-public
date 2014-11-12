@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-DEVICE_ID = 2
+DEVICE_ID = 1
 
 from collections import OrderedDict
 import cPickle as pickle
@@ -236,16 +236,21 @@ def gen_stats(prob, normalizer=None):
         stats['perplex_word'] / norm_stats['perplex_word']
   return stats
 
-def run_pred_iters(image_net, pred_net, image_gt_pairs,
+def run_pred_iters(image_net, pred_net, images, image_gt_pairs,
                    strategies=[{'type': 'beam'}], display_vocab=None):
   outputs = OrderedDict()
   num_pairs = 0
   descriptor_image_path = ''
-  for image_path, gt_captions in image_gt_pairs.iteritems():
+  for image_path in images:
+    gt_captions = image_gt_pairs[image_path]
     assert image_path not in outputs
     num_pairs += 1
     if descriptor_image_path != image_path:
-      image_features = image_to_descriptor(image_net, image_path)
+      try:
+        image_features = image_to_descriptor(image_net, image_path)
+      except:
+        print 'WARNING: could not compute image descriptor for image, skipping: %s' % image_path
+        continue
       descriptor_image_path = image_path
     outputs[image_path] = \
         run_pred_iter(pred_net, image_features, strategies=strategies)
@@ -290,8 +295,10 @@ def to_html_output(outputs, vocab):
       if not 'stats' in c:
         c['stats'] = gen_stats(c['prob'])
     # Sort captions by log probability.
-    captions.sort(key=lambda c: c['stats']['normed_perplex'])
-    # captions.sort(key=lambda c: -c['stats']['log_p_word'])
+    if 'normed_perplex' in captions[0]['stats']:
+      captions.sort(key=lambda c: c['stats']['normed_perplex'])
+    else:
+      captions.sort(key=lambda c: -c['stats']['log_p_word'])
     out += '<img src="%s"><br>\n' % image_path
     out += '<table border="1">\n'
     column_names = ('Source', '#Words', 'Perplexity/Word', 'Caption')
@@ -519,12 +526,15 @@ def retrieval_experiment(image_net, word_net, dataset, vocab, cache_dir):
 
 def main():
   # NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
-  IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.batch50.deploy.prototxt'
-  LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.batch500.deploy.prototxt'
+#   IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.batch50.deploy.prototxt'
+#   LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.batch500.deploy.prototxt'
+  IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.deploy.prototxt'
+  LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.deploy.prototxt'
   # TAG = 'ft_all'
   # TAG = 'fc8_raw'
   # for TAG in ['ft_lm_plus_alexnet']:
-  for TAG in ['ft_all']:
+  # for TAG in ['ft_all']:
+  for TAG in ['fc8_raw']:
     if TAG == 'fc8_raw':
       ITER = 37000
       MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
@@ -558,47 +568,52 @@ def main():
       else:
         net.set_mode_cpu()
 
-    RESULTS_DIR = './html_multiresults'
+    RESULTS_DIR = './html_results_kiros'
     STRATEGIES = [
-      {'type': 'sample', 'temp': 0.75, 'num': 3},
-      {'type': 'sample', 'temp': 1.0, 'num': 3},
-      {'type': 'sample', 'temp': 3.0, 'num': 3},
-      {'type': 'sample', 'temp': 5.0, 'num': 3},
-      {'type': 'beam', 'beam_size': 1},
-      {'type': 'beam', 'beam_size': 3},
+#       {'type': 'sample', 'temp': 0.75, 'num': 3},
+#       {'type': 'sample', 'temp': 1.0, 'num': 3},
+#       {'type': 'sample', 'temp': 3.0, 'num': 3},
+#       {'type': 'sample', 'temp': 5.0, 'num': 3},
+#       {'type': 'beam', 'beam_size': 1},
+#       {'type': 'beam', 'beam_size': 3},
       {'type': 'beam', 'beam_size': 5},
     ]
-    NUM_CHUNKS = 30
-    NUM_OUT_PER_CHUNK = 50
-    # START_CHUNK = 0
-    START_CHUNK = 5
+    NUM_CHUNKS = 20
+    NUM_OUT_PER_CHUNK = 10
+    START_CHUNK = 0
+    # START_CHUNK = 5
 
     _, _, val_datasets = DATASETS[1]
     flickr_dataset = [val_datasets[0]]
     coco_dataset = [val_datasets[1]]
-    datasets = [flickr_dataset, coco_dataset]
-    # dataset_names = ['flickr', 'coco']
+    datasets = [flickr_dataset]
+    dataset_names = ['flickr_kiros']
 
-    fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
-    image_gt_pairs = all_image_gt_pairs(fsg)
-    eos_string = '<EOS>'
-    vocab = [eos_string] + fsg.vocabulary_inverted
-    retrieval_cache_dir = './cocoflickr/flickr_val_retrieval/%s' % NET_TAG
-    retrieval_experiment(image_net, lstm_net, image_gt_pairs, vocab,
-        retrieval_cache_dir)
-    import pdb; pdb.set_trace()
+#     fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
+#     image_gt_pairs = all_image_gt_pairs(fsg)
+#     eos_string = '<EOS>'
+#     vocab = [eos_string] + fsg.vocabulary_inverted
+#     retrieval_cache_dir = './cocoflickr/flickr_val_retrieval/%s' % NET_TAG
+#     retrieval_experiment(image_net, lstm_net, image_gt_pairs, vocab,
+#         retrieval_cache_dir)
+#     import pdb; pdb.set_trace()
+    kiros_images = [l.strip() for l in open('./compare_kiros/kiros_images.txt', 'r').readlines()]
+    image_gt_pairs = OrderedDict()
+    for image in kiros_images:
+      image_gt_pairs[image] = []
 
     for dataset, dataset_name in zip(datasets, dataset_names):
       fsg = FlickrSequenceGenerator(dataset, VOCAB_FILE, 0, align=False, shuffle=False)
-      image_gt_pairs = all_image_gt_pairs(fsg)
+#       image_gt_pairs = all_image_gt_pairs(fsg)
       eos_string = '<EOS>'
       vocab = [eos_string] + fsg.vocabulary_inverted
       offset = 0
       for c in range(NUM_CHUNKS):
+        chunk = kiros_images[(c * NUM_OUT_PER_CHUNK):((c + 1) * NUM_OUT_PER_CHUNK)]
         html_out_filename = '%s/%s.%s.%d_to_%d.html' % \
             (RESULTS_DIR, dataset_name, NET_TAG, offset, offset + NUM_OUT_PER_CHUNK)
-        outputs = run_pred_iters(image_net, lstm_net, NUM_OUT_PER_CHUNK,
-            strategies=STRATEGIES, display_vocab=vocab, run=(c >= START_CHUNK))
+        outputs = run_pred_iters(image_net, lstm_net, chunk, image_gt_pairs,
+            strategies=STRATEGIES, display_vocab=vocab)
         if c < START_CHUNK or os.path.exists(html_out_filename):
           # raise Exception('HTML out path exists: %s' % html_out_filename)
           continue
