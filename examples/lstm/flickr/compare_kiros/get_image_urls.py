@@ -48,6 +48,9 @@ def parse_kiros_lines(html_lines):
     elif line == '<br><br><b>Nearest Neighbour:</b>':
       data[filename]['nn'] = [kiros_line_to_caption(html_lines[line_index + 1])]
       line_index += 1
+    elif line == '<br><b>TreeTalk:</b>':
+      data[filename]['treetalk'] = [kiros_line_to_caption(html_lines[line_index + 1])]
+      line_index += 1
     elif line == '<br><br><b>Top-5 model samples:</b>':
       data[filename]['kiros'] = []
       for i in range(5):
