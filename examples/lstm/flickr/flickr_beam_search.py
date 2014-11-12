@@ -450,16 +450,31 @@ def retrieval_caption_scores(net, index, descriptor, captions, cache_dir,
       pickle.dump(outputs, caption_scores_file)
   return outputs
 
-def retrieval_eval_image_to_caption(caption_list, image_path, caption_scores,
-    image_index, cache_dir, vocab, mean_caption_scores):
-  num_correct = 0
-  for caption, score, mean_score in \
-      zip(caption_list, caption_scores, mean_caption_scores):
-    assert caption['caption'] == score['caption']
-    assert mean_score['caption'] == score['caption']
-    score['stats'] = gen_stats(score['prob'], normalizer=mean_score['prob'])
-    score['correct'] = (image_path == caption['source_image'])
-    num_correct += score['correct']
+def retrieval_caption_stats(caption_list, image_path, caption_scores,
+    image_index, cache_dir, mean_caption_scores):
+  caption_score_dir = '%s/final_caption_scores' % cache_dir
+  if not os.path.exists(caption_score_dir):
+    os.makedirs(caption_score_dir)
+  caption_score_filename = '%s/final_caption_scores_%d.pkl' % \
+      (caption_score_dir, image_index)
+  if os.path.exists(caption_score_filename):
+    with open(caption_score_filename, 'rb') as caption_score_file:
+      caption_scores = pickle.load(caption_score_file)
+  else:
+    num_correct = 0
+    for caption, score, mean_score in \
+        zip(caption_list, caption_scores, mean_caption_scores):
+      assert caption['caption'] == score['caption']
+      assert mean_score['caption'] == score['caption']
+      score['stats'] = gen_stats(score['prob'], normalizer=mean_score['prob'])
+      score['correct'] = (image_path == caption['source_image'])
+      num_correct += score['correct']
+    with open(caption_score_filename, 'wb') as caption_score_file:
+      pickle.dump(caption_scores, caption_score_file)
+  return caption_scores
+
+def retrieval_eval_image_to_caption(
+    caption_scores, image_path, image_index, cache_dir):
   caption_scores_by_prob_desc = sorted(caption_scores, \
       key=lambda s: s['stats']['normed_perplex'])
   caption_scores_by_prob_per_word_desc = sorted(caption_scores, \
@@ -468,11 +483,13 @@ def retrieval_eval_image_to_caption(caption_list, image_path, caption_scores,
   for method, score_list in [('prob', caption_scores_by_prob_desc),
       ('prob_per_word', caption_scores_by_prob_per_word_desc)]:
     correct = np.array([s['correct'] for s in score_list])
+    num_correct = np.sum(correct)
     correct_indices = np.where(correct)
     print 'Method %s: (mean, median) correct index of GT label: (%d, %d)' % \
         (method, np.mean(correct_indices), np.median(correct_indices))
     recall[method] = np.cumsum(correct)
-    for rank in [1, 5, 10, 50, 100]:
+    # for rank in [1, 5, 10, 50, 100]:
+    for rank in [1, 5, 10, 50]:
       print 'Method %s: recall at rank %d is %d / %d = %f' % \
           (method, rank, recall[method][rank - 1], num_correct,
            recall[method][rank - 1] / float(num_correct))
@@ -491,6 +508,33 @@ def retrieval_eval_image_to_caption(caption_list, image_path, caption_scores,
   print 'Wrote HTML report to: %s' % html_out_filename
   return recall
 
+def retrieval_eval_caption_to_image(caption_list, caption_scores, caption_index,
+    cache_dir, vocab):
+  scores = []
+  gt_image_path = caption_list[caption_index]['source_image']
+  for image_path, score_list in caption_scores.iteritems():
+    score = score_list[caption_index]
+    score['correct'] = image_path == gt_image_path
+    if not 'stats' in score: score['stats'] = gen_stats(score['prob'])
+    stats = score['stats']
+    scores.append((stats['log_p_word'], stats['log_p'], score['correct']))
+  scores_by_p_word = sorted(scores, key=lambda s: -s[0])
+  scores_by_p = sorted(scores, key=lambda s: -s[1])
+  correct_ranks = {'log_p': -1, 'log_p_word': -1}
+  for index in range(len(scores)):
+    if scores_by_p[index][2]:
+      correct_ranks['log_p'] = index
+      print 'Method log_p: caption %d ranked ground truth image at %d' \
+          % (caption_index, index + 1)
+      break
+  for index in range(len(scores)):
+    if scores_by_p_word[index][2]:
+      correct_ranks['log_p_word'] = index
+      print 'Method log_p_word: caption %d ranked ground truth image at %d' \
+          % (caption_index, index + 1)
+      break
+  return correct_ranks
+
 # Does an end-to-end retrieval experiment on dataset, which must be a dict
 # mapping an image path to a list of "correct" captions for for that path.
 def retrieval_experiment(image_net, word_net, dataset, vocab, cache_dir):
@@ -503,27 +547,56 @@ def retrieval_experiment(image_net, word_net, dataset, vocab, cache_dir):
   mean_caption_scores = retrieval_caption_scores(word_net, len(image_list),
       mean_descriptor, caption_list, cache_dir)
   caption_scores = {}
+  caption_stats = {}
+  final_caption_scores = {}
   caption_recalls = {}
-  recall_ranks = [1, 5, 10, 50, 100]
+  # recall_ranks = [1, 5, 10, 50, 100]
+  recall_ranks = [1, 5, 10, 50]
   all_recalls = {}
+  # Evaluate image to caption task.
   for image_index, image_path, descriptor in \
       zip(range(len(image_list)), image_list, descriptors):
     caption_scores[image_path] = retrieval_caption_scores(
         word_net, image_index, descriptor, caption_list, cache_dir)
-    caption_recalls[image_path] = retrieval_eval_image_to_caption(
+    caption_stats[image_path] = retrieval_caption_stats(
         caption_list, image_path, caption_scores[image_path], image_index,
-        cache_dir, vocab, mean_caption_scores)
+        cache_dir, mean_caption_scores)
+    caption_recalls[image_path] = retrieval_eval_image_to_caption(
+        caption_stats[image_path], image_path, image_index, cache_dir)
     for method, recall in caption_recalls[image_path].iteritems():
       if method not in all_recalls:
         all_recalls[method] = {}
         for rank in recall_ranks:
           all_recalls[method][rank] = []
       for rank in recall_ranks:
-        all_recalls[method][rank].append(recall[rank - 1])
+        all_recalls[method][rank].append(recall[rank - 1] / float(recall[-1]))
+  # Evaluate caption to image task.
+  caption_to_image_ranks = []
+  for caption_index in range(len(caption_list)):
+    caption_to_image_ranks.append(retrieval_eval_caption_to_image(
+        caption_list, caption_scores, caption_index, cache_dir, vocab))
+  all_caption_ranks = {}
+  for caption_ranks in caption_to_image_ranks:
+    for method, image_rank in caption_ranks.iteritems():
+      if method not in all_caption_ranks:
+        all_caption_ranks[method] = []
+      all_caption_ranks[method].append(image_rank)
+  # Print results
   for method, rank_to_recall in all_recalls.iteritems():
     for rank in recall_ranks:
-      print 'Method %s: mean recall at %d is: %f' % \
+      print 'Image to caption: method %s: mean recall at %d is: %f' % \
           (method, rank, np.mean(rank_to_recall[rank]))
+  for method, ranks in all_caption_ranks.iteritems():
+    print 'Caption to image: method %s: (mean, median) correct rank is (%d, %d)' % \
+        (method, np.mean(np.array(ranks, dtype=np.float)), np.median(np.array(ranks, dtype=np.float)))
+    for recall_rank in recall_ranks:
+      num_recalled = 0
+      for rank in ranks:
+        if recall_rank - 1 >= rank:
+          num_recalled += 1
+      recall = float(num_recalled) / len(ranks)
+      print 'Caption to image: method %s: mean recall at %d is %f' % \
+          (method, recall_rank, recall)
 
 def main():
   # NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
@@ -534,8 +607,8 @@ def main():
   # TAG = 'ft_all'
   # TAG = 'fc8_raw'
   # for TAG in ['ft_lm_plus_alexnet']:
-  # for TAG in ['ft_all']:
-  for TAG in ['fc8_raw']:
+  # for TAG in ['fc8_raw']:
+  for TAG in ['ft_all']:
     if TAG == 'fc8_raw':
       ITER = 37000
       MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
@@ -588,20 +661,28 @@ def main():
     flickr_dataset = [val_datasets[0]]
     coco_dataset = [val_datasets[1]]
     datasets = [flickr_dataset]
-    dataset_names = ['flickr_kiros']
+    dataset_names = ['flickr30k', 'coco']
 
-#     fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
-#     image_gt_pairs = all_image_gt_pairs(fsg)
-#     eos_string = '<EOS>'
-#     vocab = [eos_string] + fsg.vocabulary_inverted
-#     retrieval_cache_dir = './cocoflickr/flickr_val_retrieval/%s' % NET_TAG
-#     retrieval_experiment(image_net, lstm_net, image_gt_pairs, vocab,
+    fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
+    image_gt_pairs = all_image_gt_pairs(fsg)
+    eos_string = '<EOS>'
+    vocab = [eos_string] + fsg.vocabulary_inverted
+    retrieval_cache_dir = './cocoflickr/flickr_val_retrieval/%s' % NET_TAG
+#     retrieval_cache_dir = './cocoflickr/mini_flickr_val_retrieval/%s' % NET_TAG
+#     mini_num = 10
+#     mini_image_gt_pairs = {}
+#     for key, val in image_gt_pairs.iteritems():
+#       mini_image_gt_pairs[key] = val
+#       if len(mini_image_gt_pairs.keys()) >= mini_num: break
+#     retrieval_experiment(image_net, lstm_net, mini_image_gt_pairs, vocab,
 #         retrieval_cache_dir)
-#     import pdb; pdb.set_trace()
-    kiros_images = [l.strip() for l in open('./compare_kiros/kiros_images.txt', 'r').readlines()]
-    image_gt_pairs = OrderedDict()
-    for image in kiros_images:
-      image_gt_pairs[image] = []
+    retrieval_experiment(image_net, lstm_net, image_gt_pairs, vocab,
+        retrieval_cache_dir)
+    import pdb; pdb.set_trace()
+    # kiros_images = [l.strip() for l in open('./compare_kiros/kiros_images.txt', 'r').readlines()]
+    # image_gt_pairs = OrderedDict()
+    # for image in kiros_images:
+    #   image_gt_pairs[image] = []
 
     for dataset, dataset_name in zip(datasets, dataset_names):
       fsg = FlickrSequenceGenerator(dataset, VOCAB_FILE, 0, align=False, shuffle=False)
