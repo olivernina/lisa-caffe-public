@@ -211,7 +211,7 @@ def all_image_gt_pairs(fsg):
   print 'Found %d images with %d captions' % (len(data.keys()), len(data.values()))
   return data
 
-def gen_stats(prob):
+def gen_stats(prob, normalizer=None):
   stats = {}
   stats['length'] = len(prob)
   stats['log_p'] = 0.0
@@ -228,6 +228,12 @@ def gen_stats(prob):
     stats['perplex_word'] = math.exp(-stats['log_p_word'])
   except OverflowError:
     stats['perplex_word'] = float('inf')
+  if normalizer is not None:
+    norm_stats = gen_stats(normalizer)
+    stats['normed_perplex'] = \
+        stats['perplex'] / norm_stats['perplex']
+    stats['normed_perplex_word'] = \
+        stats['perplex_word'] / norm_stats['perplex_word']
   return stats
 
 def run_pred_iters(image_net, pred_net, image_gt_pairs,
@@ -284,7 +290,8 @@ def to_html_output(outputs, vocab):
       if not 'stats' in c:
         c['stats'] = gen_stats(c['prob'])
     # Sort captions by log probability.
-    captions.sort(key=lambda c: -c['stats']['log_p_word'])
+    captions.sort(key=lambda c: c['stats']['normed_perplex'])
+    # captions.sort(key=lambda c: -c['stats']['log_p_word'])
     out += '<img src="%s"><br>\n' % image_path
     out += '<table border="1">\n'
     column_names = ('Source', '#Words', 'Perplexity/Word', 'Caption')
@@ -437,28 +444,31 @@ def retrieval_caption_scores(net, index, descriptor, captions, cache_dir,
   return outputs
 
 def retrieval_eval_image_to_caption(caption_list, image_path, caption_scores,
-                                    image_index, cache_dir, vocab):
+    image_index, cache_dir, vocab, mean_caption_scores):
   num_correct = 0
-  for caption, score in zip(caption_list, caption_scores):
+  for caption, score, mean_score in \
+      zip(caption_list, caption_scores, mean_caption_scores):
     assert caption['caption'] == score['caption']
-    score['stats'] = gen_stats(score['prob'])
+    assert mean_score['caption'] == score['caption']
+    score['stats'] = gen_stats(score['prob'], normalizer=mean_score['prob'])
     score['correct'] = (image_path == caption['source_image'])
     num_correct += score['correct']
   caption_scores_by_prob_desc = sorted(caption_scores, \
-      key=lambda s: -s['stats']['log_p'])
+      key=lambda s: s['stats']['normed_perplex'])
   caption_scores_by_prob_per_word_desc = sorted(caption_scores, \
-      key=lambda s: -s['stats']['log_p_word'])
+      key=lambda s: s['stats']['normed_perplex_word'])
+  recall = {}
   for method, score_list in [('prob', caption_scores_by_prob_desc),
       ('prob_per_word', caption_scores_by_prob_per_word_desc)]:
     correct = np.array([s['correct'] for s in score_list])
     correct_indices = np.where(correct)
     print 'Method %s: (mean, median) correct index of GT label: (%d, %d)' % \
-        (method, np.mean(correct_indices), np.mean(correct_indices))
-    recall = np.cumsum(correct)
+        (method, np.mean(correct_indices), np.median(correct_indices))
+    recall[method] = np.cumsum(correct)
     for rank in [1, 5, 10, 50, 100]:
       print 'Method %s: recall at rank %d is %d / %d = %f' % \
-          (method, rank, recall[rank - 1], num_correct,
-           recall[rank - 1] / float(num_correct))
+          (method, rank, recall[method][rank - 1], num_correct,
+           recall[method][rank - 1] / float(num_correct))
   html_im2cap_dir = '%s/html_im2cap' % cache_dir
   if not os.path.exists(html_im2cap_dir):
     os.makedirs(html_im2cap_dir)
@@ -466,12 +476,13 @@ def retrieval_eval_image_to_caption(caption_list, image_path, caption_scores,
       (html_im2cap_dir, image_index)
   if os.path.exists(html_out_filename):
     print 'HTML report already exists at %s; skipping' % html_out_filename
-    return
+    return recall
   html_out = to_html_output({image_path: caption_scores}, vocab)
   html_out_file = open(html_out_filename, 'w')
   html_out_file.write(html_out)
   html_out_file.close()
   print 'Wrote HTML report to: %s' % html_out_filename
+  return recall
 
 # Does an end-to-end retrieval experiment on dataset, which must be a dict
 # mapping an image path to a list of "correct" captions for for that path.
@@ -481,13 +492,30 @@ def retrieval_experiment(image_net, word_net, dataset, vocab, cache_dir):
   image_list = retrieval_image_list(dataset, cache_dir)
   descriptors = retrieval_descriptors(image_net, image_list, cache_dir)
   caption_list = retrieval_caption_list(dataset, image_list, cache_dir)
+  mean_descriptor = descriptors.mean(axis=0)
+  mean_caption_scores = retrieval_caption_scores(word_net, len(image_list),
+      mean_descriptor, caption_list, cache_dir)
   caption_scores = {}
+  recall_ranks = [1, 5, 10, 50, 100]
+  all_recalls = {}
   for image_index, image_path, descriptor in \
       zip(range(len(image_list)), image_list, descriptors):
     caption_scores[image_path] = retrieval_caption_scores(
         word_net, image_index, descriptor, caption_list, cache_dir)
-    retrieval_eval_image_to_caption(caption_list, image_path,
-        caption_scores[image_path], image_index, cache_dir, vocab)
+    caption_recalls[image_path] = retrieval_eval_image_to_caption(
+        caption_list, image_path, caption_scores[image_path], image_index,
+        cache_dir, vocab, mean_caption_scores)
+    for method, recall in caption_recalls[image_path].iteritems():
+      if method not in all_recalls:
+        all_recalls[method] = {}
+        for rank in recall_ranks:
+          all_recalls[method][rank] = []
+      for rank in recall_ranks:
+        all_recalls[method][rank].append(recall[rank - 1])
+  for method, rank_to_recall in all_recalls.iteritems():
+    for rank in recall_ranks:
+      print 'Method %s: mean recall at %d is: %f' % \
+          (method, rank, np.mean(rank_to_recall[rank]))
 
 def main():
   # NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
