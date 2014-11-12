@@ -503,6 +503,7 @@ def retrieval_experiment(image_net, word_net, dataset, vocab, cache_dir):
   mean_caption_scores = retrieval_caption_scores(word_net, len(image_list),
       mean_descriptor, caption_list, cache_dir)
   caption_scores = {}
+  caption_recalls = {}
   recall_ranks = [1, 5, 10, 50, 100]
   all_recalls = {}
   for image_index, image_path, descriptor in \
@@ -578,9 +579,9 @@ def main():
 #       {'type': 'beam', 'beam_size': 3},
       {'type': 'beam', 'beam_size': 5},
     ]
-    NUM_CHUNKS = 20
+    NUM_CHUNKS = 100
     NUM_OUT_PER_CHUNK = 10
-    START_CHUNK = 0
+    START_CHUNK = 20
     # START_CHUNK = 5
 
     _, _, val_datasets = DATASETS[1]
@@ -608,16 +609,19 @@ def main():
       eos_string = '<EOS>'
       vocab = [eos_string] + fsg.vocabulary_inverted
       offset = 0
-      for c in range(NUM_CHUNKS):
-        chunk = kiros_images[(c * NUM_OUT_PER_CHUNK):((c + 1) * NUM_OUT_PER_CHUNK)]
+      for c in range(START_CHUNK, NUM_CHUNKS):
+        chunk_start = c * NUM_OUT_PER_CHUNK
+        chunk_end = (c + 1) * NUM_OUT_PER_CHUNK
+        chunk = kiros_images[chunk_start:chunk_end]
         html_out_filename = '%s/%s.%s.%d_to_%d.html' % \
-            (RESULTS_DIR, dataset_name, NET_TAG, offset, offset + NUM_OUT_PER_CHUNK)
+            (RESULTS_DIR, dataset_name, NET_TAG, chunk_start, chunk_end)
+        if os.path.exists(html_out_filename):
+          print 'HTML output exists, skipping:', html_out_filename
+          continue
+        else:
+          print 'HTML output will be written to:', html_out_filename
         outputs = run_pred_iters(image_net, lstm_net, chunk, image_gt_pairs,
             strategies=STRATEGIES, display_vocab=vocab)
-        if c < START_CHUNK or os.path.exists(html_out_filename):
-          # raise Exception('HTML out path exists: %s' % html_out_filename)
-          continue
-        if c < START_CHUNK: continue
         html_out = to_html_output(outputs, vocab)
         if not os.path.exists(RESULTS_DIR): os.makedirs(RESULTS_DIR)
         html_out_file = open(html_out_filename, 'w')
