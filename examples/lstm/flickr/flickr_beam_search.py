@@ -391,7 +391,7 @@ def retrieval_caption_list(dataset, image_list, cache_dir):
   return captions
 
 def sample_captions(net, image_features,
-    output_name='probs', caption_source='sample'):
+    prob_output_name='probs', output_name='samples', caption_source='sample'):
   cont_input = np.zeros_like(net.blobs['cont_sentence'].data)
   word_input = np.zeros_like(net.blobs['input_sentence'].data)
   batch_size = image_features.shape[0]
@@ -414,13 +414,15 @@ def sample_captions(net, image_features,
             caption_index <= len(output_captions[index]) else 0
     net.forward(image_features=image_features,
         cont_sentence=cont_input, input_sentence=word_input)
-    net_output_probs = net.blobs[output_name].data
+    net_output_samples = net.blobs[output_name].data
+    net_output_probs = net.blobs[prob_output_name].data
     for index in range(batch_size):
       # If the caption is empty, or non-empty but the last word isn't EOS,
       # predict another word.
       if not output_captions[index] or output_captions[index][-1] != 0:
-        next_word_sample = random_choice_from_probs(net_output_probs[index],
-                                                    already_softmaxed=True)
+        next_word_sample = net_output_samples[index]
+        assert next_word_sample == int(next_word_sample)
+        next_word_sample = int(next_word_sample)
         output_captions[index].append(next_word_sample)
         output_probs[index].append(net_output_probs[index, next_word_sample])
         if next_word_sample == 0: num_done += 1
@@ -649,9 +651,14 @@ def retrieval_experiment(image_net, word_net, dataset, vocab, cache_dir):
 
 def flickr_sample_all():
   NUM_SAMPLES_PER_IMAGE = 10
+  SAMPLE_TEMP = '3.0'
   IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.batch50.deploy.prototxt'
-  LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.batch500.deploy.prototxt'
-  TAG = 'ft_all'
+  if float(SAMPLE_TEMP) == 1.0:
+    LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.batch500.deploy.prototxt'
+  else:
+    LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.temp%s.batch500.deploy.prototxt' % SAMPLE_TEMP
+  # TAG = 'ft_all'
+  TAG = 'fc8_raw'
   if TAG == 'fc8_raw':
     ITER = 37000
     MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
@@ -662,7 +669,7 @@ def flickr_sample_all():
                  'lr0.01_mom_0.9_ftend2end_iter_%d.caffemodel' % ITER
   else:
     raise Exception('Unknown tag: %s' % TAG)
-  NET_TAG = '%s_iter_%d' % (TAG, ITER)
+  NET_TAG = '%s_iter_%d_temp_%s' % (TAG, ITER, SAMPLE_TEMP)
   # Set up the nets.
   image_net = caffe.Net(IMAGE_NET_FILE, MODEL_FILE)
   lstm_net = caffe.Net(LSTM_NET_FILE, MODEL_FILE)
@@ -697,7 +704,7 @@ def flickr_sample_all():
   num_images_done = 0
   image_sample_index = 0
   out_samples = []
-  sample_dir = './cocoflickr/samples'
+  sample_dir = './cocoflickr/fast_samples'
   sample_filename = '%s/%s_flickr_val_samples.pkl' % (sample_dir, NET_TAG)
   if not os.path.exists(sample_dir):
     os.makedirs(sample_dir)
@@ -720,6 +727,33 @@ def flickr_sample_all():
   with open(sample_filename, 'wb') as sample_file:
     pickle.dump(out_samples, sample_file)
   print 'Done.'
+  return sample_filename
+
+def print_top_samples(vocab, samples, out_filename=None):
+  top_sample = OrderedDict()
+  for sample in samples:
+    stats = gen_stats(sample['prob'])
+    image_path = sample['source']
+    if image_path not in top_sample:
+      top_sample[image_path] = (None, -float('inf'))
+    if stats['log_p_word'] > top_sample[image_path][1]:
+      top_sample[image_path] = (sample['caption'], stats['log_p_word'])
+  out_file = open(out_filename, 'w') if out_filename is not None else sys.stdout
+  for image_path, sample in top_sample.iteritems():
+    image_id = os.path.split(image_path)[1]
+    out_file.write("%s\t%s\n" % (image_id, vocab_inds_to_sentence(vocab, sample[0])))
+  out_file.close()
+  print 'Wrote top samples to:', out_filename
+
+def print_flickr_samples(sample_filename, out_filename):
+  _, _, val_datasets = DATASETS[1]
+  flickr_dataset = [val_datasets[0]]
+  coco_dataset = [val_datasets[1]]
+  fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
+  eos_string = '<EOS>'
+  vocab = [eos_string] + fsg.vocabulary_inverted
+  samples = pickle.load(open(sample_filename, 'rb'))
+  print_top_samples(vocab, samples, out_filename=out_filename)
 
 def main():
   # NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
@@ -838,4 +872,5 @@ def main():
 
 if __name__ == "__main__":
   # main()
-  flickr_sample_all()
+  sample_filename = flickr_sample_all()
+  print_flickr_samples(sample_filename, sample_filename + '.top.out.txt')
