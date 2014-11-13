@@ -285,6 +285,7 @@ message LayerParameter {
     REDUCTION = 1004;
     RELU = 18;
     RESET_RNN = 1002;
+    SAMPLE = 1300;
     SIGMOID = 19;
     SIGMOID_CROSS_ENTROPY_LOSS = 27;
     SILENCE = 36;
