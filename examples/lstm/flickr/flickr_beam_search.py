@@ -649,16 +649,18 @@ def retrieval_experiment(image_net, word_net, dataset, vocab, cache_dir):
       print 'Caption to image: method %s: mean recall at %d is %f' % \
           (method, recall_rank, recall)
 
-def flickr_sample_all():
+def flickr_sample_all(sample_temp='1.0'):
+  SUBSET = 'test'
   NUM_SAMPLES_PER_IMAGE = 10
-  SAMPLE_TEMP = '3.0'
   IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.batch50.deploy.prototxt'
-  if float(SAMPLE_TEMP) == 1.0:
+  if float(sample_temp) == 1.0:
     LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.batch500.deploy.prototxt'
   else:
-    LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.temp%s.batch500.deploy.prototxt' % SAMPLE_TEMP
-  # TAG = 'ft_all'
-  TAG = 'fc8_raw'
+    LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.temp%s.batch500.deploy.prototxt' % sample_temp
+  if sample_temp == 'inf':
+    NUM_SAMPLES_PER_IMAGE = 1
+  TAG = 'ft_all'
+  # TAG = 'fc8_raw'
   if TAG == 'fc8_raw':
     ITER = 37000
     MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
@@ -669,7 +671,7 @@ def flickr_sample_all():
                  'lr0.01_mom_0.9_ftend2end_iter_%d.caffemodel' % ITER
   else:
     raise Exception('Unknown tag: %s' % TAG)
-  NET_TAG = '%s_iter_%d_temp_%s' % (TAG, ITER, SAMPLE_TEMP)
+  NET_TAG = '%s_iter_%d_subset_%s_temp_%s' % (TAG, ITER, SUBSET, sample_temp)
   # Set up the nets.
   image_net = caffe.Net(IMAGE_NET_FILE, MODEL_FILE)
   lstm_net = caffe.Net(LSTM_NET_FILE, MODEL_FILE)
@@ -685,8 +687,15 @@ def flickr_sample_all():
     else:
       net.set_mode_cpu()
   _, _, val_datasets = DATASETS[1]
-  flickr_dataset = [val_datasets[0]]
-  coco_dataset = [val_datasets[1]]
+  _, _, test_datasets = DATASETS[2]
+  if SUBSET == 'val':
+    flickr_dataset = [val_datasets[0]]
+    coco_dataset = [val_datasets[1]]
+  elif SUBSET == 'test':
+    flickr_dataset = [test_datasets[0]]
+    coco_dataset = [test_datasets[1]]
+  else:
+    raise Exception('Unknown SUBSET: %s' % subset)
   datasets = [flickr_dataset]
   dataset_names = ['flickr30k', 'coco']
   fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
@@ -872,5 +881,6 @@ def main():
 
 if __name__ == "__main__":
   # main()
-  sample_filename = flickr_sample_all()
+  sample_temp = 'inf'
+  sample_filename = flickr_sample_all(sample_temp=sample_temp)
   print_flickr_samples(sample_filename, sample_filename + '.top.out.txt')
