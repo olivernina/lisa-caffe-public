@@ -37,6 +37,8 @@ def preprocess_image(net, image_path):
   ch = int(image.shape[0] * crop_edge_ratio + 0.5)
   cw = int(image.shape[1] * crop_edge_ratio + 0.5)
   cropped_image = image[ch:-ch, cw:-cw]
+  if len(cropped_image.shape) == 2:
+    cropped_image = np.tile(cropped_image[:, :, np.newaxis], (1, 1, 3))
   preprocessed_image = net.preprocess('data', cropped_image)[np.newaxis]
   print 'Preprocessed image has shape %s, range (%f, %f)' % \
       (preprocessed_image.shape,
@@ -660,6 +662,7 @@ def flickr_sample_all(sample_temp='1.0'):
   if sample_temp == 'inf':
     NUM_SAMPLES_PER_IMAGE = 1
   TAG = 'ft_all'
+  SET = 'coco'
   # TAG = 'fc8_raw'
   if TAG == 'fc8_raw':
     ITER = 37000
@@ -671,7 +674,6 @@ def flickr_sample_all(sample_temp='1.0'):
                  'lr0.01_mom_0.9_ftend2end_iter_%d.caffemodel' % ITER
   else:
     raise Exception('Unknown tag: %s' % TAG)
-  NET_TAG = '%s_iter_%d_subset_%s_temp_%s' % (TAG, ITER, SUBSET, sample_temp)
   # Set up the nets.
   image_net = caffe.Net(IMAGE_NET_FILE, MODEL_FILE)
   lstm_net = caffe.Net(LSTM_NET_FILE, MODEL_FILE)
@@ -695,10 +697,16 @@ def flickr_sample_all(sample_temp='1.0'):
     flickr_dataset = [test_datasets[0]]
     coco_dataset = [test_datasets[1]]
   else:
-    raise Exception('Unknown SUBSET: %s' % subset)
-  datasets = [flickr_dataset]
-  dataset_names = ['flickr30k', 'coco']
-  fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
+    raise Exception('Unknown SUBSET: %s' % SUBSET)
+  if SET == 'flickr30k':
+    dataset = flickr_dataset
+  elif SET == 'coco':
+    dataset = coco_dataset
+  else:
+    raise Exception('Unknown SET: %s' % SET)
+  NET_TAG = '%s_iter_%d_%s_%s_temp_%s' % (TAG, ITER, SET, SUBSET, sample_temp)
+  fsg = FlickrSequenceGenerator(
+      dataset, VOCAB_FILE, 0, align=False, shuffle=False, gt_captions=False)
   image_gt_pairs = all_image_gt_pairs(fsg)
   image_list = image_gt_pairs.keys()
   eos_string = '<EOS>'

@@ -16,7 +16,7 @@ class FlickrSequenceGenerator(SequenceGenerator):
   # filenames should be a list of
   #     [(french1, english1), ..., (frenchK, englishK)]
   def __init__(self, datasets, vocab_filename, batch_num_streams, langs=[],
-               max_words=20, align=True, shuffle=True):
+               max_words=20, align=True, shuffle=True, gt_captions=True):
     self.max_words = max_words
     num_empty_lines = 0
     self.images = []
@@ -48,20 +48,24 @@ class FlickrSequenceGenerator(SequenceGenerator):
     print '%d/%d images missing' % (num_missing, num_total)
     num_captions = 0
     num_captions_missing_images = 0
-    for dataset in datasets:
-      caption_list_path = dataset['caption_list']
-      with open(caption_list_path, 'rb') as caption_list:
-        captions = caption_list.readlines()
-      for caption in captions:
-        caption_words = caption.split()
-        assert len(caption_words) >= 1
-        caption_filename, _ = caption_words[0].split('#')
-        if caption_filename in known_images:
-          sentence = caption_words[1:]
-          known_images[caption_filename]['sentences'].append(sentence)
-        else:
-          num_captions_missing_images += 1
-        num_captions += 1
+    if gt_captions:
+      for dataset in datasets:
+        caption_list_path = dataset['caption_list']
+        with open(caption_list_path, 'rb') as caption_list:
+          captions = caption_list.readlines()
+        for caption in captions:
+          caption_words = caption.split()
+          assert len(caption_words) >= 1
+          caption_filename, _ = caption_words[0].split('#')
+          if caption_filename in known_images:
+            sentence = caption_words[1:]
+            known_images[caption_filename]['sentences'].append(sentence)
+          else:
+            num_captions_missing_images += 1
+          num_captions += 1
+    else:
+      for key, val in known_images.iteritems():
+        val['sentences'] = [[0]]
     print '%d/%d captions missing images' % (num_captions_missing_images, num_captions)
     self.image_sentence_pairs = []
     num_no_sentences = 0
@@ -216,6 +220,16 @@ DATASETS = [
     'image_list' : COCO_IMAGE_LIST_PATTERN % 'val',
     'image_root' : COCO_IMAGE_PATTERN % 'val',
     'caption_list' : COCO_CAPTION_PATTERN % 'val',
+    'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'val'
+   }]),
+  ('test', 200000, [{
+    'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'test',
+    'image_root' : FLICKR30K_IMAGE_PATTERN % 'test',
+    'caption_list' : FLICKR30K_CAPTION_PATTERN % 'test',
+   }, {
+    'image_list' : COCO_IMAGE_LIST_PATTERN % 'test',
+    'image_root' : COCO_IMAGE_PATTERN % 'test',
+    'caption_list' : COCO_CAPTION_PATTERN % 'test',
     'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'val'
    }]),
 ]
