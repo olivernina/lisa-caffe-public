@@ -1998,7 +1998,7 @@ layers {
   name: "drop11"
   type: DROPOUT
   dropout_param {
-    dropout_ratio: 0.4
+    dropout_ratio: 0.75
   }
 }
 layers {

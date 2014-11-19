@@ -1,10 +1,11 @@
+# net: "./googlenet_to_lstm_net.freezegooglenet.prototxt"
 net: "./googlenet_to_lstm_net.freezegooglenet.prototxt"
-# train_state: { stage: 'freeze-convnet' }
-test_iter: 25
-test_state: { stage: 'test-on-train' }
+# train_state: { stage: 'learn-last' }
+# test_iter: 25
+# test_state: { stage: 'test-on-train' }
 test_iter: 25
 test_state: { stage: 'test-on-val' }
-test_initialization: false
+test_initialization: true
 test_interval: 1000
 test_net_reset: true
 base_lr: 0.1
@@ -16,7 +17,8 @@ max_iter: 110000
 momentum: 0.9
 # weight_decay: 0.0005
 weight_decay: 0.0000
-snapshot: 5000
+snapshot: 1000
+# snapshot_prefix: "snapshots/coco_flickr_30k_googlenet_learn_last_to_lstm_2layer_lr0.01_mom_0.9"
 snapshot_prefix: "snapshots/coco_flickr_30k_googlenet_to_lstm_2layer_lr0.01_mom_0.9"
 solver_mode: GPU
 # debug_info: true
