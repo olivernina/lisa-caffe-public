@@ -6,7 +6,8 @@ net: "./wmt_dec_enc_lstm_4layer_net.embed_cpu.prototxt"
 test_interval: 1000
 test_net_reset: true
 # base_lr: 0.1
-base_lr: 0.7
+base_lr: 1.5
+# base_lr: 3.0
 lr_policy: "step"
 gamma: 0.5
 stepsize: 20000
@@ -16,9 +17,9 @@ max_iter: 200000
 # weight_decay: 0.0005
 weight_decay: 0.0000
 snapshot: 10000
-snapshot_prefix: "snapshots/wmt_lstm_four_layer_enc_dec_lr0.7_mom0.0_bs2000_embedcpu"
+snapshot_prefix: "snapshots/wmt_lstm_four_layer_enc_dec_lr1.5_mom0.0_bs2000_embed1000cpu"
 solver_mode: GPU
 random_seed: 1701
 average_loss: 100
-# clip_gradients: 5
+clip_gradients: 5
 # debug_info: true

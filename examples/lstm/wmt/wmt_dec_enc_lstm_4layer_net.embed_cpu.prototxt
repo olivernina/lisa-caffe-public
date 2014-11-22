@@ -60,7 +60,7 @@ layers {
 #   weight_decay: 1
 #   weight_decay: 0
 #   inner_product_param {
-#     index_input_dim: 10000
+#     index_input_dim: 1000
 #     num_output: 500
 #     weight_filler {
 #       type: "uniform"
@@ -93,8 +93,8 @@ layers {
   inner_product_param {
     bias_term: false
     index_input_dim: 80001
-    num_output: 10000
-    backward_update_lr: 0.7
+    num_output: 1000
+    backward_update_lr: 1.5
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -122,8 +122,8 @@ layers {
   inner_product_param {
     bias_term: false
     index_input_dim: 160001
-    num_output: 10000
-    backward_update_lr: 0.7
+    num_output: 1000
+    backward_update_lr: 1.5
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -484,7 +484,7 @@ layers {
 #   bottom: "all_zero"
 #   top: "all_zero_pred"
 #   idx21hot_param {
-#     dim: 10000
+#     dim: 1000
 #   }
 # }
 # layers {

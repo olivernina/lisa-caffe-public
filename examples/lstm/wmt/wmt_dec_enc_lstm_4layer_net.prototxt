@@ -1,101 +1,66 @@
 name: "CaffeNet"
-
-# input data
 layers {
+  top: "data_fr"
+  top: "data_en"
+  top: "stage_indicators"
+  top: "targets_en"
+  top: "cont_fr"
+  top: "cont_en"
+  top: "encoder_to_decoder"
   name: "data"
   type: HDF5_DATA
-  top: "encoder_data"
-  top: "decoder_data"
-  top: "stage_indicators"
-  top: "targets"
-  top: "encoder_cont"
-  top: "decoder_cont"
-  top: "encoder_to_decoder"
   hdf5_data_param {
-    source: "./wmt_hdf5/buffer_100/train_batches/hdf5_chunk_list.txt"
+    source: "./wmt_hdf5/fr_i-en_o/buffer_100/train_batches/hdf5_chunk_list.txt"
+#     source: "./wmt_hdf5/fr_i-en_o/buffer_100/train_batches/hdf5_chunk_list.batch0.txt"
     batch_size: 1600
   }
-  include: { phase: TRAIN }
+  include { phase: TRAIN }
 }
 layers {
+  top: "data_fr"
+  top: "data_en"
+  top: "stage_indicators"
+  top: "targets_en"
+  top: "cont_fr"
+  top: "cont_en"
+  top: "encoder_to_decoder"
   name: "data"
   type: HDF5_DATA
-  top: "encoder_data"
-  top: "decoder_data"
-  top: "stage_indicators"
-  top: "targets"
-  top: "encoder_cont"
-  top: "decoder_cont"
-  top: "encoder_to_decoder"
   hdf5_data_param {
-    source: "./wmt_hdf5/buffer_100/valid_batches/hdf5_chunk_list.txt"
+    source: "./wmt_hdf5/fr_i-en_o/buffer_100/train_batches/hdf5_chunk_list.txt"
+#     source: "./wmt_hdf5/fr_i-en_o/buffer_100/train_batches/hdf5_chunk_list.batch0.txt"
     batch_size: 400
   }
-  include: { phase: TEST stage: "test-on-test" }
+  include { phase: TEST stage: "test-on-train" }
 }
 layers {
+  top: "data_fr"
+  top: "data_en"
+  top: "stage_indicators"
+  top: "targets_en"
+  top: "cont_fr"
+  top: "cont_en"
+  top: "encoder_to_decoder"
   name: "data"
   type: HDF5_DATA
-  top: "encoder_data"
-  top: "decoder_data"
-  top: "stage_indicators"
-  top: "targets"
-  top: "encoder_cont"
-  top: "decoder_cont"
-  top: "encoder_to_decoder"
   hdf5_data_param {
-    source: "./wmt_hdf5/buffer_100/train_batches/hdf5_chunk_list.txt"
+    source: "./wmt_hdf5/fr_i-en_o/buffer_100/valid_batches/hdf5_chunk_list.txt"
+#     source: "./wmt_hdf5/fr_i-en_o/buffer_100/valid_batches/hdf5_chunk_list.batch0.txt"
     batch_size: 400
   }
-  include: { phase: TEST stage: "test-on-train" }
+  include { phase: TEST stage: "test-on-test" }
 }
-
-# layers {
-#   name: "embed"
-#   type: INNER_PRODUCT
-#   bottom: "data"
-#   top: "embed"
-#   blobs_lr: 1
-#   blobs_lr: 2
-#   weight_decay: 1
-#   weight_decay: 0
-#   inner_product_param {
-#     index_input_dim: 10000
-#     num_output: 500
-#     weight_filler {
-#       type: "uniform"
-#       min: -0.08
-#       max: 0.08
-#     }
-#     bias_filler {
-#       type: "constant"
-#       value: 0
-#     }
-#   }
-# }
-
-# convert indexed input data to one-hot
-# layers {
-#   name: "one_hot_encoder_data"
-#   type: IDX21HOT
-#   bottom: "encoder_data"
-#   top: "one_hot_encoder_data"
-#   idx21hot_param {
-#     dim: 80001
-#   }
-# }
 layers {
+  bottom: "data_fr"
+  top: "embed_encoder"
   name: "embed_encoder"
   type: INNER_PRODUCT
-  bottom: "encoder_data"
-  top: "embed_encoder"
   blobs_lr: 1
   blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
-    index_input_dim: 80001
-    num_output: 1000
+    num_output: 500
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -105,30 +70,20 @@ layers {
       type: "constant"
       value: 0
     }
+    index_input_dim: 80001
   }
 }
-
-# layers {
-#   name: "one_hot_decoder_data"
-#   type: IDX21HOT
-#   bottom: "decoder_data"
-#   top: "one_hot_decoder_data"
-#   idx21hot_param {
-#     dim: 160001
-#   }
-# }
 layers {
+  bottom: "data_en"
+  top: "embed_decoder"
   name: "embed_decoder"
   type: INNER_PRODUCT
-  bottom: "decoder_data"
-  top: "embed_decoder"
   blobs_lr: 1
   blobs_lr: 2
   weight_decay: 1
   weight_decay: 0
   inner_product_param {
-    index_input_dim: 160001
-    num_output: 1000
+    num_output: 500
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -138,17 +93,17 @@ layers {
       type: "constant"
       value: 0
     }
+    index_input_dim: 160001
   }
 }
-
 layers {
+  bottom: "embed_encoder"
+  bottom: "cont_fr"
+  top: "lstm1"
   name: "lstm1"
   type: LSTM
-  bottom: "embed_encoder"
-  bottom: "encoder_cont"
-  top: "lstm1"
   lstm_param {
-    hidden_dim: 1500
+    hidden_dim: 1000
     buffer_size: 100
     weight_filler {
       type: "uniform"
@@ -162,25 +117,24 @@ layers {
   }
 }
 layers {
-  name: "decoder_gate_1"
-  type: ELTWISE
   bottom: "lstm1"
   bottom: "encoder_to_decoder"
   top: "lstm1_decoder_input"
+  name: "decoder_gate_1"
+  type: ELTWISE
   eltwise_param {
     operation: SUM
     coeff_blob: true
   }
 }
-
 layers {
+  bottom: "lstm1"
+  bottom: "cont_fr"
+  top: "lstm2"
   name: "lstm2"
   type: LSTM
-  bottom: "lstm1"
-  bottom: "encoder_cont"
-  top: "lstm2"
   lstm_param {
-    hidden_dim: 1500
+    hidden_dim: 1000
     buffer_size: 100
     weight_filler {
       type: "uniform"
@@ -194,25 +148,24 @@ layers {
   }
 }
 layers {
-  name: "decoder_gate_2"
-  type: ELTWISE
   bottom: "lstm2"
   bottom: "encoder_to_decoder"
   top: "lstm2_decoder_input"
+  name: "decoder_gate_2"
+  type: ELTWISE
   eltwise_param {
     operation: SUM
     coeff_blob: true
   }
 }
-
 layers {
+  bottom: "lstm2"
+  bottom: "cont_fr"
+  top: "lstm3"
   name: "lstm3"
   type: LSTM
-  bottom: "lstm2"
-  bottom: "encoder_cont"
-  top: "lstm3"
   lstm_param {
-    hidden_dim: 1500
+    hidden_dim: 1000
     buffer_size: 100
     weight_filler {
       type: "uniform"
@@ -226,25 +179,24 @@ layers {
   }
 }
 layers {
-  name: "decoder_gate_3"
-  type: ELTWISE
   bottom: "lstm3"
   bottom: "encoder_to_decoder"
   top: "lstm3_decoder_input"
+  name: "decoder_gate_3"
+  type: ELTWISE
   eltwise_param {
     operation: SUM
     coeff_blob: true
   }
 }
-
 layers {
+  bottom: "lstm3"
+  bottom: "cont_fr"
+  top: "lstm4"
   name: "lstm4"
   type: LSTM
-  bottom: "lstm3"
-  bottom: "encoder_cont"
-  top: "lstm4"
   lstm_param {
-    hidden_dim: 1500
+    hidden_dim: 1000
     buffer_size: 100
     weight_filler {
       type: "uniform"
@@ -258,35 +210,31 @@ layers {
   }
 }
 layers {
-  name: "decoder_gate_4"
-  type: ELTWISE
   bottom: "lstm4"
   bottom: "encoder_to_decoder"
   top: "lstm4_decoder_input"
+  name: "decoder_gate_4"
+  type: ELTWISE
   eltwise_param {
     operation: SUM
     coeff_blob: true
   }
 }
-
-
 layers {
-  name: "concat"
-  type: CONCAT
   bottom: "embed_decoder"
   bottom: "lstm1_decoder_input"
   top: "embed_and_lstm1_decoder_input"
+  name: "concat"
+  type: CONCAT
 }
-
-# concatenate data with lstm output
 layers {
+  bottom: "embed_and_lstm1_decoder_input"
+  bottom: "cont_en"
+  top: "lstm1decode"
   name: "lstm1decode"
   type: LSTM
-  bottom: "embed_and_lstm1_decoder_input"
-  bottom: "decoder_cont"
-  top: "lstm1decode"
   lstm_param {
-    hidden_dim: 1500
+    hidden_dim: 1000
     buffer_size: 100
     weight_filler {
       type: "uniform"
@@ -299,22 +247,21 @@ layers {
     }
   }
 }
-
 layers {
-  name: "concat"
-  type: CONCAT
   bottom: "lstm1decode"
   bottom: "lstm2_decoder_input"
   top: "lstm1decode_and_lstm2_decoder_input"
+  name: "concat"
+  type: CONCAT
 }
 layers {
+  bottom: "lstm1decode_and_lstm2_decoder_input"
+  bottom: "cont_en"
+  top: "lstm2decode"
   name: "lstm2decode"
   type: LSTM
-  bottom: "lstm1decode_and_lstm2_decoder_input"
-  bottom: "decoder_cont"
-  top: "lstm2decode"
   lstm_param {
-    hidden_dim: 1500
+    hidden_dim: 1000
     buffer_size: 100
     weight_filler {
       type: "uniform"
@@ -327,22 +274,21 @@ layers {
     }
   }
 }
-
 layers {
-  name: "concat"
-  type: CONCAT
   bottom: "lstm2decode"
   bottom: "lstm3_decoder_input"
   top: "lstm2decode_and_lstm3_decoder_input"
+  name: "concat"
+  type: CONCAT
 }
 layers {
+  bottom: "lstm2decode_and_lstm3_decoder_input"
+  bottom: "cont_en"
+  top: "lstm3decode"
   name: "lstm3decode"
   type: LSTM
-  bottom: "lstm2decode_and_lstm3_decoder_input"
-  bottom: "decoder_cont"
-  top: "lstm3decode"
   lstm_param {
-    hidden_dim: 1500
+    hidden_dim: 1000
     buffer_size: 100
     weight_filler {
       type: "uniform"
@@ -355,22 +301,21 @@ layers {
     }
   }
 }
-
 layers {
-  name: "concat"
-  type: CONCAT
   bottom: "lstm3decode"
   bottom: "lstm4_decoder_input"
   top: "lstm3decode_and_lstm4_decoder_input"
+  name: "concat"
+  type: CONCAT
 }
 layers {
+  bottom: "lstm3decode_and_lstm4_decoder_input"
+  bottom: "cont_en"
+  top: "lstm4decode"
   name: "lstm4decode"
   type: LSTM
-  bottom: "lstm3decode_and_lstm4_decoder_input"
-  bottom: "decoder_cont"
-  top: "lstm4decode"
   lstm_param {
-    hidden_dim: 1500
+    hidden_dim: 1000
     buffer_size: 100
     weight_filler {
       type: "uniform"
@@ -383,13 +328,11 @@ layers {
     }
   }
 }
-
-
 layers {
-  name: "predict"
-  type: INNER_PRODUCT
   bottom: "lstm4decode"
   top: "predict"
+  name: "predict"
+  type: INNER_PRODUCT
   blobs_lr: 1
   blobs_lr: 2
   weight_decay: 1
@@ -407,45 +350,34 @@ layers {
     }
   }
 }
-
 layers {
-  name: "accuracy"
-  type: ACCURACY
   bottom: "predict"
-  bottom: "targets"
+  bottom: "targets_en"
+  bottom: "stage_indicators"
+  top: "cross_entropy_loss"
+  name: "cross_entropy_loss"
+  type: SOFTMAX_LOSS
+}
+layers {
+  bottom: "predict"
+  bottom: "targets_en"
   bottom: "stage_indicators"
   top: "accuracy"
+  name: "accuracy"
+  type: ACCURACY
   include { phase: TEST }
 }
 layers {
-  name: "cross_entropy_loss"
-  type: SOFTMAX_LOSS
-  bottom: "predict"
-  bottom: "targets"
-  bottom: "stage_indicators"
-  top: "cross_entropy_loss"
-  loss_weight: 0
-}
-layers {
-  type: SPLIT
   bottom: "cross_entropy_loss"
-  top: "cross_entropy_loss_copy"
-  top: "loss"
-  loss_weight: 0
-  loss_weight: 1
-}
-# perplexity = 2 ^ (log_2(e) * L), where L is the cross-entropy loss
-layers {
+  top: "perplexity"
   name: "perplexity"
   type: EXP
-  bottom: "cross_entropy_loss_copy"
-  top: "perplexity"
   exp_param {
     base: 2
-    scale: 1.44269504089 # ~= log_2(e)
+    scale: 1.442695
   }
+  include { phase: TEST }
 }
-
 # layers {
 #   name: "all_zero"
 #   type: DUMMY_DATA
