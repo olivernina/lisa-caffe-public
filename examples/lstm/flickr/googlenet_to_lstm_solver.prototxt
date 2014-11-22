@@ -8,7 +8,8 @@ test_state: { stage: 'test-on-val' }
 test_initialization: true
 test_interval: 1000
 test_net_reset: true
-base_lr: 0.1
+# base_lr: 0.1
+base_lr: 0.01
 lr_policy: "step"
 gamma: 0.5
 stepsize: 20000
