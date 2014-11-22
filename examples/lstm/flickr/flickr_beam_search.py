@@ -32,8 +32,8 @@ def preprocess_image(net, image_path):
   image = plt.imread(image_path)
   print 'Read image with shape %s, range (%f, %f) from: %s' % \
       (image.shape, image.min(), image.max(), image_path)
-  # Crop the center 224 / 256 of the image.
-  crop_edge_ratio = (256. - 224.) / 256. / 2
+  # Crop the center 227 / 256 of the image.
+  crop_edge_ratio = (256. - 227.) / 256. / 2
   ch = int(image.shape[0] * crop_edge_ratio + 0.5)
   cw = int(image.shape[1] * crop_edge_ratio + 0.5)
   cropped_image = image[ch:-ch, cw:-cw]
