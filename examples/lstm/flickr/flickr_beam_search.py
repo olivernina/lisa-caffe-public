@@ -252,11 +252,12 @@ def run_pred_iters(image_net, pred_net, images, image_gt_pairs,
     assert image_path not in outputs
     num_pairs += 1
     if descriptor_image_path != image_path:
-      try:
-        image_features = image_to_descriptor(image_net, image_path)
-      except:
-        print 'WARNING: could not compute image descriptor for image, skipping: %s' % image_path
-        continue
+      image_features = image_to_descriptor(image_net, image_path)
+#       try:
+#         image_features = image_to_descriptor(image_net, image_path)
+#       except:
+#         print 'WARNING: could not compute image descriptor for image, skipping: %s' % image_path
+#         continue
       descriptor_image_path = image_path
     outputs[image_path] = \
         run_pred_iter(pred_net, image_features, strategies=strategies)
@@ -527,7 +528,7 @@ def retrieval_caption_stats(caption_list, image_path, caption_scores,
   return caption_scores
 
 def retrieval_eval_image_to_caption(
-    caption_scores, image_path, image_index, cache_dir):
+    caption_scores, image_path, image_index, vocab, cache_dir):
   caption_scores_by_prob_desc = sorted(caption_scores, \
       key=lambda s: s['stats']['normed_perplex'])
   caption_scores_by_prob_per_word_desc = sorted(caption_scores, \
@@ -609,13 +610,14 @@ def retrieval_experiment(image_net, word_net, dataset, vocab, cache_dir):
   # Evaluate image to caption task.
   for image_index, image_path, descriptor in \
       zip(range(len(image_list)), image_list, descriptors):
+#       reversed(zip(range(len(image_list)), image_list, descriptors)):
     caption_scores[image_path] = retrieval_caption_scores(
         word_net, image_index, descriptor, caption_list, cache_dir)
     caption_stats[image_path] = retrieval_caption_stats(
         caption_list, image_path, caption_scores[image_path], image_index,
         cache_dir, mean_caption_scores)
     caption_recalls[image_path] = retrieval_eval_image_to_caption(
-        caption_stats[image_path], image_path, image_index, cache_dir)
+        caption_stats[image_path], image_path, image_index, vocab, cache_dir)
     for method, recall in caption_recalls[image_path].iteritems():
       if method not in all_recalls:
         all_recalls[method] = {}
@@ -774,16 +776,30 @@ def print_flickr_samples(sample_filename, out_filename):
 
 def main():
   # NET_FILE = './alexnet_to_lstm_net.deploy.prototxt'
-#   IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.batch50.deploy.prototxt'
-#   LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.batch500.deploy.prototxt'
+  IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.batch50.deploy.prototxt'
+  LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.batch5000.deploy.prototxt'
   IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.deploy.prototxt'
   LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.deploy.prototxt'
   # TAG = 'ft_all'
   # TAG = 'fc8_raw'
   # for TAG in ['ft_lm_plus_alexnet']:
   # for TAG in ['fc8_raw']:
-  for TAG in ['ft_all']:
-    if TAG == 'fc8_raw':
+  # for TAG in ['googlenet_class3_raw']:
+  for TAG in ['flickr_only']:
+    if TAG == 'googlenet_class3_raw':
+      ITER = 72000
+      MODEL_FILE = './snapshots/coco_flickr_30k_googlenet_to_lstm_2layer_' + \
+                   'lr0.01_mom_0.9_iter_%d.caffemodel' % ITER
+      # IMAGE_NET_FILE = './googlenet_to_lstm_net.image_to_class3.batch50.deploy.prototxt'
+      # LSTM_NET_FILE = './googlenet_to_lstm_net.word_to_preds.batch5000.deploy.prototxt'
+      IMAGE_NET_FILE = './googlenet_to_lstm_net.image_to_class3.deploy.prototxt'
+      LSTM_NET_FILE = './googlenet_to_lstm_net.word_to_preds.deploy.prototxt'
+    elif TAG == 'flickr_only':
+      ITER = 25000
+      LSTM_NET_FILE = './alexnet_to_lstm2layer_net.word_to_preds.batch5000.deploy.prototxt'
+      MODEL_FILE = './snapshots/flickr_30k_alexnet_to_lstm_2layer_' + \
+                   'lr0.01_mom_0.9_drop_after_dup_iter_%d.caffemodel' % ITER
+    elif TAG == 'fc8_raw':
       ITER = 37000
       MODEL_FILE = './snapshots/coco_flickr_30k_alexnet_to_lstm_4layer_' + \
                    'lr0.1_mom_0.9_iter_%d.caffemodel' % ITER
@@ -816,34 +832,41 @@ def main():
       else:
         net.set_mode_cpu()
 
-    RESULTS_DIR = './html_results_kiros'
+    RESULTS_DIR = './multiresults_googlenet_vs_alexnet/'
     STRATEGIES = [
-#       {'type': 'sample', 'temp': 0.75, 'num': 3},
-#       {'type': 'sample', 'temp': 1.0, 'num': 3},
-#       {'type': 'sample', 'temp': 3.0, 'num': 3},
-#       {'type': 'sample', 'temp': 5.0, 'num': 3},
-#       {'type': 'beam', 'beam_size': 1},
-#       {'type': 'beam', 'beam_size': 3},
+      {'type': 'sample', 'temp': 0.75, 'num': 3},
+      {'type': 'sample', 'temp': 1.0, 'num': 3},
+      {'type': 'sample', 'temp': 3.0, 'num': 3},
+      {'type': 'sample', 'temp': 5.0, 'num': 3},
+      {'type': 'beam', 'beam_size': 1},
+      {'type': 'beam', 'beam_size': 3},
       {'type': 'beam', 'beam_size': 5},
     ]
     NUM_CHUNKS = 100
     NUM_OUT_PER_CHUNK = 10
-    START_CHUNK = 20
+    START_CHUNK = 0
     # START_CHUNK = 5
 
     _, _, val_datasets = DATASETS[1]
-    flickr_dataset = [val_datasets[0]]
-    coco_dataset = [val_datasets[1]]
-    datasets = [flickr_dataset]
-    dataset_names = ['flickr30k', 'coco']
+    _, _, test_datasets = DATASETS[2]
+#     flickr_dataset = [val_datasets[0]]
+#     coco_dataset = [val_datasets[1]]
+#     flickr_dataset = [test_datasets[0]]
+#     coco_dataset = [test_datasets[1]]
+    dataset_name = 'coco'
+    datasets = [d[2] for d in DATASETS if d[0] == 'valid_coco']
+#     dataset_names = ['flickr30k', 'coco']
+    dataset_names = [dataset_name]
 
-    do_retrieval_experiment = False
+    # do_retrieval_experiment = False
+    do_retrieval_experiment = True
     if do_retrieval_experiment:
+      flickr_dataset = [d[2] for d in DATASETS if d[0] == 'test_flickr'][0]
       fsg = FlickrSequenceGenerator(flickr_dataset, VOCAB_FILE, 0, align=False, shuffle=False)
       image_gt_pairs = all_image_gt_pairs(fsg)
       eos_string = '<EOS>'
       vocab = [eos_string] + fsg.vocabulary_inverted
-      retrieval_cache_dir = './cocoflickr/flickr_val_retrieval/%s' % NET_TAG
+      retrieval_cache_dir = './cocoflickr/flickr_test_retrieval/%s' % NET_TAG
 #     retrieval_cache_dir = './cocoflickr/mini_flickr_val_retrieval/%s' % NET_TAG
 #     mini_num = 10
 #     mini_image_gt_pairs = {}
@@ -869,7 +892,8 @@ def main():
         for c in range(START_CHUNK, NUM_CHUNKS):
           chunk_start = c * NUM_OUT_PER_CHUNK
           chunk_end = (c + 1) * NUM_OUT_PER_CHUNK
-          chunk = kiros_images[chunk_start:chunk_end]
+          chunk = image_gt_pairs.keys()[chunk_start:chunk_end]
+          # chunk = image_gt_pairs[chunk_start:chunk_end]
           html_out_filename = '%s/%s.%s.%d_to_%d.html' % \
               (RESULTS_DIR, dataset_name, NET_TAG, chunk_start, chunk_end)
           if os.path.exists(html_out_filename):
@@ -888,7 +912,7 @@ def main():
           print 'Wrote HTML output to:', html_out_filename
 
 if __name__ == "__main__":
-  # main()
-  sample_temp = 'inf'
-  sample_filename = flickr_sample_all(sample_temp=sample_temp)
-  print_flickr_samples(sample_filename, sample_filename + '.top.out.txt')
+  main()
+#   sample_temp = 'inf'
+#   sample_filename = flickr_sample_all(sample_temp=sample_temp)
+#   print_flickr_samples(sample_filename, sample_filename + '.top.out.txt')
