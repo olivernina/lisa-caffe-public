@@ -28,7 +28,7 @@ layers {
   top: "stage_indicators"
   hdf5_data_param {
     source: "./cocoflickr/coco_flickr30k_hdf5/buffer_100_maxwords_20/train_batches/hdf5_chunk_list.txt"
-    batch_size: 400
+    batch_size: 2000
   }
   include: { phase: TRAIN }
 }
@@ -59,9 +59,22 @@ layers {
   top: "stage_indicators"
   hdf5_data_param {
     source: "./cocoflickr/coco_flickr30k_hdf5/buffer_100_maxwords_20/train_batches/hdf5_chunk_list.txt"
-    batch_size: 400
+    batch_size: 2000
   }
   include: { phase: TEST stage: "test-on-train" }
+}
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "cont_sentence"
+  top: "input_sentence"
+  top: "target_sentence"
+  top: "stage_indicators"
+  hdf5_data_param {
+    source: "./cocoflickr/coco_flickr30k_hdf5/buffer_100_maxwords_20/valid_batches/hdf5_chunk_list.txt"
+    batch_size: 2000
+  }
+  include: { phase: TEST stage: "test-on-val" }
 }
 # layers {
 #   name: "data"
@@ -560,7 +573,7 @@ layers {
   top: "batch_loss_sum"
   reduction_param {
     operation: SUM
-    coeff: 400 # undo divide by batch size
+    coeff: 2000 # undo divide by batch size
   }
 }
 layers {
