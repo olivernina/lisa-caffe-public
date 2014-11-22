@@ -15,7 +15,7 @@ layers {
   top: "encoder_to_decoder"
   hdf5_data_param {
     source: "./wmt_hdf5/fr_o-en_i/buffer_100/train_batches/hdf5_chunk_list.txt"
-    batch_size: 2000
+    batch_size: 3000
   }
   include: { phase: TRAIN }
 }
@@ -96,7 +96,7 @@ layers {
     index_input_dim: 160001
     num_output: 1000
 #     backward_update_lr: 0.7
-    backward_update_lr: 1.0
+    backward_update_lr: 0.4096
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -127,7 +127,7 @@ layers {
     index_input_dim: 80001
     num_output: 1000
 #     backward_update_lr: 0.7
-    backward_update_lr: 1.0
+    backward_update_lr: 0.4096
     weight_filler {
       type: "uniform"
       min: -0.08
@@ -428,7 +428,8 @@ layers {
   top: "loss"
   loss_weight: 0
 #   loss_weight: 20 # undo division by sequence length
-  loss_weight: 25 # undo division by sequence length
+#   loss_weight: 25 # undo division by sequence length
+  loss_weight: 37.5 # undo division by sequence length
 }
 layers {
   type: REDUCTION
@@ -436,7 +437,7 @@ layers {
   top: "batch_loss_sum"
   reduction_param {
     operation: SUM
-    coeff: 2000 # undo division by batch size
+    coeff: 3000 # undo division by batch size
   }
 }
 layers {
