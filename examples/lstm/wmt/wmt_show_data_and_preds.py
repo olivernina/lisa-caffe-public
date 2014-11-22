@@ -46,10 +46,21 @@ DEVICE_ID = 3
 # MODEL_FILE = './snapshots/wmt_fixed_lstm_two_layer_input_skips_1000d_400d_lr0.1_mom0.9_bs400_buf20_iter_82000.caffemodel'
 # NET_FILE = './wmt_lstm_2layer_inputskips_eval_net.prototxt'
 
+# DATA_FILE = './wmt_hdf5/fr_o-en_i/buffer_100/train_batches/batch_0.h5'
+# LANGS = ['fr', 'en']
+# VOCAB_FILES = ['./wmt_hdf5/fr_o-en_i/buffer_100/vocabulary.%s.txt' % lang for lang in LANGS]
+# # MODEL_FILE = './snapshots/wmt_en2fr_lstm_four_layer_enc_dec_lr0.7_mom0.0_bs2000_embed1000_undoseqlengthdiv_iter_55000.caffemodel'
+# MODEL_FILE = './snapshots/wmt_en2fr_lstm_four_layer_enc_dec_lr1.0_mom0.0_force_backward_iter_5000.caffemodel'
+# # MODEL_FILE = './debug_param_save/snapshot_iter_50.caffemodel'
+# NET_FILE = './wmt_dec_enc_lstm_4layer_net.en_to_fr.prototxt'
+
 DATA_FILE = './wmt_hdf5/fr_o-en_i/buffer_100/train_batches/batch_0.h5'
 LANGS = ['fr', 'en']
 VOCAB_FILES = ['./wmt_hdf5/fr_o-en_i/buffer_100/vocabulary.%s.txt' % lang for lang in LANGS]
-MODEL_FILE = './snapshots/wmt_en2fr_lstm_four_layer_enc_dec_lr0.7_mom0.0_bs2000_embed1000_undoseqlengthdiv_iter_10000.caffemodel'
+# MODEL_FILE = './snapshots/wmt_en2fr_lstm_four_layer_enc_dec_lr0.7_mom0.0_bs2000_embed1000_undoseqlengthdiv_iter_55000.caffemodel'
+# MODEL_FILE = './snapshots/wmt_en2fr_lstm_four_layer_enc_dec_lr1.0_mom0.0_force_backward_no_decoder_input_iter_17000.caffemodel'
+MODEL_FILE = './snapshots/wmt_en2fr_lstm_four_layer_enc_dec_lr1.0_mom0.0_force_backward_iter_81000.caffemodel'
+# NET_FILE = './wmt_dec_enc_lstm_4layer_net.no_decoder_input.en_to_fr.prototxt'
 NET_FILE = './wmt_dec_enc_lstm_4layer_net.en_to_fr.prototxt'
 
 import h5py
@@ -110,6 +121,8 @@ def do_iteration():
   print 'Keys: ', data.keys()
   if 'net_accuracy' in data:
     print "Accuracy: %f" % data['net_accuracy']
+  if 'net_perplexity' in data:
+    print "Perplexity: %f" % data['net_perplexity']
 
   h5file = h5py.File(DATA_FILE)
 
@@ -173,7 +186,7 @@ def do_iteration():
                                  for i in range(len(sdata))]
   return shaped_data
 
-num_iterations = 10
+num_iterations = 50
 # num_iterations = 1
 num_streams = 100
 num_timesteps = -1
@@ -241,7 +254,7 @@ for iteration in range(num_iterations):
         except:
           import pdb; pdb.set_trace()
         row.append(item)
-      row.append('correct' if row[-1] == row[-3] else '')
+      row.append('correct' if row[-1] == row[-2] else '')
       table.append(row)
 
 try:
