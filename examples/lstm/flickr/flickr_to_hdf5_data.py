@@ -202,36 +202,49 @@ COCO_IMAGE_ID_PATTERN = 'COCO_%s2014_%%012d.jpg'
 
 BUFFER_SIZE = 100
 DATASETS = [
-  ('train', 200000, [{
+#   ('train', 200000, [{
+#     'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'train',
+#     'image_root' : FLICKR30K_IMAGE_PATTERN % 'train',
+#     'caption_list' : FLICKR30K_CAPTION_PATTERN % 'train',
+#   }, {
+#     'image_list' : COCO_IMAGE_LIST_PATTERN % 'train',
+#     'image_root' : COCO_IMAGE_PATTERN % 'train',
+#     'caption_list' : COCO_CAPTION_PATTERN % 'train',
+#     'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'train'
+#   }]),
+  ('train_flickr', 200000, [{
     'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'train',
     'image_root' : FLICKR30K_IMAGE_PATTERN % 'train',
     'caption_list' : FLICKR30K_CAPTION_PATTERN % 'train',
-   }, {
+  }]),
+  ('train_coco', 200000, [{
     'image_list' : COCO_IMAGE_LIST_PATTERN % 'train',
     'image_root' : COCO_IMAGE_PATTERN % 'train',
     'caption_list' : COCO_CAPTION_PATTERN % 'train',
     'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'train'
-   }]),
-  ('valid', 200000, [{
+  }]),
+  ('valid_flickr', 200000, [{
     'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'val',
     'image_root' : FLICKR30K_IMAGE_PATTERN % 'val',
     'caption_list' : FLICKR30K_CAPTION_PATTERN % 'val',
-   }, {
+  }]),
+  ('valid_coco', 200000, [{
     'image_list' : COCO_IMAGE_LIST_PATTERN % 'val',
     'image_root' : COCO_IMAGE_PATTERN % 'val',
     'caption_list' : COCO_CAPTION_PATTERN % 'val',
     'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'val'
-   }]),
-  ('test', 200000, [{
+  }]),
+  ('test_flickr', 200000, [{
     'image_list' : FLICKR30K_IMAGE_LIST_PATTERN % 'test',
     'image_root' : FLICKR30K_IMAGE_PATTERN % 'test',
     'caption_list' : FLICKR30K_CAPTION_PATTERN % 'test',
-   }, {
+  }]),
+  ('test_coco', 200000, [{
     'image_list' : COCO_IMAGE_LIST_PATTERN % 'test',
     'image_root' : COCO_IMAGE_PATTERN % 'test',
     'caption_list' : COCO_CAPTION_PATTERN % 'test',
     'image_id_to_name': COCO_IMAGE_ID_PATTERN % 'val'
-   }]),
+  }]),
 ]
 MAX_WORDS = 20
 OUTPUT_DIR = './cocoflickr/coco_flickr30k_hdf5/buffer_%d_maxwords_%d' % (BUFFER_SIZE, MAX_WORDS)
