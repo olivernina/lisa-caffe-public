@@ -6,7 +6,7 @@ ROOT=\
 LISTFILE=\
 $ROOT/${SET_NAME}_batches/image_list.with_dummy_labels.txt
 OUT_DB_ROOT=\
-$ROOT/lmdb/${SET_NAME}
+$ROOT/lmdb
 OUT_DB_NAME=\
 ${OUT_DB_ROOT}/${SET_NAME}
 
