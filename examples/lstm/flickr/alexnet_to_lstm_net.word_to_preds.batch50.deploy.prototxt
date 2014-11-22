@@ -1,19 +1,19 @@
 name: "caffenet_to_lstm"
 
 input: "image_features"
-input_dim: 500
+input_dim: 1
 input_dim: 1000
 input_dim: 1
 input_dim: 1
 
 input: "cont_sentence"
-input_dim: 500
+input_dim: 1
 input_dim: 1
 input_dim: 1
 input_dim: 1
 
 input: "input_sentence"
-input_dim: 500
+input_dim: 1
 input_dim: 1
 input_dim: 1
 input_dim: 1
@@ -41,7 +41,7 @@ layers {
   top: "lstm1"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 500
+    buffer_size: 1
   }
 }
 layers {
@@ -59,7 +59,7 @@ layers {
   top: "lstm2"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 500
+    buffer_size: 1
   }
 }
 layers {
@@ -70,7 +70,7 @@ layers {
   top: "lstm3"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 500
+    buffer_size: 1
   }
 }
 layers {
@@ -81,7 +81,7 @@ layers {
   top: "lstm4"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 500
+    buffer_size: 1
   }
 }
 layers {
@@ -102,10 +102,4 @@ layers {
   type: SOFTMAX
   bottom: "predict"
   top: "probs"
-}
-layers {
-  name: "samples"
-  type: SAMPLE
-  bottom: "probs"
-  top: "samples"
 }

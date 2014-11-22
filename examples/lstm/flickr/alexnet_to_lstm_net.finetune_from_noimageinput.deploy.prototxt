@@ -1,19 +1,19 @@
 name: "caffenet_to_lstm"
 
 input: "image_features"
-input_dim: 500
+input_dim: 1
 input_dim: 1000
 input_dim: 1
 input_dim: 1
 
 input: "cont_sentence"
-input_dim: 500
+input_dim: 1
 input_dim: 1
 input_dim: 1
 input_dim: 1
 
 input: "input_sentence"
-input_dim: 500
+input_dim: 1
 input_dim: 1
 input_dim: 1
 input_dim: 1
@@ -31,6 +31,11 @@ layers {
     # wc -l cocoflickr/flickr30k_hdf5/buffer_100_maxwords_20/vocabulary.txt
     # 41718 cocoflickr/flickr30k_hdf5/buffer_100_maxwords_20/vocabulary.txt
     num_output: 1000
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
   }
 }
 layers {
@@ -41,14 +46,23 @@ layers {
   top: "lstm1"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 500
+    buffer_size: 100
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
 }
 layers {
-  name: "lstm2_input"
-  type: CONCAT
+  name: "sum_lstm2_input"
+  type: ELTWISE
+  bottom: "fc8-duped"
   bottom: "lstm1"
-  bottom: "image_features"
   top: "lstm2_input"
 }
 layers {
@@ -59,7 +73,16 @@ layers {
   top: "lstm2"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 500
+    buffer_size: 100
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
 }
 layers {
@@ -70,7 +93,16 @@ layers {
   top: "lstm3"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 500
+    buffer_size: 100
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
 }
 layers {
@@ -81,7 +113,16 @@ layers {
   top: "lstm4"
   lstm_param {
     hidden_dim: 1000
-    buffer_size: 500
+    buffer_size: 100
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
 }
 layers {
@@ -95,6 +136,15 @@ layers {
   weight_decay: 0
   inner_product_param {
     num_output: 41719
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
   }
 }
 layers {
@@ -102,10 +152,4 @@ layers {
   type: SOFTMAX
   bottom: "predict"
   top: "probs"
-}
-layers {
-  name: "samples"
-  type: SAMPLE
-  bottom: "probs"
-  top: "samples"
 }

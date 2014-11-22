@@ -63,31 +63,9 @@ layers {
   }
 }
 layers {
-  name: "lstm3"
-  type: LSTM
-  bottom: "lstm2"
-  bottom: "cont_sentence"
-  top: "lstm3"
-  lstm_param {
-    hidden_dim: 1000
-    buffer_size: 500
-  }
-}
-layers {
-  name: "lstm4"
-  type: LSTM
-  bottom: "lstm3"
-  bottom: "cont_sentence"
-  top: "lstm4"
-  lstm_param {
-    hidden_dim: 1000
-    buffer_size: 500
-  }
-}
-layers {
   name: "predict"
   type: INNER_PRODUCT
-  bottom: "lstm4"
+  bottom: "lstm2"
   top: "predict"
   blobs_lr: 1
   blobs_lr: 2

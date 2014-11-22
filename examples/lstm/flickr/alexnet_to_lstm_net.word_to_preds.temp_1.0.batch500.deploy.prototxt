@@ -105,7 +105,8 @@ layers {
 }
 layers {
   name: "samples"
-  type: SAMPLE
+  type: ARGMAX
   bottom: "probs"
   top: "samples"
+  argmax_param { top_k: 2 }
 }

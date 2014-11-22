@@ -98,9 +98,16 @@ layers {
   }
 }
 layers {
+  name: "temp"
+  type: POWER
+  bottom: "predict"
+  top: "predict_temp"
+  power_param { scale: 3.0 }
+}
+layers {
   name: "probs"
   type: SOFTMAX
-  bottom: "predict"
+  bottom: "predict_temp"
   top: "probs"
 }
 layers {

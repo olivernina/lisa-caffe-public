@@ -18,6 +18,54 @@ input_dim: 1
 input_dim: 1
 input_dim: 1
 
+input: "lstm1_h_0"
+input_dim: 500
+input_dim: 1000
+input_dim: 1
+input_dim: 1
+
+input: "lstm1_c_0"
+input_dim: 500
+input_dim: 1000
+input_dim: 1
+input_dim: 1
+
+input: "lstm2_h_0"
+input_dim: 500
+input_dim: 1000
+input_dim: 1
+input_dim: 1
+
+input: "lstm2_c_0"
+input_dim: 500
+input_dim: 1000
+input_dim: 1
+input_dim: 1
+
+input: "lstm3_h_0"
+input_dim: 500
+input_dim: 1000
+input_dim: 1
+input_dim: 1
+
+input: "lstm3_c_0"
+input_dim: 500
+input_dim: 1000
+input_dim: 1
+input_dim: 1
+
+input: "lstm4_h_0"
+input_dim: 500
+input_dim: 1000
+input_dim: 1
+input_dim: 1
+
+input: "lstm4_c_0"
+input_dim: 500
+input_dim: 1000
+input_dim: 1
+input_dim: 1
+
 # sentence generation layers
 layers {
   name: "embedding"
@@ -38,7 +86,10 @@ layers {
   type: LSTM
   bottom: "embedded_input_sentence"
   bottom: "cont_sentence"
+  bottom: "lstm1_h_0"
+  bottom: "lstm1_c_0"
   top: "lstm1"
+  top: "lstm1_c_T"
   lstm_param {
     hidden_dim: 1000
     buffer_size: 500
@@ -56,7 +107,10 @@ layers {
   type: LSTM
   bottom: "lstm2_input"
   bottom: "cont_sentence"
+  bottom: "lstm2_h_0"
+  bottom: "lstm2_c_0"
   top: "lstm2"
+  top: "lstm2_c_T"
   lstm_param {
     hidden_dim: 1000
     buffer_size: 500
@@ -67,7 +121,10 @@ layers {
   type: LSTM
   bottom: "lstm2"
   bottom: "cont_sentence"
+  bottom: "lstm3_h_0"
+  bottom: "lstm3_c_0"
   top: "lstm3"
+  top: "lstm3_c_T"
   lstm_param {
     hidden_dim: 1000
     buffer_size: 500
@@ -78,7 +135,10 @@ layers {
   type: LSTM
   bottom: "lstm3"
   bottom: "cont_sentence"
+  bottom: "lstm4_h_0"
+  bottom: "lstm4_c_0"
   top: "lstm4"
+  top: "lstm4_c_T"
   lstm_param {
     hidden_dim: 1000
     buffer_size: 500
@@ -105,7 +165,8 @@ layers {
 }
 layers {
   name: "samples"
-  type: SAMPLE
+  type: ARGMAX
   bottom: "probs"
   top: "samples"
+  argmax_param { top_k: 2 }
 }
