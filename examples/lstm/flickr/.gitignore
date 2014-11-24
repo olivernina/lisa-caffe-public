@@ -1,0 +1,14 @@
+coco2014
+cocoflickr
+flickr1M
+flickr30k
+
+googlenet
+logs
+results
+snapshots
+vocabs
+
+compare_kiros
+
+html_*results*/
