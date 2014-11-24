@@ -1,0 +1,34 @@
+net: "./alexnet_to_lstm_net.2layer.prototxt"
+# train_state: { stage: 'freeze-convnet' }
+# train_state: { stage: 'flickr30k' }
+train_state: { stage: 'flickr30k' stage: 'drop-after-dup' }
+test_iter: 25
+test_state: { stage: 'test-on-train' stage: 'flickr30k' }
+test_iter: 25
+test_state: { stage: 'test-on-val' stage: 'flickr30k' }
+# test_initialization: false
+test_interval: 1000
+test_net_reset: true
+# base_lr: 0.025
+base_lr: 0.01
+# base_lr: 0.1
+# base_lr: 0.00625
+# base_lr: 0.7
+lr_policy: "step"
+gamma: 0.5
+stepsize: 10000
+display: 1
+max_iter: 110000
+momentum: 0.9
+# weight_decay: 0.0005
+weight_decay: 0.0000
+snapshot: 5000
+snapshot_prefix: "snapshots/flickr_30k_alexnet_to_lstm_2layer_lr0.01_mom_0.9_drop_after_dup"
+# snapshot_prefix: "snapshots/flickr_30k_alexnet_to_lstm_2layer_lr0.01_mom_0.9_drop_after_dup"
+solver_mode: GPU
+# debug_info: true
+random_seed: 1701
+average_loss: 100
+clip_gradients: 10
+# clip_gradients: 25
+snapshot_blobs_hdf5: false
