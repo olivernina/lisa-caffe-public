@@ -1,0 +1,6 @@
+results/
+snapshots
+wmt14_data
+wmt_char_hdf5
+wmt_hdf5
+wmt_logs
