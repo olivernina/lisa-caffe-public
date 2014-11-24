@@ -5,3 +5,8 @@ ptb_vocabulary.txt
 train_batches/
 valid_batches/
 test_batches/
+
+results/
+
+ptb_data
+snapshots
