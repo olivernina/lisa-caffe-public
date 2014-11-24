@@ -1,0 +1,21 @@
+net: "./wmt_dec_enc_lstm_4layer_net.500dembed.prototxt"
+# test_iter: 50
+# test_state: { stage: 'test-on-train' }
+# test_iter: 50
+# test_state: { stage: 'test-on-test' }
+test_interval: 1000
+base_lr: 0.1
+display: 1
+max_iter: 110000
+lr_policy: "step"
+gamma: 0.5
+momentum: 0.9
+weight_decay: 0
+stepsize: 20000
+snapshot: 1000
+snapshot_prefix: "snapshots/wmt_lstm_four_layer_enc_dec_lr0.1_mom0.9_alloptimizations_bs1600_embed500"
+solver_mode: GPU
+random_seed: 1701
+average_loss: 100
+test_net_reset: true
+clip_gradients: 5

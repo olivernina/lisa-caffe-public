@@ -1,0 +1,398 @@
+name: "CaffeNet"
+
+# input data
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "stage_indicators"
+  top: "data_en"
+  top: "data_fr"
+  top: "cont"
+  top: "cont_en"
+  top: "cont_fr"
+  top: "targets_en"
+  top: "targets_fr"
+  hdf5_data_param {
+    source: "./wmt_char_hdf5/fr_io-en_io/buffer_100/train_batches/hdf5_chunk_list.txt"
+    batch_size: 10000
+  }
+  include: { phase: TRAIN }
+}
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "stage_indicators"
+  top: "data_en"
+  top: "data_fr"
+  top: "cont"
+  top: "cont_en"
+  top: "cont_fr"
+  top: "targets_en"
+  top: "targets_fr"
+  hdf5_data_param {
+    source: "./wmt_char_hdf5/fr_io-en_io/buffer_100/valid_batches/hdf5_chunk_list.txt"
+    batch_size: 500
+  }
+  include: { phase: TEST stage: "test-on-test" }
+}
+layers {
+  name: "data"
+  type: HDF5_DATA
+  top: "stage_indicators"
+  top: "data_en"
+  top: "data_fr"
+  top: "targets_en"
+  top: "targets_fr"
+  top: "cont"
+  top: "cont_en"
+  top: "cont_fr"
+  top: "cont"
+  hdf5_data_param {
+    source: "./wmt_char_hdf5/fr_io-en_io/buffer_100/train_batches/hdf5_chunk_list.txt"
+    batch_size: 500
+  }
+  include: { phase: TEST stage: "test-on-train" }
+}
+
+# convert indexed input data to one-hot
+layers {
+  name: "one_hot_encoder_data"
+  type: IDX21HOT
+  bottom: "data_fr"
+  top: "one_hot_data_fr"
+  idx21hot_param {
+    dim: 258
+  }
+}
+layers {
+  name: "one_hot_decoder_data"
+  type: IDX21HOT
+  bottom: "data_en"
+  top: "one_hot_data_en"
+  idx21hot_param {
+    dim: 258
+  }
+}
+
+layers {
+  name: "concat"
+  type: CONCAT
+  bottom: "one_hot_data_fr"
+  bottom: "stage_indicators"
+  top: "input_sequence_fr"
+}
+
+layers {
+  name: "lstm1_fr"
+  type: LSTM
+  bottom: "input_sequence_fr"
+  bottom: "cont_fr"
+  top: "lstm1_fr"
+  lstm_param {
+    hidden_dim: 500
+    buffer_size: 100
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "concat"
+  type: CONCAT
+  bottom: "one_hot_data_en"
+  bottom: "stage_indicators"
+  top: "input_sequence_en"
+}
+
+layers {
+  name: "lstm1_en"
+  type: LSTM
+  bottom: "input_sequence_en"
+  bottom: "cont_en"
+  top: "lstm1_en"
+  lstm_param {
+    hidden_dim: 500
+    buffer_size: 100
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "concat"
+  type: CONCAT
+  bottom: "lstm1_en"
+  bottom: "lstm1_fr"
+  top: "lstm1"
+}
+
+layers {
+  name: "lstm2"
+  type: LSTM
+  bottom: "lstm1"
+  bottom: "cont"
+  top: "lstm2"
+  lstm_param {
+    hidden_dim: 500
+    buffer_size: 100
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "lstm3"
+  type: LSTM
+  bottom: "lstm2"
+  bottom: "cont"
+  top: "lstm3"
+  lstm_param {
+    hidden_dim: 500
+    buffer_size: 100
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "concat"
+  type: CONCAT
+  bottom: "lstm3"
+  bottom: "input_sequence_fr"
+  top: "lstm4_fr_input"
+}
+
+layers {
+  name: "lstm4_fr"
+  type: LSTM
+  bottom: "lstm4_fr_input"
+  bottom: "cont"
+  top: "lstm4_fr"
+  lstm_param {
+    hidden_dim: 500
+    buffer_size: 100
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "predict_fr"
+  type: INNER_PRODUCT
+  bottom: "lstm4_fr"
+  top: "predict_fr"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 258
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "accuracy_fr"
+  type: ACCURACY
+  bottom: "predict_fr"
+  bottom: "targets_fr"
+  bottom: "stage_indicators"
+  top: "accuracy_fr"
+#   include { phase: TEST }
+}
+
+layers {
+  name: "cross_entropy_loss_fr"
+  type: SOFTMAX_LOSS
+  bottom: "predict_fr"
+  bottom: "targets_fr"
+  bottom: "stage_indicators"
+  top: "cross_entropy_loss_fr"
+#   loss_weight: 0
+  loss_weight: 1
+}
+
+# layers {
+#   type: SPLIT
+#   bottom: "cross_entropy_loss_fr"
+#   top: "cross_entropy_loss_fr_copy"
+#   top: "loss"
+#   loss_weight: 0
+#   loss_weight: 1
+# }
+# 
+# # perplexity = 2 ^ (log_2(e) * L), where L is the cross-entropy loss
+# layers {
+#   name: "perplexity_fr"
+#   type: EXP
+#   bottom: "cross_entropy_loss_fr_copy"
+#   top: "perplexity_fr"
+#   exp_param {
+#     base: 2
+#     scale: 1.44269504089 # ~= log_2(e)
+#   }
+# }
+
+layers {
+  name: "concat"
+  type: CONCAT
+  bottom: "lstm3"
+  bottom: "input_sequence_en"
+  top: "lstm4_en_input"
+}
+
+layers {
+  name: "lstm4_en"
+  type: LSTM
+  bottom: "lstm4_en_input"
+  bottom: "cont"
+  top: "lstm4_en"
+  lstm_param {
+    hidden_dim: 500
+    buffer_size: 100
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "predict_en"
+  type: INNER_PRODUCT
+  bottom: "lstm4_en"
+  top: "predict_en"
+  blobs_lr: 1
+  blobs_lr: 2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 258
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layers {
+  name: "accuracy_en"
+  type: ACCURACY
+  bottom: "predict_en"
+  bottom: "targets_en"
+  bottom: "stage_indicators"
+  top: "accuracy_en"
+#   include { phase: TEST }
+}
+
+layers {
+  name: "cross_entropy_loss_en"
+  type: SOFTMAX_LOSS
+  bottom: "predict_en"
+  bottom: "targets_en"
+  bottom: "stage_indicators"
+  top: "cross_entropy_loss_en"
+  loss_weight: 1
+}
+
+# layers {
+#   type: SPLIT
+#   bottom: "cross_entropy_loss_en"
+#   top: "cross_entropy_loss_en_copy"
+#   top: "loss"
+#   loss_weight: 0
+#   loss_weight: 1
+# }
+# 
+# # perplexity = 2 ^ (log_2(e) * L), where L is the cross-entropy loss
+# layers {
+#   name: "perplexity_en"
+#   type: EXP
+#   bottom: "cross_entropy_loss_en_copy"
+#   top: "perplexity_en"
+#   exp_param {
+#     base: 2
+#     scale: 1.44269504089 # ~= log_2(e)
+#   }
+# }
+
+# layers {
+#   name: "all_zero"
+#   type: DUMMY_DATA
+#   top: "all_zero"
+#   dummy_data_param {
+#     num: 1620
+#     channels: 1
+#     height: 1
+#     width: 1
+#   }
+# }
+# layers {
+#   name: "all_zero_pred"
+#   type: IDX21HOT
+#   bottom: "all_zero"
+#   top: "all_zero_pred"
+#   idx21hot_param {
+#     dim: 10000
+#   }
+# }
+# layers {
+#   name: "all_zero_accuracy"
+#   type: ACCURACY
+#   bottom: "all_zero_pred"
+#   bottom: "targets"
+#   top: "all_zero_accuracy"
+# }

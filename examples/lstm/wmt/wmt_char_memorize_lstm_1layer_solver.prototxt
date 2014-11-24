@@ -1,0 +1,27 @@
+# net: "./wmt_char_memorize_lstm_1layer_net.prototxt"
+net: "./wmt_char_lstm_1layer_net.prototxt"
+test_iter: 50
+test_state: { stage: 'test-on-train' }
+test_iter: 50
+test_state: { stage: 'test-on-test' }
+test_interval: 1000
+test_net_reset: true
+base_lr: 0.1
+# base_lr: 0.7
+lr_policy: "step"
+gamma: 0.5
+stepsize: 20000
+display: 1
+max_iter: 110000
+momentum: 0.9
+# weight_decay: 0.0005
+weight_decay: 0.0000
+snapshot: 1000
+# snapshot_prefix: "snapshots/wmt_char_memorize_1layer_lr0.1_mom_0.9_nesterov"
+snapshot_prefix: "snapshots/wmt_char_memorize_2layer_input_skips_output_from_hidden_no_diag_cell_gates_lr0.1_mom0.9_sgd"
+solver_mode: GPU
+solver_type: SGD
+# debug_info: true
+random_seed: 1701
+average_loss: 100
+clip_gradients: 5
