@@ -530,7 +530,7 @@ layers {
   dropout_param {
     dropout_ratio: 0.5
   }
-  exclude { stage: 'drop-after-dup' }
+  include { stage: 'drop-before-dup' }
 }
 layers {
   name: "fc8-split"
@@ -556,6 +556,7 @@ layers {
   top: "fc8-18"
   top: "fc8-19"
   top: "fc8-20"
+  exclude { stage: 'image-once' }
 }
 layers {
   name: "fc8-concat"
@@ -582,6 +583,7 @@ layers {
   bottom: "fc8-19"
   bottom: "fc8-20"
   top: "fc8-duped"
+  exclude { stage: 'image-once' }
 }
 layers {
   name: "drop8"
@@ -615,6 +617,18 @@ layers {
   }
 }
 
+# SINGLE IMAGE APPEARANCE representation:
+# LSTM1 takes image at t=0, sentence for t=1:T
+layers {
+  name: "fc8-concat-with-sentence"
+  type: CONCAT
+  concat_param { concat_dim: 0 }
+  bottom: "fc8"
+  bottom: "embedded_input_sentence"
+  top: "lstm1_input"
+  include { stage: "image-once" }
+}
+
 # UNFACTORED representation:
 # LSTM1 takes image and sentence
 layers {
@@ -645,6 +659,7 @@ layers {
     }
   }
   include { stage: "unfactored" }
+  include { stage: "image-once" }
 }
 layers {
   name: "lstm2"
