@@ -3,10 +3,11 @@
 SOLVER=$1
 GPU=$2
 SNAPSHOT=$3
+MOREARGS=$4
 
-if [ -z "$GPU" ]; then
+if [ -z "$GPU" -o ! -z "$MOREARGS" ]; then
   echo "Usage:"
-  echo "train.sh <solver> <GPU ID>"
+  echo "train.sh <solver> <GPU ID> [snapshot]"
   exit 1
 fi
 
