@@ -450,6 +450,8 @@ def score_captions(net, image_index, descriptor, captions,
   for index in range(batch_size):
     image_features[index] = descriptor
   outputs = []
+  net.set_input_arrays(image_features, cont_input)
+  input_data_initialized = False
   for batch_start_index in range(0, len(captions), batch_size):
     caption_batch = captions[batch_start_index:(batch_start_index + batch_size)]
     caption_index = 0
@@ -464,8 +466,11 @@ def score_captions(net, image_index, descriptor, captions,
         word_input[index] = \
             caption['caption'][caption_index - 1] if \
             0 < caption_index < len(caption['caption']) else 0
-      net.forward(image_features=image_features,
-          cont_sentence=cont_input, input_sentence=word_input)
+      if input_data_initialized:
+        net.forward(start="embedding", input_sentence=word_input)
+      else:
+        net.forward(input_sentence=word_input)
+        input_data_initialized = True
       output_probs = net.blobs[output_name].data
       for index, probs, caption in \
           zip(range(batch_size), probs_batch, caption_batch):

@@ -1,22 +1,23 @@
 name: "caffenet_to_lstm"
 
-input: "image_features"
-input_dim: 1000
-input_dim: 1000
-input_dim: 1
-input_dim: 1
-
-input: "cont_sentence"
-input_dim: 1000
-input_dim: 1
-input_dim: 1
-input_dim: 1
-
 input: "input_sentence"
 input_dim: 1000
 input_dim: 1
 input_dim: 1
 input_dim: 1
+
+layers {
+  name: "image_features"
+  top: "image_features"
+  top: "cont_sentence"
+  type: MEMORY_DATA
+  memory_data_param {
+    batch_size: 1000
+    channels: 1000
+    height: 1
+    width: 1
+  }
+}
 
 # sentence generation layers
 layers {
