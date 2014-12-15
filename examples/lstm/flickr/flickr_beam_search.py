@@ -780,13 +780,20 @@ def main():
   LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.batch5000.deploy.prototxt'
   IMAGE_NET_FILE = './alexnet_to_lstm_net.image_to_fc8.deploy.prototxt'
   LSTM_NET_FILE = './alexnet_to_lstm_net.word_to_preds.deploy.prototxt'
-  # TAG = 'ft_all'
-  # TAG = 'fc8_raw'
-  # for TAG in ['ft_lm_plus_alexnet']:
-  # for TAG in ['fc8_raw']:
-  # for TAG in ['googlenet_class3_raw']:
-  for TAG in ['flickr_only']:
-    if TAG == 'googlenet_class3_raw':
+  for TAG in ['ablate_1']:
+    if TAG.startswith('ablate_'):
+      ITER = 110000
+
+    if TAG == 'ablate_1':
+      MODEL_FILE = './snapshots/ablate/unfactored_1layer_iter_%d.caffemodel' % ITER
+      LSTM_NET_FILE = './ablate/alexnet_to_lstm_net.unfactored_1layer.word_to_preds.batch1000.deploy.prototxt'
+    elif TAG == 'ablate_2':
+      MODEL_FILE = './snapshots/ablate/unfactored_2layer_iter_%d.caffemodel' % ITER
+      LSTM_NET_FILE = './ablate/alexnet_to_lstm_net.unfactored_2layer.word_to_preds.batch1000.deploy.prototxt'
+    elif TAG == 'ablate_2_factored':
+      MODEL_FILE = './snapshots/ablate/factored_2layer_iter_%d.caffemodel' % ITER
+      LSTM_NET_FILE = './ablate/alexnet_to_lstm_net.factored_2layer.word_to_preds.batch1000.deploy.prototxt'
+    elif TAG == 'googlenet_class3_raw':
       ITER = 72000
       MODEL_FILE = './snapshots/coco_flickr_30k_googlenet_to_lstm_2layer_' + \
                    'lr0.01_mom_0.9_iter_%d.caffemodel' % ITER
