@@ -606,6 +606,9 @@ class SampleLayer : public Layer<Dtype> {
   }
   virtual inline int ExactNumBottomBlobs() const { return 1; }
   virtual inline int ExactNumTopBlobs() const { return 1; }
+  virtual inline bool AllowForceBackward(const int bottom_index) const {
+    return false;
+  }
 
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
@@ -615,7 +618,7 @@ class SampleLayer : public Layer<Dtype> {
   /// @brief Not implemented (non-differentiable function)
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
-    NOT_IMPLEMENTED;
+    if (propagate_down[0]) { NOT_IMPLEMENTED; }
   }
 
   Blob<Dtype> rand_;
