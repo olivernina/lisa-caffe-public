@@ -246,7 +246,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       db_->Get(leveldb::ReadOptions(), my_key, &value);
       datum.ParseFromString(value);
       //AWFUL SOL TO GET RID OF CLIPS THAT ARE TOO SMALL
-      while (datum.height() < 227){
+      while (datum.height() < 227){  //need to make sol -- this makes tests fail
         ++this->video_id_;
         current_video = this->video_id_;
         length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);

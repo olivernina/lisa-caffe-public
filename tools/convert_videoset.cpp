@@ -97,10 +97,6 @@ int main(int argc, char** argv) {
     const vector<string>& frames = videos[video_id].first;
     const int label = videos[video_id].second;
 
-//    if (video_id > 9498){
-//      LOG(INFO) << 'where problem starts';
-//    }
-
     for (int frame_id = 0; frame_id < frames.size(); ++frame_id) {  //have added item to datum: current_frame (did this in proto as well)
       const string& frame_path = root_folder + frames[frame_id];
       video_datum.set_current_frame(frame_id);
