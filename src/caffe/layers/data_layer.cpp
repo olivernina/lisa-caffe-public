@@ -187,7 +187,6 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       datum = load_datum(current_video, first_frame);
     }
     
-
     const int num_frames = datum.frames();
     int current_frame = datum.current_frame();
     CHECK_GT(num_frames, 0) << "Input had no frames.";
