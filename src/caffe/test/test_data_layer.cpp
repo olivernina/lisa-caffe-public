@@ -504,7 +504,15 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
       int clips_per_row = tlstm/lstm_clip_length;
       for (int t = 0; t < tlstm; t++) { //count along rows of the data matrix
         for (int s = 0; s < batch_videos; s++) { //count along columns of the data matrix
+<<<<<<< HEAD
           Dtype expected_label = offset + s*clips_per_row + (t / (lstm_clip_length));
+=======
+<<<<<<< HEAD
+          Dtype expected_label = offset + s*clips_per_row + (t / (clip_length));
+=======
+          Dtype expected_label = offset + s*clips_per_row + (t / (lstm_clip_length));
+>>>>>>> Cleaned up code
+>>>>>>> Cleaned up code
           EXPECT_EQ(expected_label, this->blob_top_label_->cpu_data()[i])
               << "debug: iter " << iter << " i " << i;
           Dtype expected_value = scale * (offset + t/lstm_clip_length + s*clips_per_row + ((t * sub_sample) % lstm_clip_length) * 10);
@@ -604,7 +612,11 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
 
   //LSTM: variable length LSTM
   //this unit test could be much neater -- rewrote the unit test for a different set of inputs
+<<<<<<< HEAD
   void TestReadVariableLengthClipbatch_videosClip(const int batch_size, 
+=======
+  void TestReadVariableLengthClipsLSTMClip(const int batch_size, 
+>>>>>>> Cleaned up code
                                           const int batch_videos = 1, 
                                           const int sub_sample = 1) {
     LayerParameter param;
@@ -744,7 +756,11 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     }
   }
 
+<<<<<<< HEAD
   void TestReadVariableLengthClipbatch_videosClip2(const int batch_size, 
+=======
+  void TestReadVariableLengthClipsLSTMClip2(const int batch_size, 
+>>>>>>> Cleaned up code
                                           const int batch_videos = 1, 
                                           const int sub_sample = 1) {
     LayerParameter param;
@@ -847,7 +863,15 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(batch_size);
+<<<<<<< HEAD
     data_param->set_lstm_clip_length(lstm_clip_length);
+=======
+<<<<<<< HEAD
+    data_param->set_lstm_clip_length(clip_length);
+=======
+    data_param->set_lstm_clip_length(lstm_clip_length);
+>>>>>>> Cleaned up code
+>>>>>>> Cleaned up code
     data_param->set_clip_mode(DataParameter_ClipMode_FIXED_LENGTH);
     data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
     data_param->set_clip_collapse_labels(true);
@@ -918,7 +942,15 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(batch_size);
+<<<<<<< HEAD
     data_param->set_lstm_clip_length(lstm_clip_length);
+=======
+<<<<<<< HEAD
+    data_param->set_lstm_clip_length(clip_length);
+=======
+    data_param->set_lstm_clip_length(lstm_clip_length);
+>>>>>>> Cleaned up code
+>>>>>>> Cleaned up code
     data_param->set_clip_mode(DataParameter_ClipMode_VARIABLE);
     data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
     data_param->set_max_train_item(batch_size);
@@ -986,7 +1018,10 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_batch_size(batch_size);
     data_param->set_clip_mode(DataParameter_ClipMode_VARIABLE);
     data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
+<<<<<<< HEAD
     data_param->set_clip_allow_crop(false);
+=======
+>>>>>>> Cleaned up code
     data_param->set_max_train_item(num_test_sample);
     data_param->set_max_test_item(num_test_sample);
     const Dtype pad_value = 27281;
@@ -1123,10 +1158,16 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(batch_size);
+<<<<<<< HEAD
     data_param->set_lstm_clip_length(clip_length);
     data_param->set_clip_mode(DataParameter_ClipMode_FIXED_LENGTH);
     data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
     data_param->set_clip_allow_crop(false);
+=======
+    data_param->set_lstm_clip_length(lstm_clip_length);
+    data_param->set_clip_mode(DataParameter_ClipMode_FIXED_LENGTH);
+    data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
+>>>>>>> Cleaned up code
     data_param->set_clip_allow_pad(true);
     data_param->set_clip_pad_mode(DataParameter_ClipPadCropMode_END);
     data_param->set_max_train_item(batch_size);
@@ -1311,12 +1352,51 @@ TYPED_TEST(DataLayerTest, TestReadFixedLengthClipbatch_videosClip) {
   const bool unique_pixels = false;  // all pixels the same; images different
   const int lstm_clip_length = 3;
   const int batch_size = 6;
+<<<<<<< HEAD
   this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
   this->TestReadFixedLengthClipbatch_videosClip(lstm_clip_length, batch_size);
+=======
+<<<<<<< HEAD
+  this->FillLevelDB(unique_pixels, clip_length, batch_size);
+  this->TestReadFixedLengthClipbatch_videosClip(clip_length, batch_size);
+=======
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipsFrameMajor(lstm_clip_length, batch_size);
+}
+
+TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsFrameMajorSubSample) {
+  const bool unique_pixels = false;  // all pixels the same; images different
+  const int batch_size = 6;
+  const int sub_sample = 2;
+  int lstm_clip_length = 5;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  lstm_clip_length = 3;
+  this->TestReadFixedLengthClipsFrameMajor(lstm_clip_length, batch_size,sub_sample);
+}
+
+TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsCollapsedLabels) {
+  const bool unique_pixels = false;  // all pixels the same; images different
+  const int lstm_clip_length = 3;
+  const int batch_size = 6;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipsCollapsedLabels(lstm_clip_length, batch_size);
+}
+
+TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsCollapsedLabelsSubSample) {
+  const bool unique_pixels = false;  // all pixels the same; images different
+  int lstm_clip_length = 5;
+  const int batch_size = 6;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  lstm_clip_length = 3;
+  int sub_sample = 2;
+  this->TestReadFixedLengthClipsCollapsedLabels(lstm_clip_length, batch_size, sub_sample);
+>>>>>>> Cleaned up code
+>>>>>>> Cleaned up code
 }
 
 TYPED_TEST(DataLayerTest, TestReadFixedLengthClipbatch_videosClip2) {
   const bool unique_pixels = false;  // all pixels the same; images different
+<<<<<<< HEAD
   const int lstm_clip_length = 3;
   const int batch_size = 12;
   const int batch_videos = 2;
@@ -1330,27 +1410,98 @@ TYPED_TEST(DataLayerTest, TestReadFixedLengthClipbatch_videosClip3) {
   const int batch_videos = 6;
   this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
   this->TestReadFixedLengthClipbatch_videosClip(lstm_clip_length, batch_size,batch_videos);
+=======
+<<<<<<< HEAD
+  const int clip_length = 3;
+  const int batch_size = 12;
+  const int batch_videos = 2;
+  this->FillLevelDB(unique_pixels, clip_length, batch_size);
+  this->TestReadFixedLengthClipbatch_videosClip(clip_length, batch_size,batch_videos);
+=======
+  const int lstm_clip_length = 3;
+  const int batch_size = 5;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClips(lstm_clip_length, batch_size);
+}
+
+TYPED_TEST(DataLayerTest, TestReadActuallyVariableLengthClips) {
+  this->FillLevelDBVariableLengthClips();
+  const int sub_sample = 6;
+  this->TestReadActuallyVariableLengthClips(sub_sample);
+}
+
+TYPED_TEST(DataLayerTest, TestReadFixedLengthPaddedClips) {
+  Caffe::set_phase(Caffe::TRAIN);
+  const bool unique_pixels = false;  // all pixels the same; images different
+  const int lstm_clip_length = 3;
+  const int input_lstm_clip_length = 2;
+  const int batch_size = 6;
+  this->FillLevelDB(unique_pixels, input_lstm_clip_length, batch_size);
+  this->TestReadFixedLengthPaddedClips(lstm_clip_length, batch_size);
+>>>>>>> Cleaned up code
+}
+TYPED_TEST(DataLayerTest, TestReadFixedLengthClipbatch_videosClip3) {
+  const bool unique_pixels = false;  // all pixels the same; images different
+<<<<<<< HEAD
+  const int clip_length = 1;
+  const int batch_size = 6;
+  const int batch_videos = 6;
+  this->FillLevelDB(unique_pixels, clip_length, batch_size);
+  this->TestReadFixedLengthClipbatch_videosClip(clip_length, batch_size,batch_videos);
+=======
+  const int lstm_clip_length = 3;
+  const int batch_size = 6;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipsLSTMClip(lstm_clip_length, batch_size);
+}
+TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsLSTMClip2) {
+  const bool unique_pixels = false;  // all pixels the same; images different
+  const int lstm_clip_length = 3;
+  const int batch_size = 12;
+  const int batch_videos = 2;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipsLSTMClip(lstm_clip_length, batch_size,batch_videos);
+>>>>>>> Cleaned up code
+>>>>>>> Cleaned up code
 }
 TYPED_TEST(DataLayerTest, TestReadFixedLengthRandClip) {
   const bool unique_pixels = false;  // all pixels the same; images different
+<<<<<<< HEAD
   const int video_length = 10;
   const int clip_length = 4;
   const int batch_size = 6;
   const int batch_videos = 3;
   this->FillLevelDB(unique_pixels, video_length, batch_size);
   this->TestReadFixedLengthRandClip(clip_length, batch_size, batch_videos);
+=======
+  const int lstm_clip_length = 1;
+  const int batch_size = 6;
+  const int batch_videos = 6;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipsLSTMClip(lstm_clip_length, batch_size,batch_videos);
+>>>>>>> Cleaned up code
 }
 TYPED_TEST(DataLayerTest, TestReadVariableLengthClipbatch_videosClip) {
   const int batch_size = 18;
   const int batch_videos = 3;
+<<<<<<< HEAD
   this->FillLevelDBVariableLengthClipbatch_videos();
   this->TestReadVariableLengthClipbatch_videosClip(batch_size,batch_videos);
+=======
+  this->FillLevelDBVariableLengthClipsLSTM();
+  this->TestReadVariableLengthClipsLSTMClip(batch_size,batch_videos);
+>>>>>>> Cleaned up code
 }
 TYPED_TEST(DataLayerTest, TestReadVariableLengthClipbatch_videosClip2) {
   const int batch_size = 8;
   const int batch_videos = 2;
+<<<<<<< HEAD
   this->FillLevelDBVariableLengthClipbatch_videos2();
   this->TestReadVariableLengthClipbatch_videosClip2(batch_size,batch_videos);
+=======
+  this->FillLevelDBVariableLengthClipsLSTM2();
+  this->TestReadVariableLengthClipsLSTMClip2(batch_size,batch_videos);
+>>>>>>> Cleaned up code
 }
 // Test that the sequence of random crops is consistent when using
 // Caffe::set_random_seed.
