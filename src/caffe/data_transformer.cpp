@@ -36,10 +36,10 @@ DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param)
   }
   // check is we need to initialize h_off, w_off, and do_mirror_
   if (h_off_.size() == 0) {
-    h_off_.resize(param_.slstm());
-    w_off_.resize(param_.slstm());
-    do_mirror_.resize(param_.slstm());
-    for (int i = 0; i < param_.slstm(); i++) {
+    h_off_.resize(param_.batch_videos());
+    w_off_.resize(param_.batch_videos());
+    do_mirror_.resize(param_.batch_videos());
+    for (int i = 0; i < param_.batch_videos(); i++) {
       h_off_[i] = 0;
       w_off_[i] = 0;
       do_mirror_[i] = 0;

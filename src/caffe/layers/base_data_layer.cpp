@@ -108,18 +108,18 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     break;
   case DataParameter_ClipOrder_FRAME_MAJOR:
     dim = prefetch_data_.count() / prefetch_data_.num();
-    CHECK_GT(this->layer_param_.data_param().clip_length(), 0);
-    num_clips = prefetch_data_.num() / this->layer_param_.data_param().clip_length();
+    CHECK_GT(this->layer_param_.data_param().lstm_clip_length(), 0);
+    num_clips = prefetch_data_.num() / this->layer_param_.data_param().lstm_clip_length();
 //    caffe_copy(prefetch_data_.count(), prefetch_data_.cpu_data(),
 //               top[0]->mutable_cpu_data());
     if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
-      length_row = this->tLSTM_;
-      num_rows = this->sLSTM_;
+      length_row = this->batch_frames_;
+      num_rows = this->batch_videos_;
       clip_length = this->layer_param_.data_param().lstm_clip_length();
     } else {
-      length_row = this->layer_param_.data_param().clip_length();
+      length_row = this->layer_param_.data_param().lstm_clip_length();
       num_rows = num_clips;
-      clip_length = this->layer_param_.data_param().clip_length();
+      clip_length = this->layer_param_.data_param().lstm_clip_length();
     }
     for (int frame_id = 0; frame_id < length_row; ++frame_id) {
       for (int clip_id = 0; clip_id < num_rows; ++clip_id) {

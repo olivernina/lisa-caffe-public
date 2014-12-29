@@ -42,7 +42,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
   // Fill the LevelDB with data: if unique_pixels, each pixel is unique but
   // all images are the same; else each image is unique but all pixels within
   // an image are the same.
-  void FillLevelDB(const bool unique_pixels, const int clip_length = 1,
+  void FillLevelDB(const bool unique_pixels, const int lstm_clip_length = 1,
                    const int num_clips = 5) {
     backend_ = DataParameter_DB_LEVELDB;
     LOG(INFO) << "Using temporary leveldb " << *filename_;
@@ -56,10 +56,10 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     int count = 0;
     char key_cstr[17];
     for (int i = 0; i < num_clips; ++i) {
-      for (int frame_id = 0; frame_id < clip_length; ++frame_id) {
+      for (int frame_id = 0; frame_id < lstm_clip_length; ++frame_id) {
         Datum datum;
         datum.set_label(i);
-        datum.set_frames(clip_length);
+        datum.set_frames(lstm_clip_length);
         datum.set_channels(2);
         datum.set_height(3);
         datum.set_width(4);
@@ -333,12 +333,12 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     }
   }
 
-  void TestReadFixedLengthClipsFrameMajor(const int clip_length,
+  void TestReadFixedLengthClipsFrameMajor(const int lstm_clip_length,
                                           const int batch_size, const int sub_sample = 1) {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(batch_size);
-    data_param->set_clip_length(clip_length);
+    data_param->set_lstm_clip_length(lstm_clip_length);
     data_param->set_clip_mode(DataParameter_ClipMode_FIXED_LENGTH);
     data_param->set_clip_order(DataParameter_ClipOrder_FRAME_MAJOR);
     data_param->set_max_train_item(batch_size);
@@ -452,27 +452,26 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
 
   //LSTM: clipping LSTM mode; expecting we do not need to pad anything at all.
   //assume number of videos is equal to batch_size
-  void TestReadFixedLengthClipsLSTMClip(const int clip_length,
+  void TestReadFixedLengthClipsLSTMClip(const int lstm_clip_length,
                                           const int batch_size, 
-                                          const int slstm = 1, 
+                                          const int batch_videos = 1, 
                                           const int sub_sample = 1) {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(batch_size);
-    data_param->set_clip_length(clip_length);
+    data_param->set_lstm_clip_length(lstm_clip_length);
     data_param->set_clip_mode(DataParameter_ClipMode_LSTM);
     data_param->set_clip_order(DataParameter_ClipOrder_FRAME_MAJOR);
     data_param->set_max_train_item(batch_size);
     data_param->set_max_test_item(batch_size);
     data_param->set_clip_sub_sample(sub_sample);
-    data_param->set_slstm(slstm);
+    data_param->set_batch_videos(batch_videos);
     data_param->set_lstm_clip(true);
-    data_param->set_lstm_clip_length(clip_length);
     const Dtype scale = 1;
     TransformationParameter* transform_param =
         param.mutable_transform_param();
     transform_param->set_scale(scale);
-    transform_param->set_slstm(slstm);
+    transform_param->set_batch_videos(batch_videos);
     data_param->set_scale(scale);
     data_param->set_source(this->filename_->c_str());
     DataLayer<Dtype> layer(param);
@@ -489,27 +488,27 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     EXPECT_EQ(this->blob_top_label_->width(), 1);
 
 /////////////////////////////////
-    int tlstm = batch_size/slstm;
+    int tlstm = batch_size/batch_videos;
     int clip_index = 0;
     int num_clips = batch_size;
-    int output_length = clip_length * sub_sample;
+    int output_length = lstm_clip_length * sub_sample;
     for (int iter = 0; iter < 100; ++iter) {
       layer1.Forward(blob_bottom_vec_, blob_top_vec_);
       const int clip_start_index = clip_index;
       int i = 0;
-      int offset = ((iter*batch_size / clip_length)+num_clips) % num_clips;
-      int clips_per_row = tlstm/clip_length;
+      int offset = ((iter*batch_size / lstm_clip_length)+num_clips) % num_clips;
+      int clips_per_row = tlstm/lstm_clip_length;
       for (int t = 0; t < tlstm; t++) { //count along rows of the data matrix
-        for (int s = 0; s < slstm; s++) { //count along columns of the data matrix
-          Dtype expected_label = offset + s*clips_per_row + (t / (clip_length));
+        for (int s = 0; s < batch_videos; s++) { //count along columns of the data matrix
+          Dtype expected_label = offset + s*clips_per_row + (t / (lstm_clip_length));
           EXPECT_EQ(expected_label, this->blob_top_label_->cpu_data()[i])
               << "debug: iter " << iter << " i " << i;
-          Dtype expected_value = scale * (offset + t/clip_length + s*clips_per_row + ((t * sub_sample) % clip_length) * 10);
+          Dtype expected_value = scale * (offset + t/lstm_clip_length + s*clips_per_row + ((t * sub_sample) % lstm_clip_length) * 10);
           for (int j = 0; j < 24; ++j) {
             EXPECT_EQ(expected_value, this->blob_top_data_->cpu_data()[i*24+j]) 
               << "debug: iter " << iter << " i " << i;
           } 
-          Dtype expected_clip_marker = (t % clip_length == 0) ? DataLayer<Dtype>::CLIP_BEGIN : DataLayer<Dtype>::CLIP_CONTINUE ;
+          Dtype expected_clip_marker = (t % lstm_clip_length == 0) ? DataLayer<Dtype>::CLIP_BEGIN : DataLayer<Dtype>::CLIP_CONTINUE ;
           EXPECT_EQ(expected_clip_marker, this->blob_top_clip_markers_->cpu_data()[i]);
           ++i;
         }
@@ -520,7 +519,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
   //LSTM: variable length LSTM
   //this unit test could be much neater -- rewrote the unit test for a different set of inputs
   void TestReadVariableLengthClipsLSTMClip(const int batch_size, 
-                                          const int slstm = 1, 
+                                          const int batch_videos = 1, 
                                           const int sub_sample = 1) {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
@@ -530,13 +529,13 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_max_train_item(10);
     data_param->set_max_test_item(10);
     data_param->set_clip_sub_sample(sub_sample);
-    data_param->set_slstm(slstm);
+    data_param->set_batch_videos(batch_videos);
     data_param->set_lstm_clip(false);
     const Dtype scale = 1;
     TransformationParameter* transform_param =
         param.mutable_transform_param();
     transform_param->set_scale(scale);
-    transform_param->set_slstm(slstm);
+    transform_param->set_batch_videos(batch_videos);
     data_param->set_scale(scale);
     data_param->set_source(this->filename_->c_str());
     DataLayer<Dtype> layer(param);
@@ -553,13 +552,13 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     EXPECT_EQ(this->blob_top_label_->width(), 1);
 
 /////////////////////////////////
-    int tlstm = batch_size/slstm;
+    int tlstm = batch_size/batch_videos;
     int clip_index = 0;
     int num_clips = batch_size;
     std::vector<int> labels;
     std::vector<int> frames;
-    labels.resize(slstm);
-    frames.resize(slstm);
+    labels.resize(batch_videos);
+    frames.resize(batch_videos);
     labels[0] = 0;
     labels[1] = 1;
     labels[2] = 3;
@@ -574,7 +573,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
 
       int i = 0;
       for (int t = 0; t < tlstm; t++) {
-        for (int s = 0; s < slstm; s++) {
+        for (int s = 0; s < batch_videos; s++) {
 
          //keep track of where videos change.
          if (batch_set == 0) {
@@ -658,7 +657,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
   }
 
   void TestReadVariableLengthClipsLSTMClip2(const int batch_size, 
-                                          const int slstm = 1, 
+                                          const int batch_videos = 1, 
                                           const int sub_sample = 1) {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
@@ -668,13 +667,13 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_max_train_item(5);
     data_param->set_max_test_item(5);
     data_param->set_clip_sub_sample(sub_sample);
-    data_param->set_slstm(slstm);
+    data_param->set_batch_videos(batch_videos);
     data_param->set_lstm_clip(false);
     const Dtype scale = 1;
     TransformationParameter* transform_param =
         param.mutable_transform_param();
     transform_param->set_scale(scale);
-    transform_param->set_slstm(slstm);
+    transform_param->set_batch_videos(batch_videos);
     data_param->set_scale(scale);
     data_param->set_source(this->filename_->c_str());
     DataLayer<Dtype> layer(param);
@@ -691,13 +690,13 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     EXPECT_EQ(this->blob_top_label_->width(), 1);
 
 /////////////////////////////////
-    int tlstm = batch_size/slstm;
+    int tlstm = batch_size/batch_videos;
     int clip_index = 0;
     int num_clips = batch_size;
     std::vector<int> labels;
     std::vector<int> frames;
-    labels.resize(slstm);
-    frames.resize(slstm);
+    labels.resize(batch_videos);
+    frames.resize(batch_videos);
     labels[0] = 0;
     labels[1] = 2;
     frames[0] = 0;
@@ -710,7 +709,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
             
       int i = 0;
       for (int t = 0; t < tlstm; t++) {
-        for (int s = 0; s < slstm; s++) {
+        for (int s = 0; s < batch_videos; s++) {
 
          //keep track of where videos change.
          if (batch_set == 0) {
@@ -753,13 +752,14 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     }
   }
 
-  void TestReadFixedLengthClipsCollapsedLabels(const int clip_length,
+  void TestReadFixedLengthClipsCollapsedLabels(const int lstm_clip_length,
                                                const int batch_size, const int sub_sample = 1) {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(batch_size);
-    data_param->set_clip_length(clip_length);
+    data_param->set_lstm_clip_length(lstm_clip_length);
     data_param->set_clip_mode(DataParameter_ClipMode_FIXED_LENGTH);
+    data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
     data_param->set_clip_collapse_labels(true);
     data_param->set_max_train_item(batch_size);
     data_param->set_max_test_item(batch_size);
@@ -789,30 +789,30 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     EXPECT_EQ(this->blob_top_clip_markers_->width(), 1);
 
     int clip_index = 0;
-    const int pad_start = (batch_size / clip_length) * clip_length;
+    const int pad_start = (batch_size / lstm_clip_length) * lstm_clip_length;
     for (int iter = 0; iter < 100; ++iter) {
       layer1.Forward(blob_bottom_vec_, blob_top_vec_);
       const int clip_start_index = clip_index;
-      for (int i = 0; i < batch_size / clip_length; i++) {
+      for (int i = 0; i < batch_size / lstm_clip_length; i++) {
         const Dtype expected_value = clip_index % batch_size + i;  //labels should not depend on sub sampling
         EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i])
             << "debug: iter " << iter << " i " << i;
-        if (i % clip_length == clip_length - 1) { ++clip_index; }
+        if (i % lstm_clip_length == lstm_clip_length - 1) { ++clip_index; }
       }
       clip_index = clip_start_index;
       for (int i = 0; i < batch_size; ++i) {
         Dtype expected_value = (i < pad_start) ?
-            (scale * (clip_index % batch_size + (i % clip_length) * 10*sub_sample)) : 0;
+            (scale * (clip_index % batch_size + (i % lstm_clip_length) * 10*sub_sample)) : 0;
         for (int j = 0; j < 24; ++j) {
           EXPECT_EQ(expected_value,
               this->blob_top_data_->cpu_data()[i * 24 + j])
               << "debug: iter " << iter << " i " << i << " j " << j;
         }
-        if (i % clip_length == clip_length - 1) { ++clip_index; }
+        if (i % lstm_clip_length == lstm_clip_length - 1) { ++clip_index; }
       }
       for (int i = 0; i < batch_size; ++i) {
         const Dtype expected_value = (i < pad_start) ?
-           ((i % clip_length) ? DataLayer<Dtype>::CLIP_CONTINUE :
+           ((i % lstm_clip_length) ? DataLayer<Dtype>::CLIP_CONTINUE :
                                 DataLayer<Dtype>::CLIP_BEGIN) :
            DataLayer<Dtype>::PADDING;
         EXPECT_EQ(expected_value, this->blob_top_clip_markers_->cpu_data()[i])
@@ -821,12 +821,13 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     }
   }
 
-  void TestReadFixedLengthClips(const int clip_length, const int batch_size) {
+  void TestReadFixedLengthClips(const int lstm_clip_length, const int batch_size) {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(batch_size);
-    data_param->set_clip_length(clip_length);
+    data_param->set_lstm_clip_length(lstm_clip_length);
     data_param->set_clip_mode(DataParameter_ClipMode_VARIABLE);
+    data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
     data_param->set_max_train_item(batch_size);
     data_param->set_max_test_item(batch_size);
     const Dtype pad_value = 27281;
@@ -849,7 +850,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     EXPECT_EQ(this->blob_top_label_->width(), 1);
 
     int clip_index = 0;
-    const int pad_start = (batch_size / clip_length) * clip_length;
+    const int pad_start = (batch_size / lstm_clip_length) * lstm_clip_length;
     for (int iter = 0; iter < 6; ++iter) {
       layer.Forward(blob_bottom_vec_, blob_top_vec_);
       const int clip_start_index = clip_index;
@@ -858,23 +859,23 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
             (i < pad_start) ? (clip_index % batch_size) : pad_value;
         EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i])
             << "debug: iter " << iter << " i " << i;
-        if (i % clip_length == clip_length - 1) { ++clip_index; }
+        if (i % lstm_clip_length == lstm_clip_length - 1) { ++clip_index; }
       }
       clip_index = clip_start_index;
       for (int i = 0; i < batch_size; ++i) {
         Dtype expected_value = (i < pad_start) ?
-            (scale * (clip_index % batch_size + (i % clip_length) * 10)) :
+            (scale * (clip_index % batch_size + (i % lstm_clip_length) * 10)) :
             pad_value;
         for (int j = 0; j < 24; ++j) {
           EXPECT_EQ(expected_value,
               this->blob_top_data_->cpu_data()[i * 24 + j])
               << "debug: iter " << iter << " i " << i << " j " << j;
         }
-        if (i % clip_length == clip_length - 1) { ++clip_index; }
+        if (i % lstm_clip_length == lstm_clip_length - 1) { ++clip_index; }
       }
       for (int i = 0; i < batch_size; ++i) {
         const Dtype expected_value = (i < pad_start) ?
-           ((i % clip_length) ? DataLayer<Dtype>::CLIP_CONTINUE :
+           ((i % lstm_clip_length) ? DataLayer<Dtype>::CLIP_CONTINUE :
                                 DataLayer<Dtype>::CLIP_BEGIN) :
            DataLayer<Dtype>::PADDING;
         EXPECT_EQ(expected_value, this->blob_top_clip_markers_->cpu_data()[i])
@@ -889,6 +890,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     const int batch_size = 10;
     data_param->set_batch_size(batch_size);
     data_param->set_clip_mode(DataParameter_ClipMode_VARIABLE);
+    data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
     data_param->set_max_train_item(num_test_sample);
     data_param->set_max_test_item(num_test_sample);
     const Dtype pad_value = 27281;
@@ -1020,13 +1022,14 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     }
   }
 
-  void TestReadFixedLengthPaddedClips(const int clip_length,
+  void TestReadFixedLengthPaddedClips(const int lstm_clip_length,
                                       const int batch_size) {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(batch_size);
-    data_param->set_clip_length(clip_length);
+    data_param->set_lstm_clip_length(lstm_clip_length);
     data_param->set_clip_mode(DataParameter_ClipMode_FIXED_LENGTH);
+    data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
     data_param->set_clip_allow_pad(true);
     data_param->set_clip_pad_mode(DataParameter_ClipPadCropMode_END);
     data_param->set_max_train_item(batch_size);
@@ -1064,27 +1067,27 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
         const Dtype expected_value = (clip_index % batch_size);
         EXPECT_EQ(expected_value, this->blob_top_label_->cpu_data()[i])
             << "debug: iter " << iter << " i " << i;
-        if (i % clip_length == clip_length - 1) { ++clip_index; }
+        if (i % lstm_clip_length == lstm_clip_length - 1) { ++clip_index; }
       }
       clip_index = clip_start_index;
       for (int i = 0; i < batch_size; ++i) {
-        const int frame_id = i % clip_length;
+        const int frame_id = i % lstm_clip_length;
         const Dtype expected_value =
             (frame_id > prepad_end && frame_id < postpad_start) ?
-            (scale * (clip_index % batch_size + ((i - 1) % clip_length) * 10)) :
+            (scale * (clip_index % batch_size + ((i - 1) % lstm_clip_length) * 10)) :
             pad_value;
         for (int j = 0; j < 24; ++j) {
           EXPECT_EQ(expected_value,
               this->blob_top_data_->cpu_data()[i * 24 + j])
               << "debug: iter " << iter << " i " << i << " j " << j;
         }
-        if (i % clip_length == clip_length - 1) { ++clip_index; }
+        if (i % lstm_clip_length == lstm_clip_length - 1) { ++clip_index; }
       }
       for (int i = 0; i < batch_size; ++i) {
-        const int frame_id = i % clip_length;
+        const int frame_id = i % lstm_clip_length;
         const typename DataLayer<Dtype>::ClipMarker& expected_value =
            (frame_id > prepad_end && frame_id < postpad_start) ?
-           (((i - 1) % clip_length == 0) ? DataLayer<Dtype>::CLIP_BEGIN :
+           (((i - 1) % lstm_clip_length == 0) ? DataLayer<Dtype>::CLIP_BEGIN :
                                            DataLayer<Dtype>::CLIP_CONTINUE) :
            DataLayer<Dtype>::PADDING;
         EXPECT_EQ(expected_value, this->blob_top_clip_markers_->cpu_data()[i])
@@ -1093,13 +1096,13 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     }
   }
 
-  void LevelDBAppendVariableLengthClip(const int id, int clip_length, int value,
+  void LevelDBAppendVariableLengthClip(const int id, int lstm_clip_length, int value,
       leveldb::DB* db, bool unique_frames = false) {
-    for (int frame_id = 0; frame_id < clip_length; ++frame_id) {
+    for (int frame_id = 0; frame_id < lstm_clip_length; ++frame_id) {
       Datum datum;
       char key_cstr[17];
       datum.set_label(value);  
-      datum.set_frames(clip_length);
+      datum.set_frames(lstm_clip_length);
       datum.set_channels(2);
       datum.set_height(3);
       datum.set_width(4);
@@ -1203,47 +1206,47 @@ TYPED_TEST(DataLayerTest, TestReadCropTrainLevelDB) {
 
 TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsFrameMajor) {
   const bool unique_pixels = false;  // all pixels the same; images different
-  const int clip_length = 3;
+  const int lstm_clip_length = 3;
   const int batch_size = 6;
-  this->FillLevelDB(unique_pixels, clip_length, batch_size);
-  this->TestReadFixedLengthClipsFrameMajor(clip_length, batch_size);
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipsFrameMajor(lstm_clip_length, batch_size);
 }
 
 TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsFrameMajorSubSample) {
   const bool unique_pixels = false;  // all pixels the same; images different
   const int batch_size = 6;
   const int sub_sample = 2;
-  int clip_length = 5;
-  this->FillLevelDB(unique_pixels, clip_length, batch_size);
-  clip_length = 3;
-  this->TestReadFixedLengthClipsFrameMajor(clip_length, batch_size,sub_sample);
+  int lstm_clip_length = 5;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  lstm_clip_length = 3;
+  this->TestReadFixedLengthClipsFrameMajor(lstm_clip_length, batch_size,sub_sample);
 }
 
 TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsCollapsedLabels) {
   const bool unique_pixels = false;  // all pixels the same; images different
-  const int clip_length = 3;
+  const int lstm_clip_length = 3;
   const int batch_size = 6;
-  this->FillLevelDB(unique_pixels, clip_length, batch_size);
-  this->TestReadFixedLengthClipsCollapsedLabels(clip_length, batch_size);
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipsCollapsedLabels(lstm_clip_length, batch_size);
 }
 
 TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsCollapsedLabelsSubSample) {
   const bool unique_pixels = false;  // all pixels the same; images different
-  int clip_length = 5;
+  int lstm_clip_length = 5;
   const int batch_size = 6;
-  this->FillLevelDB(unique_pixels, clip_length, batch_size);
-  clip_length = 3;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  lstm_clip_length = 3;
   int sub_sample = 2;
-  this->TestReadFixedLengthClipsCollapsedLabels(clip_length, batch_size, sub_sample);
+  this->TestReadFixedLengthClipsCollapsedLabels(lstm_clip_length, batch_size, sub_sample);
 }
 
 TYPED_TEST(DataLayerTest, TestReadFixedLengthClips) {
   Caffe::set_phase(Caffe::TRAIN);
   const bool unique_pixels = false;  // all pixels the same; images different
-  const int clip_length = 3;
+  const int lstm_clip_length = 3;
   const int batch_size = 5;
-  this->FillLevelDB(unique_pixels, clip_length, batch_size);
-  this->TestReadFixedLengthClips(clip_length, batch_size);
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClips(lstm_clip_length, batch_size);
 }
 
 TYPED_TEST(DataLayerTest, TestReadActuallyVariableLengthClips) {
@@ -1255,47 +1258,47 @@ TYPED_TEST(DataLayerTest, TestReadActuallyVariableLengthClips) {
 TYPED_TEST(DataLayerTest, TestReadFixedLengthPaddedClips) {
   Caffe::set_phase(Caffe::TRAIN);
   const bool unique_pixels = false;  // all pixels the same; images different
-  const int clip_length = 3;
-  const int input_clip_length = 2;
+  const int lstm_clip_length = 3;
+  const int input_lstm_clip_length = 2;
   const int batch_size = 6;
-  this->FillLevelDB(unique_pixels, input_clip_length, batch_size);
-  this->TestReadFixedLengthPaddedClips(clip_length, batch_size);
+  this->FillLevelDB(unique_pixels, input_lstm_clip_length, batch_size);
+  this->TestReadFixedLengthPaddedClips(lstm_clip_length, batch_size);
 }
 
 TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsLSTMClip) {
   const bool unique_pixels = false;  // all pixels the same; images different
-  const int clip_length = 3;
+  const int lstm_clip_length = 3;
   const int batch_size = 6;
-  this->FillLevelDB(unique_pixels, clip_length, batch_size);
-  this->TestReadFixedLengthClipsLSTMClip(clip_length, batch_size);
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipsLSTMClip(lstm_clip_length, batch_size);
 }
 TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsLSTMClip2) {
   const bool unique_pixels = false;  // all pixels the same; images different
-  const int clip_length = 3;
+  const int lstm_clip_length = 3;
   const int batch_size = 12;
-  const int slstm = 2;
-  this->FillLevelDB(unique_pixels, clip_length, batch_size);
-  this->TestReadFixedLengthClipsLSTMClip(clip_length, batch_size,slstm);
+  const int batch_videos = 2;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipsLSTMClip(lstm_clip_length, batch_size,batch_videos);
 }
 TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsLSTMClip3) {
   const bool unique_pixels = false;  // all pixels the same; images different
-  const int clip_length = 1;
+  const int lstm_clip_length = 1;
   const int batch_size = 6;
-  const int slstm = 6;
-  this->FillLevelDB(unique_pixels, clip_length, batch_size);
-  this->TestReadFixedLengthClipsLSTMClip(clip_length, batch_size,slstm);
+  const int batch_videos = 6;
+  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipsLSTMClip(lstm_clip_length, batch_size,batch_videos);
 }
 TYPED_TEST(DataLayerTest, TestReadVariableLengthClipsLSTMClip) {
   const int batch_size = 18;
-  const int slstm = 3;
+  const int batch_videos = 3;
   this->FillLevelDBVariableLengthClipsLSTM();
-  this->TestReadVariableLengthClipsLSTMClip(batch_size,slstm);
+  this->TestReadVariableLengthClipsLSTMClip(batch_size,batch_videos);
 }
 TYPED_TEST(DataLayerTest, TestReadVariableLengthClipsLSTMClip2) {
   const int batch_size = 8;
-  const int slstm = 2;
+  const int batch_videos = 2;
   this->FillLevelDBVariableLengthClipsLSTM2();
-  this->TestReadVariableLengthClipsLSTMClip2(batch_size,slstm);
+  this->TestReadVariableLengthClipsLSTMClip2(batch_size,batch_videos);
 }
 // Test that the sequence of random crops is consistent when using
 // Caffe::set_random_seed.

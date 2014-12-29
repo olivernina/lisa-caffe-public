@@ -379,8 +379,10 @@ message TransformationParameter {
   // or can be repeated the same number of times as channels
   // (would subtract them from the corresponding channel)
   repeated float mean_value = 5;
-  //needed for LSTM - this is really clunky bc it has to be declared three times in prototxt - how to fix?
-  optional uint32 sLSTM = 6 [default = 1];
+  //needed for LSTM - this is really clunky bc it has to be declared three times in prototxt
+  //Deprecated - replace with batch_videos which is a better named variable
+  optional int32 sLSTM = 6 [default = 1];
+  optional int32 batch_videos = 8 [default = 1];
   optional bool flow = 7 [default = false];
 }
 
@@ -467,6 +469,7 @@ message DataParameter {
   // data.
   optional bool mirror = 6 [default = false];
 
+
   // Variables for sequential outputs ("clips").
   // Specify the length of the clip.  A clip of length 1, the default, is an
   // image.
@@ -489,7 +492,7 @@ message DataParameter {
     VARIABLE = 1;
     LSTM = 2;
   }
-  optional ClipMode clip_mode = 101 [default = FIXED_LENGTH];
+  optional ClipMode clip_mode = 101 [default = LSTM];
   enum ClipPadCropMode {
     RANDOM = 0;
     START = 1;
@@ -520,7 +523,7 @@ message DataParameter {
     CLIP_MAJOR = 0;
     FRAME_MAJOR = 1;
   }
-  optional ClipOrder clip_order = 107 [default = CLIP_MAJOR];
+  optional ClipOrder clip_order = 107 [default = FRAME_MAJOR];
   // Whether or not to collapse all the duplicate labels for a single clip into
   // a single output.  Therefore, the "num" of the label will be (1/clip_length)
   // of the data's "num", for a fixed-length clip.
@@ -543,7 +546,9 @@ message DataParameter {
   //number of rows in an sT matrix where s is samples and T is time.
   optional bool LSTM_clip = 113 [default = false]; 
   optional int32 LSTM_clip_length = 114 [default = 1];
+  //Deprecated - replace with batch_videos which is a better named variable
   optional int32 sLSTM = 115 [default = 1];
+  optional int32 batch_videos = 116 [default = 1];
 }
 
 // Message that stores parameters used by DiagInnerProductLayer

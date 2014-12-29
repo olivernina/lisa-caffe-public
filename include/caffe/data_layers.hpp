@@ -56,9 +56,8 @@ class BaseDataLayer : public Layer<Dtype> {
   int max_video_;
   std::vector<int> transfer_frame_ids_;
   std::vector<int> transfer_video_ids_;
-  //sLSTM needs a more descriptive name.  used in lstms, number of samples processed at a time to determine the gradient
-  int sLSTM_;
-  int tLSTM_;
+  int batch_videos_;
+  int batch_frames_;
   bool output_clip_markers_;
   bool weight_loss_;
   DataParameter_ClipMode clip_mode_;
