@@ -504,13 +504,13 @@ message DataParameter {
   // at a random starting point in the output clip such that the entire clip
   // fits into the slot of size clip_length, and the rest (padding) fill be
   // filled with the value specified by clip_pad_value (by default 0).
-  optional bool clip_allow_pad = 102 [default = false];
+  optional bool clip_allow_pad = 102 [default = true];
   optional float clip_pad_value = 103 [default = 0];
   optional ClipPadCropMode clip_pad_mode = 104 [default = RANDOM];
   // If clip_mode == FIXED_LENGTH, specify whether to allow LevelDB inputs
   // with length longer than clip_length.  A clip of longer length will be
   // randomly cropped to clip_length.
-  optional bool clip_allow_crop = 105 [default = false];
+  optional bool clip_allow_crop = 105 [default = true];
   optional ClipPadCropMode clip_crop_mode = 106 [default = RANDOM];
   // CLIP_MAJOR mode outputs clips one at a time, outputting (clip0,frame0),
   // then (clip0, frame1), ..., then (clip0, frameN), then (clip1, frame0), ...

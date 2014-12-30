@@ -1,0 +1,19 @@
+net: "LCRN_activity_flow_train_test.prototxt"
+test_iter: 100
+test_state: { stage: 'test-on-test' }
+test_interval: 100
+test_net_reset: false
+base_lr: 0.001
+lr_policy: "step"
+gamma: 0.1
+stepsize: 20000
+display: 20
+max_iter: 50000
+momentum: 0.9
+weight_decay: 0.005
+snapshot: 5000
+snapshot_prefix: "snapshots_ucf_RGB_11_6/hybri"
+solver_mode: GPU
+device_id: 0
+random_seed: 1701
+clip_gradients: 15
