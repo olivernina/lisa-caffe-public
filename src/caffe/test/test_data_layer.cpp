@@ -344,6 +344,8 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_max_train_item(batch_size);
     data_param->set_max_test_item(batch_size);
     data_param->set_clip_sub_sample(sub_sample);
+    data_param->set_clip_allow_pad(false);
+    data_param->set_clip_allow_crop(false);
     const Dtype scale = 1;
     TransformationParameter* transform_param =
         param.mutable_transform_param();
@@ -462,6 +464,8 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_lstm_clip_length(lstm_clip_length);
     data_param->set_clip_mode(DataParameter_ClipMode_LSTM);
     data_param->set_clip_order(DataParameter_ClipOrder_FRAME_MAJOR);
+    data_param->set_clip_allow_pad(false);
+    data_param->set_clip_allow_crop(false);
     data_param->set_max_train_item(batch_size);
     data_param->set_max_test_item(batch_size);
     data_param->set_clip_sub_sample(sub_sample);
@@ -531,6 +535,8 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_clip_sub_sample(sub_sample);
     data_param->set_batch_videos(batch_videos);
     data_param->set_lstm_clip(false);
+    data_param->set_clip_allow_pad(false);
+    data_param->set_clip_allow_crop(false);
     const Dtype scale = 1;
     TransformationParameter* transform_param =
         param.mutable_transform_param();
@@ -669,6 +675,8 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_clip_sub_sample(sub_sample);
     data_param->set_batch_videos(batch_videos);
     data_param->set_lstm_clip(false);
+    data_param->set_clip_allow_pad(false);
+    data_param->set_clip_allow_crop(false);
     const Dtype scale = 1;
     TransformationParameter* transform_param =
         param.mutable_transform_param();
@@ -764,6 +772,9 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_max_train_item(batch_size);
     data_param->set_max_test_item(batch_size);
     data_param->set_clip_sub_sample(sub_sample);
+    data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
+    data_param->set_clip_allow_pad(false);
+    data_param->set_clip_allow_crop(false);
     const Dtype scale = 3;
     TransformationParameter* transform_param =
         param.mutable_transform_param();
@@ -832,6 +843,8 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_max_test_item(batch_size);
     const Dtype pad_value = 27281;
     data_param->set_clip_pad_value(pad_value);
+    data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
+    data_param->set_clip_allow_crop(false);
     const Dtype scale = 3;
     TransformationParameter* transform_param =
         param.mutable_transform_param();
@@ -891,6 +904,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     data_param->set_batch_size(batch_size);
     data_param->set_clip_mode(DataParameter_ClipMode_VARIABLE);
     data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
+    data_param->set_clip_allow_crop(false);
     data_param->set_max_train_item(num_test_sample);
     data_param->set_max_test_item(num_test_sample);
     const Dtype pad_value = 27281;
@@ -1027,9 +1041,10 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     LayerParameter param;
     DataParameter* data_param = param.mutable_data_param();
     data_param->set_batch_size(batch_size);
-    data_param->set_lstm_clip_length(lstm_clip_length);
+    data_param->set_lstm_clip_length(clip_length);
     data_param->set_clip_mode(DataParameter_ClipMode_FIXED_LENGTH);
     data_param->set_clip_order(DataParameter_ClipOrder_CLIP_MAJOR);
+    data_param->set_clip_allow_crop(false);
     data_param->set_clip_allow_pad(true);
     data_param->set_clip_pad_mode(DataParameter_ClipPadCropMode_END);
     data_param->set_max_train_item(batch_size);

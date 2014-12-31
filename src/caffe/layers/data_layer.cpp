@@ -552,7 +552,6 @@ int DataLayer<Dtype>::input_offset(const int num_frames,
     const int sub_sample) {
   const int crop_needed =
       num_frames - ((this->layer_param_.data_param().lstm_clip_length() * sub_sample) - sub_sample + 1);
-      //originally: num_frames - (this->clip_length_ * sub_sample) + sub_sample - 1;
   if (crop_needed <= 0) { return 0; }
   if (!this->layer_param_.data_param().clip_allow_crop()) {
     LOG(FATAL) << "Clip (length " << num_frames << ") is longer than "
