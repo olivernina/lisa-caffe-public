@@ -452,7 +452,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
 
   //LSTM: clipping LSTM mode; expecting we do not need to pad anything at all.
   //assume number of videos is equal to batch_size
-  void TestReadFixedLengthClipsLSTMClip(const int lstm_clip_length,
+  void TestReadFixedLengthClipbatch_videosClip(const int lstm_clip_length,
                                           const int batch_size, 
                                           const int batch_videos = 1, 
                                           const int sub_sample = 1) {
@@ -518,7 +518,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
 
   //LSTM: variable length LSTM
   //this unit test could be much neater -- rewrote the unit test for a different set of inputs
-  void TestReadVariableLengthClipsLSTMClip(const int batch_size, 
+  void TestReadVariableLengthClipbatch_videosClip(const int batch_size, 
                                           const int batch_videos = 1, 
                                           const int sub_sample = 1) {
     LayerParameter param;
@@ -656,7 +656,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     }
   }
 
-  void TestReadVariableLengthClipsLSTMClip2(const int batch_size, 
+  void TestReadVariableLengthClipbatch_videosClip2(const int batch_size, 
                                           const int batch_videos = 1, 
                                           const int sub_sample = 1) {
     LayerParameter param;
@@ -1136,7 +1136,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     delete db;
   }
 
-  void FillLevelDBVariableLengthClipsLSTM() {
+  void FillLevelDBVariableLengthClipbatch_videos() {
     LOG(INFO) << "Using temporary leveldb " << *filename_;
     leveldb::DB* db;
     leveldb::Options options;
@@ -1159,7 +1159,7 @@ class DataLayerTest : public MultiDeviceTest<TypeParam> {
     delete db;
   }
 
-  void FillLevelDBVariableLengthClipsLSTM2() {
+  void FillLevelDBVariableLengthClipbatch_videos2() {
     LOG(INFO) << "Using temporary leveldb " << *filename_;
     leveldb::DB* db;
     leveldb::Options options;
@@ -1265,40 +1265,40 @@ TYPED_TEST(DataLayerTest, TestReadFixedLengthPaddedClips) {
   this->TestReadFixedLengthPaddedClips(lstm_clip_length, batch_size);
 }
 
-TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsLSTMClip) {
+TYPED_TEST(DataLayerTest, TestReadFixedLengthClipbatch_videosClip) {
   const bool unique_pixels = false;  // all pixels the same; images different
   const int lstm_clip_length = 3;
   const int batch_size = 6;
   this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
-  this->TestReadFixedLengthClipsLSTMClip(lstm_clip_length, batch_size);
+  this->TestReadFixedLengthClipbatch_videosClip(lstm_clip_length, batch_size);
 }
-TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsLSTMClip2) {
+TYPED_TEST(DataLayerTest, TestReadFixedLengthClipbatch_videosClip2) {
   const bool unique_pixels = false;  // all pixels the same; images different
   const int lstm_clip_length = 3;
   const int batch_size = 12;
   const int batch_videos = 2;
   this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
-  this->TestReadFixedLengthClipsLSTMClip(lstm_clip_length, batch_size,batch_videos);
+  this->TestReadFixedLengthClipbatch_videosClip(lstm_clip_length, batch_size,batch_videos);
 }
-TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsLSTMClip3) {
+TYPED_TEST(DataLayerTest, TestReadFixedLengthClipbatch_videosClip3) {
   const bool unique_pixels = false;  // all pixels the same; images different
   const int lstm_clip_length = 1;
   const int batch_size = 6;
   const int batch_videos = 6;
   this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
-  this->TestReadFixedLengthClipsLSTMClip(lstm_clip_length, batch_size,batch_videos);
+  this->TestReadFixedLengthClipbatch_videosClip(lstm_clip_length, batch_size,batch_videos);
 }
-TYPED_TEST(DataLayerTest, TestReadVariableLengthClipsLSTMClip) {
+TYPED_TEST(DataLayerTest, TestReadVariableLengthClipbatch_videosClip) {
   const int batch_size = 18;
   const int batch_videos = 3;
-  this->FillLevelDBVariableLengthClipsLSTM();
-  this->TestReadVariableLengthClipsLSTMClip(batch_size,batch_videos);
+  this->FillLevelDBVariableLengthClipbatch_videos();
+  this->TestReadVariableLengthClipbatch_videosClip(batch_size,batch_videos);
 }
-TYPED_TEST(DataLayerTest, TestReadVariableLengthClipsLSTMClip2) {
+TYPED_TEST(DataLayerTest, TestReadVariableLengthClipbatch_videosClip2) {
   const int batch_size = 8;
   const int batch_videos = 2;
-  this->FillLevelDBVariableLengthClipsLSTM2();
-  this->TestReadVariableLengthClipsLSTMClip2(batch_size,batch_videos);
+  this->FillLevelDBVariableLengthClipbatch_videos2();
+  this->TestReadVariableLengthClipbatch_videosClip2(batch_size,batch_videos);
 }
 // Test that the sequence of random crops is consistent when using
 // Caffe::set_random_seed.

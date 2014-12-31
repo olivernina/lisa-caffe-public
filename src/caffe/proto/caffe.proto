@@ -572,7 +572,11 @@ message DataParameter {
   //number of rows in an sT matrix where s is samples and T is time.
   optional bool LSTM_clip = 113 [default = false]; 
   optional int32 LSTM_clip_length = 114 [default = 1];
+<<<<<<< HEAD
   //Deprecated - replace with batch_videos which is a better named variable
+=======
+  //deprecate sLSTM for more descriptive name batch_videos
+>>>>>>> Made better names for sLSTM and tLSTM, got rid of comments in data-layer
   optional int32 sLSTM = 115 [default = 1];
   optional int32 batch_videos = 116 [default = 1];
 }

@@ -206,7 +206,6 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   int max_video = this->max_video_;
   CHECK_GE(max_video,0)  << "Need to have more videos than 0.";
 
-
   int iter_index = 0;
   std::string value;
   int frame_id;
@@ -217,8 +216,9 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     bool continuing_video = false;
     if (this->transfer_frame_ids_[iter_index] > 0) {
       continuing_video = true;
-      first_video = false;  //need to figure out way to transfer w_off and h_off neatly
+      first_video = false;  
     }
+
     // Read in first blob from video to initialize everything.
     char my_key[17];
     int first_frame;
