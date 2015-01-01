@@ -265,6 +265,8 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       frame_id = out_frame_id - output_offset + input_offset;
       CHECK_LT(frame_id, num_frames);
 
+      int frame_major_id = item_id/this->batch_frames_ + (item_id % this->batch_frames_) * this->batch_videos_;
+
       if (frame_id != 0){ //if frame_id is zero than the frame loaded currently is the frame we want
         switch (this->layer_param_.data_param().backend()) {
           case DataParameter_DB_LEVELDB:
@@ -291,20 +293,20 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       // Apply data transformations (mirror, scale, crop...).  Use predetermined h_off and w_off.  
       // False indicates that we will not recalculate these values.
       CHECK_LT(item_id, batch_size);
-      int offset = this->prefetch_data_.offset(item_id);
+      int offset = this->prefetch_data_.offset(frame_major_id);
       this->transformed_data_.set_cpu_data(top_data + offset);
       this->data_transformer_.Transform(datum, &(this->transformed_data_), first_video,iter_index);
       first_video = false;
 
       if (this->output_labels_) {
-          top_label[item_id] = datum.label();
+          top_label[frame_major_id] = datum.label();
       }
       if (this->output_clip_markers_) {
-        top_clip_markers[item_id] = (out_frame_id == output_offset) ?
+        top_clip_markers[frame_major_id] = (out_frame_id == output_offset) ?
             DataLayer<Dtype>::CLIP_BEGIN : DataLayer<Dtype>::CLIP_CONTINUE;
       } 
       if (this->weight_loss_) {
-        top_weight_loss[item_id] = (out_frame_id == output_length-1) ?
+        top_weight_loss[frame_major_id] = (out_frame_id == output_length-1) ?
             1 : 0;
       } 
     } //for (out_frame_id = 0; out_frame_id < output_length) 
