@@ -204,7 +204,6 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       CHECK(iter_[iter_index]);
       CHECK(iter_[iter_index]->Valid());
       length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
-
       db_->Get(leveldb::ReadOptions(), my_key, &value);
       datum.ParseFromString(value);
       //SKIP OVER VIDEOS IF FRAMES ARE SMALLER THAN CROP SIZE
@@ -262,36 +261,9 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     //frame loop
     for (int out_frame_id = current_frame; out_frame_id < output_length + first_frame;
         out_frame_id += sub_sample, ++item_id) {
-      //if needed, switch to next db pointer
-      if (out_frame_id < output_offset ||
-          out_frame_id >= output_offset + num_frames) {
-        // This is a padding frame of a fixed-length clip; fill it as such.
-        Dtype* top_data_frame = &top_data[item_id * out_frame_size];
-        caffe_set(out_frame_size, pad_value, top_data_frame);
-        if (this->output_labels_) {
-          if (clip_collapse_labels) {
-            if (out_frame_id == 0) {
-              CHECK_LT(collapsed_label_id, label_num);
-              CHECK_LT(collapsed_label_id, batch_size);
-              top_label[collapsed_label_id] = datum.label();
-              ++collapsed_label_id;
-            }
-          } else {
-            CHECK_LT(item_id, batch_size);
-            top_label[item_id] = datum.label();
-          }
-        }
-        if (this->output_clip_markers_) {
-          CHECK_LT(item_id, batch_size);
-          top_clip_markers[item_id] = Dtype(DataLayer<Dtype>::PADDING);
-        }
-        continue;
-      }
 
       frame_id = out_frame_id - output_offset + input_offset;
-      if (output_length < num_frames) {
-        CHECK_LT(frame_id, num_frames);
-      }
+      CHECK_LT(frame_id, num_frames);
 
       if (frame_id != 0){ //if frame_id is zero than the frame loaded currently is the frame we want
         switch (this->layer_param_.data_param().backend()) {
@@ -325,15 +297,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       first_video = false;
 
       if (this->output_labels_) {
-        if (clip_collapse_labels) {
-          if (out_frame_id == 0) {
-            CHECK_LT(collapsed_label_id, label_num);
-            top_label[collapsed_label_id] = datum.label();
-            ++collapsed_label_id;
-          }
-        } else {
           top_label[item_id] = datum.label();
-        }
       }
       if (this->output_clip_markers_) {
         top_clip_markers[item_id] = (out_frame_id == output_offset) ?
@@ -375,10 +339,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     }
     if (!continuing_video) {
       ++this->video_id_;
-    }
-
-
-      
+    }      
   }  // while (item_id < batch_size)
 } 
 
