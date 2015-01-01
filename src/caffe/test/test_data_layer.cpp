@@ -1219,66 +1219,67 @@ TYPED_TEST(DataLayerTest, TestReadCropTrainLevelDB) {
   this->TestReadCrop();
 }
 
-TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsFrameMajor) {
-  const bool unique_pixels = false;  // all pixels the same; images different
-  const int lstm_clip_length = 3;
-  const int batch_size = 6;
-  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
-  this->TestReadFixedLengthClipsFrameMajor(lstm_clip_length, batch_size);
-}
+//TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsFrameMajor) {
+//  const bool unique_pixels = false;  // all pixels the same; images different
+//  const int clip_length = 3;
+//  const int batch_size = 6;
+//  this->FillLevelDB(unique_pixels, clip_length, batch_size);
+//  this->TestReadFixedLengthClipsFrameMajor(clip_length, batch_size);
+//}
 
-TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsFrameMajorSubSample) {
-  const bool unique_pixels = false;  // all pixels the same; images different
-  const int batch_size = 6;
-  const int sub_sample = 2;
-  int lstm_clip_length = 5;
-  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
-  lstm_clip_length = 3;
-  this->TestReadFixedLengthClipsFrameMajor(lstm_clip_length, batch_size,sub_sample);
-}
+//TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsFrameMajorSubSample) {
+//  const bool unique_pixels = false;  // all pixels the same; images different
+//  const int batch_size = 6;
+//  const int sub_sample = 2;
+//  int clip_length = 5;
+//  this->FillLevelDB(unique_pixels, clip_length, batch_size);
+//  clip_length = 3;
+//  this->TestReadFixedLengthClipsFrameMajor(clip_length, batch_size,sub_sample);
+//}
 
-TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsCollapsedLabels) {
-  const bool unique_pixels = false;  // all pixels the same; images different
-  const int lstm_clip_length = 3;
-  const int batch_size = 6;
-  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
-  this->TestReadFixedLengthClipsCollapsedLabels(lstm_clip_length, batch_size);
-}
+//TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsCollapsedLabels) {
+//  const bool unique_pixels = false;  // all pixels the same; images different
+//  const int clip_length = 3;
+//  const int batch_size = 6;
+//  this->FillLevelDB(unique_pixels, clip_length, batch_size);
+//  this->TestReadFixedLengthClipsCollapsedLabels(clip_length, batch_size);
+//}
 
-TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsCollapsedLabelsSubSample) {
-  const bool unique_pixels = false;  // all pixels the same; images different
-  int lstm_clip_length = 5;
-  const int batch_size = 6;
-  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
-  lstm_clip_length = 3;
-  int sub_sample = 2;
-  this->TestReadFixedLengthClipsCollapsedLabels(lstm_clip_length, batch_size, sub_sample);
-}
+//TYPED_TEST(DataLayerTest, TestReadFixedLengthClipsCollapsedLabelsSubSample) {
+//  const bool unique_pixels = false;  // all pixels the same; images different
+//  int clip_length = 5;
+//  const int batch_size = 6;
+//  this->FillLevelDB(unique_pixels, clip_length, batch_size);
+//  clip_length = 3;
+//  int sub_sample = 2;
+//  this->TestReadFixedLengthClipsCollapsedLabels(clip_length, batch_size, sub_sample);
+//}
 
-TYPED_TEST(DataLayerTest, TestReadFixedLengthClips) {
-  Caffe::set_phase(Caffe::TRAIN);
-  const bool unique_pixels = false;  // all pixels the same; images different
-  const int lstm_clip_length = 3;
-  const int batch_size = 5;
-  this->FillLevelDB(unique_pixels, lstm_clip_length, batch_size);
-  this->TestReadFixedLengthClips(lstm_clip_length, batch_size);
-}
+//TYPED_TEST(DataLayerTest, TestReadFixedLengthClips) {
+//  Caffe::set_phase(Caffe::TRAIN);
+//  const bool unique_pixels = false;  // all pixels the same; images different
+//  const int clip_length = 3;
+//  const int batch_size = 5;
+//  this->FillLevelDB(unique_pixels, clip_length, batch_size);
+//  this->TestReadFixedLengthClips(clip_length, batch_size);
+//}
 
-TYPED_TEST(DataLayerTest, TestReadActuallyVariableLengthClips) {
-  this->FillLevelDBVariableLengthClips();
-  const int sub_sample = 6;
-  this->TestReadActuallyVariableLengthClips(sub_sample);
-}
+//TYPED_TEST(DataLayerTest, TestReadActuallyVariableLengthClips) {
+//  this->FillLevelDBVariableLengthClips();
+//  const int sub_sample = 6;
+//  this->TestReadActuallyVariableLengthClips(sub_sample);
+//}
 
-TYPED_TEST(DataLayerTest, TestReadFixedLengthPaddedClips) {
-  Caffe::set_phase(Caffe::TRAIN);
-  const bool unique_pixels = false;  // all pixels the same; images different
-  const int lstm_clip_length = 3;
-  const int input_lstm_clip_length = 2;
-  const int batch_size = 6;
-  this->FillLevelDB(unique_pixels, input_lstm_clip_length, batch_size);
-  this->TestReadFixedLengthPaddedClips(lstm_clip_length, batch_size);
-}
+//TYPED_TEST(DataLayerTest, TestReadFixedLengthPaddedClips) {
+//  Caffe::set_phase(Caffe::TRAIN);
+//  const bool unique_pixels = false;  // all pixels the same; images different
+//  const int clip_length = 3;
+//  const int input_clip_length = 2;
+//  const int batch_size = 6;
+//  this->FillLevelDB(unique_pixels, input_clip_length, batch_size);
+//  this->TestReadFixedLengthPaddedClips(clip_length, batch_size);
+//}
+>>>>>>> Depricated "clip_mode'
 
 TYPED_TEST(DataLayerTest, TestReadFixedLengthClipbatch_videosClip) {
   const bool unique_pixels = false;  // all pixels the same; images different
