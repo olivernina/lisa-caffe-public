@@ -71,6 +71,8 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     tmp_key = tmp_key.substr(0,8);
     this->max_video_ = atoi(tmp_key.c_str());
     iter_[0]->SeekToFirst();
+  } else {
+    this->max_video_ = 1;
   }
 
   // Read a data point, and use it to initialize the top blob.
@@ -233,33 +235,31 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     int input_offset = 0;
     int output_offset = 0;
     int video_length = 0;
-    Dtype* offset_data;
 
     const int out_frame_size =
         datum.channels()* (this->layer_param_.transform_param().crop_size() ? pow(this->layer_param_.transform_param().crop_size(), 2) : (datum.height() * datum.width()));
 
-    int remaining_items;
- 
-    remaining_items = this->batch_frames_ - ((item_id + this->batch_frames_) % this->batch_frames_);
+    int remaining_items = this->batch_frames_ - ((item_id + this->batch_frames_) % this->batch_frames_);
     if (this->layer_param_.data_param().lstm_clip()) {
       video_length = this->layer_param_.data_param().lstm_clip_length()*sub_sample;
-    } else {
-      video_length = num_frames; 
-    }
-    if (this->layer_param_.data_param().lstm_clip() && (num_frames > this->layer_param_.data_param().lstm_clip_length())) {
+      if (num_frames > this->clip_length_){
+        output_length = this->clip_length_*sub_sample;
         if (!continuing_video) {
           input_offset = this->input_offset(num_frames, sub_sample);
           output_offset = this->output_offset(num_frames, sub_sample);
-          output_length = this->layer_param_.data_param().lstm_clip_length()*sub_sample;
-        } else {
-          LOG(FATAL) << "Can't handle continuing video with fixed length LSTM mode.";
         }
-    } else {
+      } else {
         output_length = (num_frames - current_frame) *sub_sample;
+      }  
+    } else {
+      video_length = num_frames; 
+      output_length = (num_frames-current_frame)*sub_sample;
     }
+
     output_length = std::min(remaining_items*sub_sample, output_length);
     //frame loop
-    for (int out_frame_id = current_frame; out_frame_id < output_length + first_frame;
+    int out_frame_id = current_frame;
+    for (out_frame_id; out_frame_id < output_length + first_frame;
         out_frame_id += sub_sample, ++item_id) {
 
       frame_id = out_frame_id - output_offset + input_offset;
@@ -313,7 +313,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     // go to the next iter
     if (item_id > this->batch_frames_*(iter_index+1) - 1) {
       //keep track of which frame we want to start on at iter_index with next batch
-      if (frame_id + sub_sample >= video_length) {
+      if (out_frame_id + sub_sample >= video_length) {
         this->transfer_frame_ids_[iter_index] = 0;
         this->transfer_video_ids_[iter_index] = this->video_id_+1; 
       } else {
