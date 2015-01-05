@@ -168,23 +168,25 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     }
 
     // Read in first blob from video to initialize everything.
-    int first_frame = 0;
-    int current_video = this->video_id_;
     if (this->video_id_ > max_video){
       this->video_id_ = 0;
     }
+    int first_frame = 0;
+    int current_video = this->video_id_;
     if (continuing_video){
       first_frame = this->transfer_frame_ids_[iter_index];
       current_video = this->transfer_video_ids_[iter_index];
-    } 
+    }
 
     Datum datum = load_datum(current_video, first_frame);
+
     //If frame is too small, just skip over it
-      while ((datum.height() < this->layer_param_.transform_param().crop_size()) | (datum.width() < this->layer_param_.transform_param().crop_size())){
-        ++this->video_id_;
-        current_video = this->video_id_;
-        datum = load_datum(current_video, first_frame);
-      }
+    while ((datum.height() < this->layer_param_.transform_param().crop_size()) | (datum.width() < this->layer_param_.transform_param().crop_size())){
+      ++this->video_id_;
+      current_video = this->video_id_;
+      datum = load_datum(current_video, first_frame);
+    }
+    
 
     const int num_frames = datum.frames();
     int current_frame = datum.current_frame();
@@ -199,6 +201,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
 
     int remaining_items = this->batch_frames_ - ((item_id + this->batch_frames_) % this->batch_frames_);
     if (this->layer_param_.data_param().lstm_clip()) {
+      CHECK_GE(num_frames, this->layer_param_.data_param().lstm_clip());
       video_length = this->layer_param_.data_param().lstm_clip_length()*sub_sample;
       if (num_frames > this->clip_length_){
         output_length = this->clip_length_*sub_sample;
@@ -221,7 +224,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
         out_frame_id += sub_sample, ++item_id) {
 
       frame_id = out_frame_id - output_offset + input_offset;
-      CHECK_LT(frame_id, num_frames);
+      //CHECK_LT(frame_id, num_frames);
 
       int frame_major_id = item_id/this->batch_frames_ + (item_id % this->batch_frames_) * this->batch_videos_;
 
