@@ -108,14 +108,7 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   //video
 
-  int clip_length_ = this->layer_param_.data_param().lstm_clip_length();
-  if (this->layer_param_.data_param().lstm_clip()) {
-    CHECK_EQ(0, this->layer_param_.data_param().batch_size() % clip_length_)
-        << "If using fixed length clips, the batch size must be an exact "
-        << "multiple of the clip length to avoid adding unnecessary padding. "
-        << "Consider setting batch_size = " << clip_length_ *
-          (this->layer_param_.data_param().batch_size() / clip_length_);
-  }
+  this->clip_length_ = this->layer_param_.data_param().lstm_clip_length();
 
   LOG(INFO) << "output data size: " << top[0]->num() << ","
       << top[0]->channels() << "," << top[0]->height() << ","
