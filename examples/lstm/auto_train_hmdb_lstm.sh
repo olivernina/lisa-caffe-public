@@ -68,7 +68,7 @@ echo $(printf "Data will be saved to file: %s" "$SAVE_OUT") > outfile.out 2>&1
 #increase number of hidden units
 SOLVER=$solver
 #GLOG_logtostderr=1 valgrind $TOOLS/caffe train -solver $SOLVER -weights caffe_imagenet_train_iter_310000 > valgrind_debugging.out 2>&1
-#GLOG_logtostderr=1 ~jdonahue/gdb/gdb-7.7/gdb/gdb --args $TOOLS/caffe train -solver $SOLVER -weights caffe_imagenet_train_iter_310000  
-#GLOG_logtostderr=1 $TOOLS/caffe train -solver $SOLVER -weights expLR_snapshots/ucf_imagenet_finetune_recur_clip16_sub1_h256_batch384_wd0.00375_lr0.075drop8_SNAP3_iter_4000.caffemodel> $SAVE_OUT 2>&1
-GLOG_logtostderr=1 $TOOLS/caffe train -solver $SOLVER -weights expLR_snapshots/ucf_imagenet_finetune_recur_clip16_sub1_h256_batch384_wd0.005_lr0.0001drop8_SNAP5_iter_2000.caffemodel> $SAVE_OUT 2>&1
+GLOG_logtostderr=1 ~jdonahue/gdb/gdb-7.7/gdb/gdb --args $TOOLS/caffe train -solver $SOLVER -weights caffe_imagenet_train_iter_310000  
+#GLOG_logtostderr=1 $TOOLS/caffe train -solver $SOLVER -weights caffe_imagenet_train_iter_310000 > $SAVE_OUT 2>&1
+
 echo "Done."
