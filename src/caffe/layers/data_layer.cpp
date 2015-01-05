@@ -76,17 +76,7 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
 
   // Read a data point, and use it to initialize the top blob.
-  Datum datum;
-  switch (this->layer_param_.data_param().backend()) {
-  case DataParameter_DB_LEVELDB:
-    datum.ParseFromString(iter_[0]->value().ToString());
-    break;
-  case DataParameter_DB_LMDB:
-    datum.ParseFromArray(mdb_value_.mv_data, mdb_value_.mv_size);
-    break;
-  default:
-    LOG(FATAL) << "Unknown database backend";
-  }
+  Datum datum = load_datum(0, 0) ;
 
   // image
   int crop_size = this->layer_param_.transform_param().crop_size();
@@ -167,12 +157,10 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   CHECK_GE(max_video,0)  << "Need to have more videos than 0.";
 
   int iter_index = 0;
-  std::string value;
   int frame_id;
   for (int item_id = 0; item_id < batch_size; ) {
     bool first_video = true;
     // get a blob
-    Datum datum;
     bool continuing_video = false;
     if (this->transfer_frame_ids_[iter_index] > 0) {
       continuing_video = true;
@@ -180,46 +168,23 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     }
 
     // Read in first blob from video to initialize everything.
-    char my_key[17];
-    int first_frame;
-    int current_video;
+    int first_frame = 0;
+    int current_video = this->video_id_;
     if (this->video_id_ > max_video){
       this->video_id_ = 0;
     }
     if (continuing_video){
       first_frame = this->transfer_frame_ids_[iter_index];
       current_video = this->transfer_video_ids_[iter_index];
-    } else {
-      first_frame = 0;
-      current_video = this->video_id_;
-    }
-    int length_key;
-    switch (this->layer_param_.data_param().backend()) {
-    case DataParameter_DB_LEVELDB:
-      CHECK(iter_[iter_index]);
-      CHECK(iter_[iter_index]->Valid());
-      length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
-      db_->Get(leveldb::ReadOptions(), my_key, &value);
-      datum.ParseFromString(value);
-      //SKIP OVER VIDEOS IF FRAMES ARE SMALLER THAN CROP SIZE
-      while ((datum.height() < this->layer_param_.transform_param().crop_size()) | 
-             (datum.width() < this->layer_param_.transform_param().crop_size())){
+    } 
+
+    Datum datum = load_datum(current_video, first_frame);
+    //If frame is too small, just skip over it
+      while ((datum.height() < this->layer_param_.transform_param().crop_size()) | (datum.width() < this->layer_param_.transform_param().crop_size())){
         ++this->video_id_;
         current_video = this->video_id_;
-        length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
-        db_->Get(leveldb::ReadOptions(), my_key, &value);
-        datum.ParseFromString(value);
+        datum = load_datum(current_video, first_frame);
       }
-      break;
-    case DataParameter_DB_LMDB:
-      CHECK_EQ(mdb_cursor_get(mdb_cursor_, &mdb_key_,
-              &mdb_value_, MDB_GET_CURRENT), MDB_SUCCESS);
-      datum.ParseFromArray(mdb_value_.mv_data,
-          mdb_value_.mv_size);
-      break;
-    default:
-      LOG(FATAL) << "Unknown database backend";
-    }
 
     const int num_frames = datum.frames();
     int current_frame = datum.current_frame();
@@ -261,21 +226,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       int frame_major_id = item_id/this->batch_frames_ + (item_id % this->batch_frames_) * this->batch_videos_;
 
       if (frame_id != 0){ //if frame_id is zero than the frame loaded currently is the frame we want
-        switch (this->layer_param_.data_param().backend()) {
-          case DataParameter_DB_LEVELDB:
-          length_key = snprintf(my_key, 17, "%08d%08d", current_video, frame_id); 
-          db_->Get(leveldb::ReadOptions(), my_key, &value);
-          datum.ParseFromString(value);
-          break;
-        case DataParameter_DB_LMDB:
-          CHECK_EQ(mdb_cursor_get(mdb_cursor_, &mdb_key_,
-                  &mdb_value_, MDB_GET_CURRENT), MDB_SUCCESS);
-          datum.ParseFromArray(mdb_value_.mv_data,
-              mdb_value_.mv_size);
-          break;
-        default:
-          LOG(FATAL) << "Unknown database backend";
-        }
+        datum = load_datum(current_video, frame_id);
       }
       current_frame = datum.current_frame();
       if (DataParameter_DB_LEVELDB){
@@ -488,6 +439,31 @@ int DataLayer<Dtype>::output_offset(const int num_frames,
   }
   LOG(FATAL) << "Shouldn't reach this line; switch returns or LOG(FATAL)s.";
   return 0;
+}
+
+template <typename Dtype>
+Datum DataLayer<Dtype>::load_datum(const int current_video, const int frame_id) {
+   Datum datum;
+  int length_key;
+  char my_key[17];
+  std::string value;
+
+   switch (this->layer_param_.data_param().backend()) {
+     case DataParameter_DB_LEVELDB:
+     length_key = snprintf(my_key, 17, "%08d%08d", current_video, frame_id); 
+     db_->Get(leveldb::ReadOptions(), my_key, &value);
+     datum.ParseFromString(value);
+     break;
+   case DataParameter_DB_LMDB:
+     CHECK_EQ(mdb_cursor_get(mdb_cursor_, &mdb_key_,
+             &mdb_value_, MDB_GET_CURRENT), MDB_SUCCESS);
+     datum.ParseFromArray(mdb_value_.mv_data,
+         mdb_value_.mv_size);
+     break;
+   default:
+     LOG(FATAL) << "Unknown database backend";
+   }
+   return datum;
 }
 
 INSTANTIATE_CLASS(DataLayer);
