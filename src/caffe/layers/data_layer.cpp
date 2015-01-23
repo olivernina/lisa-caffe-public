@@ -60,9 +60,6 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   this->batch_videos_ = this->layer_param_.data_param().batch_videos(); 
   CHECK_EQ(0,this->layer_param_.data_param().batch_size() % this->batch_videos_) <<  "Batch size must be divisible by batch_videos";
 
-  else {
-    this->batch_videos_ = 1;
-  }
   this->batch_frames_ = this->layer_param_.data_param().batch_size() / this->batch_videos_; 
   // Initialize the DB and rand_skip.
   Reset();
@@ -101,11 +98,9 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   //video
 
-<<<<<<< HEAD
   this->clip_length_ = this->layer_param_.data_param().lstm_clip_length();
 
-=======
-  int clip_length_ = this->layer_param_.data_param().lstm_clip_length();
+  int clip_length_ = this->clip_length_;
   if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_FIXED_LENGTH) {
     CHECK_EQ(0, this->layer_param_.data_param().batch_size() % clip_length_)
         << "If using fixed length clips, the batch size must be an exact "
@@ -123,30 +118,14 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   } else {
     top[0]->set_frame_major_clip_length(0);
   }
->>>>>>> Cleaned up code
   LOG(INFO) << "output data size: " << top[0]->num() << ","
       << top[0]->channels() << "," << top[0]->height() << ","
       << top[0]->width();
   // label
   if (this->output_labels_) {
-<<<<<<< HEAD
     top[1]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
     this->prefetch_label_.Reshape(
         this->layer_param_.data_param().batch_size(), 1, 1, 1);
-=======
-    if (this->layer_param_.data_param().clip_collapse_labels()) {  
-      bool tmp = (DataParameter_ClipMode_FIXED_LENGTH | DataParameter_ClipMode_LSTM);
-      CHECK_GT(tmp,0)
-          << "clip_collapse_labels requires fixed_length clip_mode.";
-      const int collapsed_label_num = this->layer_param_.data_param().batch_size() / clip_length_;
-      top[1]->Reshape(collapsed_label_num, 1, 1, 1);
-      this->prefetch_label_.Reshape(collapsed_label_num, 1, 1, 1);
-    } else {
-      top[1]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
-      this->prefetch_label_.Reshape(
-          this->layer_param_.data_param().batch_size(), 1, 1, 1);
-    }
->>>>>>> Cleaned up code
   }
   if (this->output_clip_markers_) {
     top[2]->Reshape(this->layer_param_.data_param().batch_size(), 1, 1, 1);
@@ -195,10 +174,6 @@ void DataLayer<Dtype>::InternalThreadEntry() {
   int max_video = this->max_video_;
   CHECK_GE(max_video,0)  << "Need to have more videos than 0.";
 
-<<<<<<< HEAD
-=======
-
->>>>>>> Cleaned up code
   int iter_index = 0;
   int frame_id;
   for (int item_id = 0; item_id < batch_size; ) {
@@ -219,40 +194,6 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     if (continuing_video){
       first_frame = this->transfer_frame_ids_[iter_index];
       current_video = this->transfer_video_ids_[iter_index];
-<<<<<<< HEAD
-=======
-    } else {
-      first_frame = 0;
-      current_video = this->video_id_;
-    }
-    int length_key;
-    switch (this->layer_param_.data_param().backend()) {
-    case DataParameter_DB_LEVELDB:
-      CHECK(iter_[iter_index]);
-      CHECK(iter_[iter_index]->Valid());
-      length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
-
-      db_->Get(leveldb::ReadOptions(), my_key, &value);
-      datum.ParseFromString(value);
-      //SKIP OVER VIDEOS IF FRAMES ARE SMALLER THAN CROP SIZE
-      while ((datum.height() < this->layer_param_.transform_param().crop_size()) | 
-             (datum.width() < this->layer_param_.transform_param().crop_size())){
-        ++this->video_id_;
-        current_video = this->video_id_;
-        length_key = snprintf(my_key, 17, "%08d%08d", current_video, first_frame);
-        db_->Get(leveldb::ReadOptions(), my_key, &value);
-        datum.ParseFromString(value);
-      }
-      break;
-    case DataParameter_DB_LMDB:
-      CHECK_EQ(mdb_cursor_get(mdb_cursor_, &mdb_key_,
-              &mdb_value_, MDB_GET_CURRENT), MDB_SUCCESS);
-      datum.ParseFromArray(mdb_value_.mv_data,
-          mdb_value_.mv_size);
-      break;
-    default:
-      LOG(FATAL) << "Unknown database backend";
->>>>>>> Cleaned up code
     }
 
     Datum datum = load_datum(current_video, first_frame);
@@ -275,7 +216,6 @@ void DataLayer<Dtype>::InternalThreadEntry() {
     const int out_frame_size =
         datum.channels()* (this->layer_param_.transform_param().crop_size() ? pow(this->layer_param_.transform_param().crop_size(), 2) : (datum.height() * datum.width()));
 
-<<<<<<< HEAD
     int remaining_items = this->batch_frames_ - ((item_id + this->batch_frames_) % this->batch_frames_);
     if (this->layer_param_.data_param().lstm_clip()) {
       CHECK_GE(num_frames, this->layer_param_.data_param().lstm_clip());
@@ -285,55 +225,6 @@ void DataLayer<Dtype>::InternalThreadEntry() {
         if (!continuing_video) {
           input_offset = this->input_offset(num_frames, sub_sample);
           output_offset = this->output_offset(num_frames, sub_sample);
-=======
-    int remaining_items;
- 
-    switch (this->layer_param_.data_param().clip_mode()) {
-      case DataParameter_ClipMode_VARIABLE:
-        CHECK_LE(num_frames, batch_size) << "Clip longer than batch size.";
-        // If using this entire clip would put us past the maximum batch size,
-        // fill the rest of the batch with padding.
-        video_length = num_frames;
-        if (item_id + num_frames > batch_size) {
-          remaining_items = batch_size - item_id;
-          const int remaining_data_size = remaining_items * out_frame_size;
-          offset_data = &top_data[item_id * out_frame_size];
-          caffe_set(remaining_data_size, pad_value, offset_data);
-          if (this->output_labels_) {
-            caffe_set(remaining_items, pad_value, &top_label[item_id]);
-          } 
-          if (this->output_clip_markers_) {
-            caffe_set(remaining_items, Dtype(DataLayer<Dtype>::PADDING),
-                      &top_clip_markers[item_id]);
-          }
-          return; 
-        }
-        output_length = num_frames*sub_sample; 
-        break;
-      case DataParameter_ClipMode_FIXED_LENGTH:
-        input_offset = this->input_offset(num_frames, sub_sample);
-        output_offset = this->output_offset(num_frames, sub_sample);
-        output_length = this->layer_param_.data_param().lstm_clip_length()*sub_sample;          
-        video_length = this->layer_param_.data_param().lstm_clip_length();
-        break;
-      case DataParameter_ClipMode_LSTM:
-        remaining_items = this->batch_frames_ - ((item_id + this->batch_frames_) % this->batch_frames_);
-        if (this->layer_param_.data_param().lstm_clip()) {
-          video_length = this->layer_param_.data_param().lstm_clip_length()*sub_sample;
-        } else {
-          video_length = num_frames; 
-        }
-        if (this->layer_param_.data_param().lstm_clip() && (num_frames > this->layer_param_.data_param().lstm_clip_length())) {
-            if (!continuing_video) {
-              input_offset = this->input_offset(num_frames, sub_sample);
-              output_offset = this->output_offset(num_frames, sub_sample);
-              output_length = this->layer_param_.data_param().lstm_clip_length()*sub_sample;
-            } else {
-              LOG(FATAL) << "Can't handle continuing video with fixed length LSTM mode.";
-            }
-        } else {
-            output_length = (num_frames - current_frame) *sub_sample;
->>>>>>> Cleaned up code
         }
       } else {
         output_length = (num_frames - current_frame) *sub_sample;
@@ -355,25 +246,7 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       int frame_major_id = item_id/this->batch_frames_ + (item_id % this->batch_frames_) * this->batch_videos_;
 
       if (frame_id != 0){ //if frame_id is zero than the frame loaded currently is the frame we want
-<<<<<<< HEAD
         datum = load_datum(current_video, frame_id);
-=======
-        switch (this->layer_param_.data_param().backend()) {
-          case DataParameter_DB_LEVELDB:
-          length_key = snprintf(my_key, 17, "%08d%08d", current_video, frame_id); 
-          db_->Get(leveldb::ReadOptions(), my_key, &value);
-          datum.ParseFromString(value);
-          break;
-        case DataParameter_DB_LMDB:
-          CHECK_EQ(mdb_cursor_get(mdb_cursor_, &mdb_key_,
-                  &mdb_value_, MDB_GET_CURRENT), MDB_SUCCESS);
-          datum.ParseFromArray(mdb_value_.mv_data,
-              mdb_value_.mv_size);
-          break;
-        default:
-          LOG(FATAL) << "Unknown database backend";
-        }
->>>>>>> Cleaned up code
       }
       current_frame = datum.current_frame();
       if (DataParameter_DB_LEVELDB){
@@ -402,16 +275,9 @@ void DataLayer<Dtype>::InternalThreadEntry() {
       } 
     } //for (out_frame_id = 0; out_frame_id < output_length) 
     // go to the next iter
-<<<<<<< HEAD
     if (item_id > this->batch_frames_*(iter_index+1) - 1) {
       //keep track of which frame we want to start on at iter_index with next batch
       if (out_frame_id + sub_sample >= video_length) {
-=======
-    if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
-    if (item_id > this->batch_frames_*(iter_index+1) - 1) {
-      //keep track of which frame we want to start on at iter_index with next batch
-      if (frame_id + sub_sample >= video_length) {
->>>>>>> Cleaned up code
         this->transfer_frame_ids_[iter_index] = 0;
         this->transfer_video_ids_[iter_index] = this->video_id_+1; 
       } else {
@@ -542,10 +408,6 @@ int DataLayer<Dtype>::input_offset(const int num_frames,
     const int sub_sample) {
   const int crop_needed =
       num_frames - ((this->layer_param_.data_param().lstm_clip_length() * sub_sample) - sub_sample + 1);
-<<<<<<< HEAD
-=======
-      //originally: num_frames - (this->clip_length_ * sub_sample) + sub_sample - 1;
->>>>>>> Cleaned up code
   if (crop_needed <= 0) { return 0; }
   if (!this->layer_param_.data_param().clip_allow_crop()) {
     LOG(FATAL) << "Clip (length " << num_frames << ") is longer than "
