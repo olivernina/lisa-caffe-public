@@ -57,11 +57,9 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
   this->video_id_ = 0;
 
-  if (this->layer_param_.data_param().clip_mode() == DataParameter_ClipMode_LSTM) {
-    this->batch_videos_ = this->layer_param_.data_param().batch_videos(); 
-    CHECK_EQ(0,this->layer_param_.data_param().batch_size() % this->batch_videos_) <<
-	"Batch size must be divisible by batch_videos";
-  }
+  this->batch_videos_ = this->layer_param_.data_param().batch_videos(); 
+  CHECK_EQ(0,this->layer_param_.data_param().batch_size() % this->batch_videos_) <<  "Batch size must be divisible by batch_videos";
+
   else {
     this->batch_videos_ = 1;
   }
