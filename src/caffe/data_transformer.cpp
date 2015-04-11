@@ -43,6 +43,7 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   const int datum_width = datum.width();
 
   const int crop_size = param_.crop_size();
+  const bool flow = param_.flow();
   const Dtype scale = param_.scale();
   const bool do_mirror = param_.mirror() && Rand(2);
   const bool has_mean_file = param_.has_mean_file();
@@ -106,6 +107,9 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
         } else {
           datum_element = datum.float_data(data_index);
         }
+        if (flow && c == 2 && do_mirror){
+          datum_element = 255 - datum_element;
+        }
         if (has_mean_file) {
           transformed_data[top_index] =
             (datum_element - mean[data_index]) * scale;
@@ -140,6 +144,7 @@ void DataTransformer<Dtype>::Transform(const Datum& datum,
   CHECK_GE(num, 1);
 
   const int crop_size = param_.crop_size();
+  const bool flow = param_.flow();
 
   if (crop_size) {
     CHECK_EQ(crop_size, height);
@@ -213,6 +218,7 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
   CHECK(cv_img.depth() == CV_8U) << "Image data type must be unsigned byte";
 
   const int crop_size = param_.crop_size();
+  const bool flow = param_.flow();
   const Dtype scale = param_.scale();
   const bool do_mirror = param_.mirror() && Rand(2);
   const bool has_mean_file = param_.has_mean_file();
@@ -277,6 +283,10 @@ void DataTransformer<Dtype>::Transform(const cv::Mat& cv_img,
         }
         // int top_index = (c * height + h) * width + w;
         Dtype pixel = static_cast<Dtype>(ptr[img_index++]);
+        if (flow && c == 2 && do_mirror){
+          pixel = 255 - pixel;
+        }
+        
         if (has_mean_file) {
           int mean_index = (c * img_height + h_off + h) * img_width + w_off + w;
           transformed_data[top_index] =
@@ -314,6 +324,7 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
   CHECK_GE(input_width, width);
 
   const int crop_size = param_.crop_size();
+  const bool flow = param_.flow();
   const Dtype scale = param_.scale();
   const bool do_mirror = param_.mirror() && Rand(2);
   const bool has_mean_file = param_.has_mean_file();
@@ -379,7 +390,11 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
         if (do_mirror) {
           int top_index_w = top_index_h + width - 1;
           for (int w = 0; w < width; ++w) {
-            transformed_data[top_index_w-w] = input_data[data_index_h + w];
+            if (c ==2 && flow){
+              transformed_data[top_index_w-w] = 255 - input_data[data_index_h + w];
+            } else {
+              transformed_data[top_index_h + w] = input_data[data_index_h + w];
+            }
           }
         } else {
           for (int w = 0; w < width; ++w) {

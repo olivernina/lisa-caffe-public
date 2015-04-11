@@ -6,7 +6,7 @@ Classifier is an image classifier specialization of Net.
 import numpy as np
 
 import caffe
-
+import pdb
 
 class Classifier(caffe.Net):
     """
@@ -15,7 +15,7 @@ class Classifier(caffe.Net):
     """
     def __init__(self, model_file, pretrained_file, image_dims=None,
                  mean=None, input_scale=None, raw_scale=None,
-                 channel_swap=None):
+                 channel_swap=None, is_flow=False):
         """
         Take
         image_dims: dimensions to scale input for cropping/sampling.
@@ -40,10 +40,11 @@ class Classifier(caffe.Net):
             self.transformer.set_channel_swap(in_, channel_swap)
 
         self.crop_dims = np.array(self.blobs[in_].data.shape[2:])
-        if not image_dims:
+        #pdb.set_trace()
+        if not image_dims.any():
             image_dims = self.crop_dims
         self.image_dims = image_dims
-
+        self.is_flow = is_flow
 
     def predict(self, inputs, oversample=True):
         """
@@ -67,7 +68,7 @@ class Classifier(caffe.Net):
 
         if oversample:
             # Generate center, corner, and mirrored crops.
-            input_ = caffe.io.oversample(input_, self.crop_dims)
+            input_ = caffe.io.oversample(input_, self.crop_dims, self.is_flow)
         else:
             # Take center crop.
             center = np.array(self.image_dims) / 2.0

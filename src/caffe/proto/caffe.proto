@@ -355,6 +355,7 @@ message TransformationParameter {
   // or can be repeated the same number of times as channels
   // (would subtract them from the corresponding channel)
   repeated float mean_value = 5;
+  optional bool flow = 6 [default = false];
 }
 
 // Message that stores parameters shared by loss layers
@@ -599,6 +600,7 @@ message ImageDataParameter {
   // data.
   optional bool mirror = 6 [default = false];
   optional string root_folder = 12 [default = ""];
+  optional bool flow = 14 [default = false];
 }
 
 // Message that stores parameters InfogainLossLayer
