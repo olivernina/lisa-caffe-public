@@ -367,5 +367,5 @@ def oversample(images, crop_dims,flow):
             ix += 1
         crops[ix-5:ix] = crops[ix-5:ix, :, ::-1, :]  # flip for mirrors
         if flow:
-          crops[ix-5:ix,:,:,0] = 1 - crops[ix-5,:,:,0]
+          crops[ix-5:ix,:,:,0] = 1 - crops[ix-5:ix,:,:,0]
     return crops
