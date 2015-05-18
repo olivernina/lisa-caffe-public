@@ -125,7 +125,7 @@ class frankenNet(object):
 
   def replace(self, layer, rep, fill, graft_later=0):
     filters_per_net = self.net.params['conv2'][0].data.shape[0]/self.num_models
-    if graft_later == 0:
+    if graft_later == 1:
       sim = []
       for i in range(filters_per_net):
         sim.append(self.findSimilar(0, 1, 'conv2', 'pool2', i))
@@ -191,7 +191,8 @@ def graftFilter(graft_later, from_net, onto_net):
   average_rep_accuracies = 0
   average_rep_accuracies_vec = []
   simMeasure_all = []
-  for origFilter in range(0,32):
+  for f in range(0,32):
+    orig_filter = f+from_net*32
     print 'Orig filter is ', origFilter
     similarFilter, simMeasure = fNet.findSimilar(from_net, onto_net, 'conv1', 'pool1', origFilter)
     simMeasure_all.append(simMeasure)
