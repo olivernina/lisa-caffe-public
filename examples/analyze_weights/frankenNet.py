@@ -8,6 +8,8 @@ import caffe
 import scipy
 import random
 import copy
+from analyze_functions import *
+import pickle
 caffe.set_mode_gpu()
 
 random.seed(1701)
@@ -82,16 +84,55 @@ class frankenNet(object):
      num_channels = self.net.params[layer][0].data.shape[0]
      elim_channels = range(num_channels)
      random.shuffle(elim_channels)
-     elim_channels = elim_channels[0:int(proportion*num_channels)]
+     channels_drop = int(proportion*num_channels)
+     elim_channels = elim_channels[0:channels_drop]
+
+     #layer_index = self.net.params.keys().index(layer)
+     #prop_layers = self.net.params.keys()[layer_index:]
+     #self.net.params[layer][0].data[...] = self.net.params[layer][0].data[...]*(num_channels/(num_channels - float(channels_drop)))
      for c in elim_channels:
        self.net.params[layer][0].data[c,...] = 0
        self.net.params[layer][1].data[c] = 0
 
   def orderedRemove(self, layer, rem_filters):
     #remove filters specified by rem_filters from layer
+    self.net.forward()
     for f in rem_filters: 
+       #mean_activations = np.mean(self.net.blobs['norm1'].data[:,f,...])
        self.net.params[layer][0].data[f,...] = 0
        self.net.params[layer][1].data[f] = 0
+       #self.net.params['conv2'][1].data[...] += mean_activations
+
+    self.net.params['ip1'][1].data[...] -= (1./64)*self.net.params['ip1'][1].data
+
+  def findSimilar(self, refNet, compNet, layer, activation, f):
+  #Find filter in compNet most similar to refNet.  If below certain threshold replace.  
+    self.net.forward()
+    filters_per_net = self.net.params[layer][0].data.shape[0]/self.num_models
+    corr = []
+    for im in range(0,100):
+      a = self.net.blobs[activation].data[im:im+1,refNet*filters_per_net+f,...]
+      b = self.net.blobs[activation].data[im:im+1,compNet*filters_per_net:compNet*filters_per_net+filters_per_net,...]
+      res = normxcorrNFast(a,b[0,...])
+      maxes = np.max(np.max(res,1),1)
+      corr.append(maxes)
+    sums = np.zeros(corr[0].shape)
+    for s in corr:
+      sums += s
+    sim_filter = np.argmax(sums) + compNet*filters_per_net
+    sim_measure = sums/100
+    return sim_filter, sim_measure 
+
+  def replace(self, layer, rep, fill, graft_later=0):
+    filters_per_net = self.net.params['conv2'][0].data.shape[0]/self.num_models
+    if graft_later == 0:
+      sim = []
+      for i in range(filters_per_net):
+        sim.append(self.findSimilar(0, 1, 'conv2', 'pool2', i))
+      for i, s in enumerate(sim):
+        self.net.params['conv2'][0].data[sim,rep,...] = copy.deepcopy(self.net.params['conv2'][0].data[i,fill,...])
+    self.net.params[layer][0].data[rep,...] = copy.deepcopy(self.net.params[layer][0].data[fill,...])
+    self.net.params[layer][1].data[rep] = copy.deepcopy(self.net.params[layer][1].data[fill,...])
 
 #PUT WRITING OF THIS FUNCTION ON HOLD
 #  def orderChannels(self, refNet, compNet, layer):
@@ -134,13 +175,44 @@ def randomFilterRemoval():
   accuracies = []
   for r in rem_prop:
     fNet.randRemove('conv1', r)
-    accuracies.append(fNet.testNet())
+    accuracy = fNet.testNet()
     fNet.initNetParams()
-
-  for i, r in enumerate(rem_prop):
-    print 'Accuracy removing %f of filters is %f' %(r, accuracies[i]) 
+    print 'Accuracy removing %f of filters is %f' %(r, accuracy) 
  
 def orderedFilterRemoval():
+  #Test for removing filters one by one from 2 model frankenNet
+  for i in range(32,64):
+    fNet.orderedRemove('conv1', [i])
+    accuracy = fNet.testNet()
+    print 'Accuracy removing filters up to %d of second net is %f.' %(i, accuracy)    
+    fNet.initNetParams()
+
+def graftFilter(graft_later, from_net, onto_net):
+  average_rep_accuracies = 0
+  average_rep_accuracies_vec = []
+  simMeasure_all = []
+  for origFilter in range(0,32):
+    print 'Orig filter is ', origFilter
+    similarFilter, simMeasure = fNet.findSimilar(from_net, onto_net, 'conv1', 'pool1', origFilter)
+    simMeasure_all.append(simMeasure)
+    fNet.replace('conv1', origFilter, similarFilter, graft_later)
+    a = fNet.testNet()
+    average_rep_accuracies += a
+    average_rep_accuracies_vec.append(a)
+    print 'Accuracy replacing filter with similar is %f.' %(a)
+    fNet.initNetParams()
+
+  print 'Average rep accuracy is %f.' %(average_rep_accuracies/32)
+  
+  return average_rep_accuracies, simMeasure_all 
+
+#    fNet.orderedRemove('conv1', [origFilter])
+#    a = fNet.testNet()
+#    average_del_accuracies += a
+#    print 'Accuracy deleting similar filter is %f.' %(a)
+#    fNet.initNetParams()
+#    print 'Accuracy after initializing test parameters is %f.' %(fNet.testNet())
+  
 
 num_models = 5
 if len(sys.argv) == 2:
@@ -152,8 +224,31 @@ fNet.initNetParams()
 accuracyRef = fNet.testNet()
 
 #randomFilterRemoval()
-orderedFilterRemoval()
+#orderedFilterRemoval()
 
+average_accuracies, simMeasure = graftFilter(0,0,1)
+save_data = {}
+save_data['accuracies'] = average_accuracies
+save_data['simMeasure'] = simMeasure
+pickle.dump(save_data, open('results/AnS_conv1_2net_graftFilter001.p','wb'))
+
+average_accuracies, simMeasure = graftFilter(1,0,1)
+save_data = {}
+save_data['accuracies'] = average_accuracies
+save_data['simMeasure'] = simMeasure
+pickle.dump(save_data, open('results/AnS_conv1_2net_graftFilter101.p','wb'))
+
+average_accuracies, simMeasure = graftFilter(0,1,0)
+save_data = {}
+save_data['accuracies'] = average_accuracies
+save_data['simMeasure'] = simMeasure
+pickle.dump(save_data, open('results/AnS_conv1_2net_graftFilter010.p','wb'))
+
+average_accuracies, simMeasure = graftFilter(1,1,0)
+save_data = {}
+save_data['accuracies'] = average_accuracies
+save_data['simMeasure'] = simMeasure
+pickle.dump(save_data, open('results/AnS_conv1_2net_graftFilter110.p','wb'))
 
 #print reference accuracy and cleanUp
 print 'Accuracy combining %d nets is %f' %(num_models, accuracyRef) 
