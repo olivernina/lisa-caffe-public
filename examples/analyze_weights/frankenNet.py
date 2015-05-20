@@ -14,6 +14,11 @@ caffe.set_mode_gpu()
 
 random.seed(1701)
 
+plt.rcParams['figure.figsize'] = (10, 10)
+plt.rcParams['image.interpolation'] = 'nearest'
+plt.rcParams['image.cmap'] = 'gray'
+
+
 class frankenNet(object):
   def __init__(self, num_models):
 
@@ -114,7 +119,8 @@ class frankenNet(object):
       a = self.net.blobs[activation].data[im:im+1,refNet*filters_per_net+f,...]
       b = self.net.blobs[activation].data[im:im+1,compNet*filters_per_net:compNet*filters_per_net+filters_per_net,...]
       res = normxcorrNFast(a,b[0,...])
-      maxes = np.max(np.max(res,1),1)
+      maxes = res[:,int((res.shape[1]/2)+0.5), int((res.shape[2]/2)+0.5)]
+      #maxes = np.max(np.max(res,1),1)
       corr.append(maxes)
     sums = np.zeros(corr[0].shape)
     for s in corr:
@@ -123,16 +129,57 @@ class frankenNet(object):
     sim_measure = sums/100
     return sim_filter, sim_measure 
 
-  def replace(self, layer, rep, fill, graft_later=0):
+  def replace(self, layer, reps, fill, graft_later=0):
     filters_per_net = self.net.params['conv2'][0].data.shape[0]/self.num_models
+
+    #graft_later NOT useful
     if graft_later == 1:
       sim = []
       for i in range(filters_per_net):
-        sim.append(self.findSimilar(0, 1, 'conv2', 'pool2', i))
+        s, junk =self.findSimilar(int(fill/32), int(rep/32), 'conv2', 'pool2', i)
+        sim.append(s)
       for i, s in enumerate(sim):
-        self.net.params['conv2'][0].data[sim,rep,...] = copy.deepcopy(self.net.params['conv2'][0].data[i,fill,...])
-    self.net.params[layer][0].data[rep,...] = copy.deepcopy(self.net.params[layer][0].data[fill,...])
-    self.net.params[layer][1].data[rep] = copy.deepcopy(self.net.params[layer][1].data[fill,...])
+        self.net.params['conv2'][0].data[s,rep,...] = copy.deepcopy(self.net.params['conv2'][0].data[i,fill,...])
+
+    for rep in reps:
+      self.net.params[layer][0].data[rep,...] = copy.deepcopy(self.net.params[layer][0].data[fill,...])
+      self.net.params[layer][1].data[rep] = copy.deepcopy(self.net.params[layer][1].data[fill,...])
+  
+  def averageFilters(self, layer, rep, fill_vec,rep_all=0):
+    filters_per_net = self.net.params['conv2'][0].data.shape[0]/self.num_models
+
+    tmp_w = copy.deepcopy(self.net.params[layer][0].data[rep,...])
+    tmp_b = copy.deepcopy(self.net.params[layer][1].data[rep])
+    for fill in fill_vec:
+      tmp_w = tmp_w + self.net.params[layer][0].data[fill,...]
+      tmp_b = tmp_b + self.net.params[layer][1].data[fill]
+    tmp_w = tmp_w/(1+len(fill_vec))
+    tmp_b = tmp_b/(1+len(fill_vec))
+
+    self.net.params[layer][0].data[rep,...] = tmp_w
+    self.net.params[layer][1].data[rep] = tmp_b
+
+    if rep_all == 1:
+      for fill in fill_vec:    
+        self.net.params[layer][0].data[fill,...] = tmp_w
+        self.net.params[layer][1].data[fill] = tmp_b
+      
+  def maxFilters(self, layer, rep, fill_vec,rep_all=0):
+    filters_per_net = self.net.params['conv2'][0].data.shape[0]/self.num_models
+
+    tmp_w = copy.deepcopy(self.net.params[layer][0].data[rep,...])
+    tmp_b = copy.deepcopy(self.net.params[layer][1].data[rep])
+    for fill in fill_vec:
+      tmp_w = np.maximum(tmp_w,self.net.params[layer][0].data[fill,...])
+      tmp_b = tmp_b + self.net.params[layer][1].data[fill]
+
+    self.net.params[layer][0].data[rep,...] = tmp_w
+    self.net.params[layer][1].data[rep] = tmp_b
+
+    if rep_all == 1:
+      for fill in fill_vec:    
+        self.net.params[layer][0].data[fill,...] = tmp_w
+        self.net.params[layer][1].data[fill] = tmp_b
 
 #PUT WRITING OF THIS FUNCTION ON HOLD
 #  def orderChannels(self, refNet, compNet, layer):
@@ -192,11 +239,11 @@ def graftFilter(graft_later, from_net, onto_net):
   average_rep_accuracies_vec = []
   simMeasure_all = []
   for f in range(0,32):
-    orig_filter = f+from_net*32
+    origFilter = f+from_net*32
     print 'Orig filter is ', origFilter
-    similarFilter, simMeasure = fNet.findSimilar(from_net, onto_net, 'conv1', 'pool1', origFilter)
+    similarFilter, simMeasure = fNet.findSimilar(from_net, onto_net, 'conv1', 'pool1', f)
     simMeasure_all.append(simMeasure)
-    fNet.replace('conv1', origFilter, similarFilter, graft_later)
+    fNet.replace('conv1', [origFilter], similarFilter, graft_later)
     a = fNet.testNet()
     average_rep_accuracies += a
     average_rep_accuracies_vec.append(a)
@@ -205,7 +252,92 @@ def graftFilter(graft_later, from_net, onto_net):
 
   print 'Average rep accuracy is %f.' %(average_rep_accuracies/32)
   
-  return average_rep_accuracies, simMeasure_all 
+  return average_rep_accuracies_vec, simMeasure_all 
+
+def graftNFilter(graft_later, from_net, rep_all=1):
+  average_rep_accuracies = 0
+  average_rep_accuracies_vec = []
+  simMeasure_all = []
+
+  for f in range(0,32):
+    simMeasure_nets = []
+    similarFilters = []
+    for n in range(1,5):
+      onto_net = n
+      origFilter = f+from_net*32
+      print 'Orig filter is ', origFilter
+      similarFilter, simMeasure = fNet.findSimilar(from_net, onto_net, 'conv1', 'pool1', f)
+      simMeasure_nets.append(simMeasure)
+      similarFilters.append(similarFilter)
+      #fNet.replace('conv1', origFilter, similarFilter, graft_later)
+    fNet.averageFilters('conv1', origFilter, similarFilters, rep_all)
+    simMeasure_all.append(simMeasure_nets)
+    a = fNet.testNet()
+    average_rep_accuracies += a
+    average_rep_accuracies_vec.append(a)
+    print 'Accuracy replacing filter with similar is %f.' %(a)
+    fNet.initNetParams()
+
+  print 'Average rep accuracy is %f.' %(average_rep_accuracies/32)
+  
+  return average_rep_accuracies_vec, simMeasure_all 
+
+def graftMostSimilarN():
+  #working from a base net, find correlations with all other nets for all conv1 filters
+  #replace filters in order of mean similarity 
+  #of remaining filters choose the one that maximizes accuracy to replace
+
+  #correlations of filters in net1 to all other fitlers already saved in 'AnS_conv1_5net_graft5Filters001.p'
+  
+  loadFile = pickle.load(open('results/AnS_conv1_5net_graft5Filters001_centerCorr.p', 'rb'))
+  sim = loadFile['simMeasure']
+
+  #determine average similarity of each filter to base filter
+  average_sim = np.zeros((32,))
+  sim_filters = []
+  for f in range(0,32):
+    average_sim[f] = (np.max(sim[f][0]) + np.max(sim[f][1]) + np.max(sim[f][2]) + np.max(sim[f][3]))/4
+    s = [f]
+    for i in range(0,4):
+      if np.max(sim[f][i]) > 0:
+        s.append((i+1)*32+np.argmax(sim[f][i]))
+    sim_filters.append(s)  
+  filterOrder = np.argsort(average_sim)[::-1]
+
+
+  rep_filters = []
+  ind_acc = []
+  for i,f in enumerate(filterOrder):
+     #try replacing each candidate filter into all other nets and pick the one that performs the best
+     acc = 0
+     for j in range(len(sim_filters[f])):
+       fNet.replace('conv1',sim_filters[f], sim_filters[f][j])
+       a = fNet.testNet()
+       if a > acc:
+         acc = a
+         r = j
+       fNet.initNetParams()
+     rep_filters.append(r)
+     ind_acc.append(acc)
+     print 'Max accuracy for filter %d achieved is %f' %(f,acc)
+
+  add_filters = []
+  filterOrder = np.argsort(ind_acc)[::-1]
+  for i, f in enumerate(filterOrder):
+    fNet.replace('conv1',sim_filters[f],sim_filters[f][rep_filters[i]])
+    a = fNet.testNet()
+    print 'After replacing %d filters (newest %d), accuracy is %f' %(i,f,a)
+    add_filters.append(a)
+
+  fNet.initNetParams
+  
+  save_data = {}
+  save_data['ind_acc'] = ind_acc
+  save_data['add_filters'] = add_filters
+  save_data['average_similarity'] = average_sim
+  pickle.dump(save_data, open('results/addFilters_5Net_centerCorr_noRep0Corr_accuracyOrder.p','wb'))
+  
+
 
 #    fNet.orderedRemove('conv1', [origFilter])
 #    a = fNet.testNet()
@@ -227,31 +359,103 @@ accuracyRef = fNet.testNet()
 #randomFilterRemoval()
 #orderedFilterRemoval()
 
-average_accuracies, simMeasure = graftFilter(0,0,1)
-save_data = {}
-save_data['accuracies'] = average_accuracies
-save_data['simMeasure'] = simMeasure
-pickle.dump(save_data, open('results/AnS_conv1_2net_graftFilter001.p','wb'))
+#replace one filter in one net pair
+#average_accuracies, simMeasure = graftFilter(0,0,1)
+#save_data = {}
+#save_data['accuracies'] = average_accuracies
+#save_data['simMeasure'] = simMeasure
+#pickle.dump(save_data, open('results/AnS_conv1_5net_graftFilter001_centerCorr.p','wb'))
+#print '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'
 
-average_accuracies, simMeasure = graftFilter(1,0,1)
-save_data = {}
-save_data['accuracies'] = average_accuracies
-save_data['simMeasure'] = simMeasure
-pickle.dump(save_data, open('results/AnS_conv1_2net_graftFilter101.p','wb'))
-
-average_accuracies, simMeasure = graftFilter(0,1,0)
-save_data = {}
-save_data['accuracies'] = average_accuracies
-save_data['simMeasure'] = simMeasure
-pickle.dump(save_data, open('results/AnS_conv1_2net_graftFilter010.p','wb'))
-
-average_accuracies, simMeasure = graftFilter(1,1,0)
-save_data = {}
-save_data['accuracies'] = average_accuracies
-save_data['simMeasure'] = simMeasure
-pickle.dump(save_data, open('results/AnS_conv1_2net_graftFilter110.p','wb'))
+#replace one filter in all net pairs
+#average_accuracies, simMeasure = graftNFilter(0,0)
+#save_data = {}
+#save_data['accuracies'] = average_accuracies
+#save_data['simMeasure'] = simMeasure
+#pickle.dump(save_data, open('results/AnS_conv1_5net_graft5Filters001_centerCorr.p','wb'))
 
 #print reference accuracy and cleanUp
+
+graftMostSimilarN()
+ 
+#make plots of correlation versus accuracy for two ensemble network
+#simFilters = []
+#simMeasures = []
+#sim_and_a_all = []
+#for f in range(0,32):
+#  sim_and_a = []
+#  print 'On net 1: filter ', f
+#  similarFilter, simMeasure = fNet.findSimilar(0, 1, 'conv1', 'pool1', f)
+#  simFilters.append(similarFilter)
+#  simMeasures.append(simMeasure)
+#  for f2 in range(32,64):
+#  #def replace(self, layer, reps, fill, graft_later=0):
+#    fNet.replace('conv3',[f2], f)
+#    a = fNet.testNet()
+#    fNet.initNetParams()
+#    sim_and_a.append([a, simMeasure[f2-32]])
+#    print 'sim: %f, accuracy: %f' %(simMeasure[f2-32],a) 
+#  sim_and_a_all.append(sim_and_a)   
+# 
+#save_data = {}
+#save_data['sim_and_a'] = sim_and_a_all
+#pickle.dump(save_data, open('results/sim_and_a_2ensemble_simMid.p','wb'))
+
+#make plots of correlation versus accuracy for two ensemble network grafting five random filters from model1 onto (a) five random filters from model2 (b) five corresponding filters from model 2
+#simMeasures = []
+#for f in range(0,32):
+#  sim_and_a = []
+#  print 'On net 1: filter ', f
+#  similarFilter, simMeasure = fNet.findSimilar(0, 1, 'conv1', 'pool1', f)
+#  simMeasures.append(simMeasure)
+#pickle.dump(simMeasures, open('sim_measures.p','wb'))
+
+#simMeasures = pickle.load(open('sim_measures.p','rb'))
+#
+#sim_and_a_random_all = []
+#sim_and_a_correlated = []
+#for i in range(0,30):
+##def replace(self, layer, reps, fill, graft_later=0):
+#  channels = range(32)
+#  random.shuffle(channels)
+#  #channels fill 
+#  cf = channels[0:5]
+#  sim_and_a_random = []
+#  for j in range(5):
+#    channels = range(32,64)
+#    random.shuffle(channels)
+#    #random channels replace
+#    cr = channels[0:5]
+#    sim = 0
+#    for k in range(5):
+#      sim += simMeasures[cf[k]][cr[k]-32]
+#      fNet.replace('conv1',[cr[k]], cf[k])
+#    a = fNet.testNet()
+#    fNet.initNetParams()
+#    sim /= 5
+#    sim_and_a_random.append([cf, cr, sim, a])
+#    print 'Random filters: sim: %f, accuracy: %f' %(sim,a) 
+#  sim_and_a_random_all.append(sim_and_a_random)
+#  corr_rep = []
+#  for f in cf:
+#    corr_rep.append(np.argmax(simMeasures[f]))
+#  for k in range(5):
+#    sim += simMeasures[cf[k]][corr_rep[k]]
+#    fNet.replace('conv1',[corr_rep[k]],cf[k])
+#  a = fNet.testNet()
+#  fNet.initNetParams()
+#  sim /= 5
+#  sim_and_a_correlated.append([cf, cr, sim, a])
+#  print 'Correlated filters: sim: %f, accuracy: %f' %(sim,a) 
+# 
+#save_data = {}
+#save_data['sim_and_a_random_all'] = sim_and_a_random_all
+#save_data['sim_and_a_correlated'] = sim_and_a_correlated
+#pickle.dump(save_data, open('results/sim_and_a_2ensemble_graft5.p','wb'))
+##simMeasureSorted = []
+##for s in simMeasures:
+##  simMeasureSorted.append(simMeasures[simFilters])
+
 print 'Accuracy combining %d nets is %f' %(num_models, accuracyRef) 
 fNet.cleanUp()
 
