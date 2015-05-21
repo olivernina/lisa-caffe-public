@@ -11,7 +11,7 @@ from analyze_functions import *
 import pickle
 caffe.set_mode_gpu()
 import frankenNet
-home_dir = '/home/lisaanne/caffe-forward-backward/examples/analyze_weights'
+home_dir = '/home/lisaanne/caffe-forward-backward/examples/analyze_weights/'
 
 def pickBestAccuracy(net, filts, layer):
   acc = 0
@@ -32,8 +32,8 @@ class zippedModel(frankenNet.frankenNet):
 
     self.home_dir = home_dir
     nets = []
-    for model in PRETRAINED:
-       nets.append(caffe.Net(MODEL, home_dir+model, caffe.TEST))
+    for model in PRETRAINED[0:self.num_models]:
+       nets.append(caffe.Net(MODEL, model, caffe.TEST))
 
     self.trained_nets = nets
     self.MODEL = MODEL
@@ -63,7 +63,7 @@ class zippedModel(frankenNet.frankenNet):
       self.netTRAIN.params[l][1].data[...] = 0
     for i, net in enumerate(nets[0:self.num_models]):
       for l in iplayers:
-        f = net.params['ip1'][0].data.shape[1] 
+        f = net.params[l][0].data.shape[1] 
         self.netTEST.params[l][0].data[:,i*f:i*f+f,...] = net.params[l][0].data
         self.netTEST.params[l][1].data[...] += net.params[l][1].data
         self.netTRAIN.params[l][0].data[:,i*f:i*f+f,...] = net.params[l][0].data
@@ -217,15 +217,15 @@ class zippedModel(frankenNet.frankenNet):
     print 'Accuracy for graft dict on layer %s is %f.' %(layer, self.testNet())
     fNet.concatWeights(['conv1','conv2','conv3'],['ip1'])
   
-  def testZipNet(self):
+  def testZipNet(self, iterations=100):
     num_videos = 0
     num_correct = 0
-    for i in range(0,100):
+    for i in range(0,iterations):
       out = self.netTEST.forward()
       probs = out['probs']
       labels = out['label-out']
-
-      labels_pred_conv1 = np.argmax(probs[:,0:10],1)
+      num_labels = labels.shape[1]
+      labels_pred_conv1 = np.argmax(probs[:,0:num_labels],1)
       num_correct += len(np.where(labels_pred_conv1 == labels)[0])
 
       num_videos += 100
