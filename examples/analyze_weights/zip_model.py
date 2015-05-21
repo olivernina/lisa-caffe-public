@@ -138,6 +138,7 @@ class zippedModel(frankenNet.frankenNet):
         self.similarity[layer][i] = loadFile['simMeasure']
 
   def determineSimilarity(self, layer, activation, similarityFiles=None) :
+    self.similarity[layer] = {}
   #determine similarity for a certain layer and save to similarityFiles
     numFilters = self.trained_nets[0].params[layer][0].data.shape[0]
 
@@ -161,7 +162,7 @@ class zippedModel(frankenNet.frankenNet):
             origFilter = f+from_net*32
             similarFilter, simMeasure = self.findSimilar(from_net, onto_net, layer, activation, f)
             simMeasure_nets.append(simMeasure)
-      simMeasure_all.append(simMeasure_nets)
+        simMeasure_all.append(simMeasure_nets)
       if similarityFiles:
         save_data['simMeasure'] = simMeasure_all
         pickle.dump(save_data, open(similarityFiles[n],'wb'))
@@ -300,11 +301,19 @@ num_models = 5
 if len(sys.argv) == 2:
   num_models = int(sys.argv[1])
 
-similarityFiles = ['results/AnS_conv1_5net_graft5Filters001_centerCorr.p',
-                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet1.p',
-                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet2.p',
-                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet3.p',
-                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet4.p']
+#determined with test net
+#similarityFiles = ['results/AnS_conv1_5net_graft5Filters001_centerCorr.p',
+#                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet1.p',
+#                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet2.p',
+#                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet3.p',
+#                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet4.p']
+similarityFiles = ['results/cifar_conv1_5netSimilarity_centerCorr_fromNet0.p',
+                   'results/cifar_conv1_5netSimilarity_centerCorr_fromNet1.p',
+                   'results/cifar_conv1_5netSimilarity_centerCorr_fromNet2.p',
+                   'results/cifar_conv1_5netSimilarity_centerCorr_fromNet3.p',
+                   'results/cifar_conv1_5netSimilarity_centerCorr_fromNet4.p']
+
+
 MODEL = home_dir + 'cifar10_full_deploy.prototxt'
 PRETRAINED = ['trained_models/cifar10_full_model1_iter_70000.caffemodel',
              'trained_models/snapshots_rs_107583_iter_70000.caffemodel', 
