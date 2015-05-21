@@ -11,7 +11,7 @@ from analyze_functions import *
 import pickle
 caffe.set_mode_gpu()
 import frankenNet
-home_dir = '/home/lisaanne/caffe-dev/examples/analyze_weights/'
+home_dir = '/home/lisaanne/caffe-forward-backward/examples/analyze_weights'
 
 def pickBestAccuracy(net, filts, layer):
   acc = 0
@@ -293,50 +293,4 @@ class zippedModel(frankenNet.frankenNet):
 
 
     return zipNet
-
-#Initialize parameters
-
-num_models = 5
-if len(sys.argv) == 2:
-  num_models = int(sys.argv[1])
-
-similarityFiles = ['results/AnS_conv1_5net_graft5Filters001_centerCorr.p',
-                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet1.p',
-                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet2.p',
-                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet3.p',
-                   'results/AnS_conv1_5net_graft5Filters001_centerCorr_fromNet4.p']
-MODEL = home_dir + 'cifar10_full_deploy.prototxt'
-PRETRAINED = ['trained_models/cifar10_full_model1_iter_70000.caffemodel',
-             'trained_models/snapshots_rs_107583_iter_70000.caffemodel', 
-             'trained_models/snapshots_rs_11255_iter_70000.caffemodel', 
-             'trained_models/snapshots_rs_52681_iter_70000.caffemodel', 
-             'trained_models/snapshots_rs_80573_iter_70000.caffemodel',
-             'trained_models/snapshots_rs_1361_iter_70000.caffemodel', 
-             'trained_models/snapshots_rs_4572_iter_70000.caffemodel',
-             'trained_models/snapshots_rs_5916_iter_70000.caffemodel']
-
-cifarProto = 'cifar10_frankenNet.prototxt'
-cifarTrainProto = 'cifar10_frankenNet_train.prototxt' 
-frankenReplaceDict = {}
-frankenReplaceDict['FILTERS_CONV1'] = str(num_models*32)
-frankenReplaceDict['FILTERS_CONV2'] = str(num_models*32)
-frankenReplaceDict['FILTERS_CONV3'] = str(num_models*64)
-#################################################################################
-
-layer = 'conv1'
-fNet = zippedModel(num_models, MODEL, PRETRAINED)
-fNet.initModel(cifarProto, cifarTrainProto, frankenReplaceDict, 'fNet_tmp')
-fNet.concatWeights(['conv1','conv2','conv3'],['ip1'])
-print 'FrankenNet accuracy is %f.' %fNet.testNet()
-#fNet.loadSimilarity(similarityFiles, layer)
-fNet.determineSimilarity('conv1','pool1')
-fNet.determineGraftDictV1(layer)
-#fNet.loadGraftDict('results/graft_dict_conv1_V1.p')
-#modelzip!  This will define new attribute fNet.zipNet.
-zipNetConv1 = fNet.modelZip(layer, 'FILTERS_CONV1', 'fZipConv1_tmp.prototxt')
-#Test to make sure that grafting works (with no zipping yet)
-fNet.testGraftDict(layer)
-print 'Zipped model accuracy is: %f.' %zipNetConv1.testZipNet()
-#need to write fine-tuning code
-zipNetConv1.ftZipModel('solver_zipModel_finetune.prototxt','ft_zippedConv1')
 
