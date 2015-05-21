@@ -138,6 +138,7 @@ class zippedModel(frankenNet.frankenNet):
         self.similarity[layer][i] = loadFile['simMeasure']
 
   def determineSimilarity(self, layer, activation, similarityFiles=None) :
+    self.similarity[layer] = {}
   #determine similarity for a certain layer and save to similarityFiles
     numFilters = self.trained_nets[0].params[layer][0].data.shape[0]
 
@@ -161,7 +162,7 @@ class zippedModel(frankenNet.frankenNet):
             origFilter = f+from_net*32
             similarFilter, simMeasure = self.findSimilar(from_net, onto_net, layer, activation, f)
             simMeasure_nets.append(simMeasure)
-      simMeasure_all.append(simMeasure_nets)
+        simMeasure_all.append(simMeasure_nets)
       if similarityFiles:
         save_data['simMeasure'] = simMeasure_all
         pickle.dump(save_data, open(similarityFiles[n],'wb'))
