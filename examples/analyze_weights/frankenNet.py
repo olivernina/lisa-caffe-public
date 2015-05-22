@@ -78,17 +78,18 @@ class frankenNet(object):
     num_videos = 0
     num_correct = 0
     for i in range(0,iterations):
+      if i % 100 == 0:
+        print 'On iteration ', i
       out = self.netTEST.forward()
       probs = out['probs']
       labels = out['label-out']
       
-      num_labels = labels.shape[1]
+      num_labels = probs.shape[1]
       labels_pred_conv1 = np.argmax(probs[:,0:num_labels],1)
 
-      labels_pred_conv1 = np.argmax(probs[:,0:10],1)
       num_correct += len(np.where(labels_pred_conv1 == labels)[0])
 
-      num_videos += 100
+      num_videos += probs.shape[0]
     return float(num_correct)/num_videos
 
   def randRemove(self, layer, proportion):

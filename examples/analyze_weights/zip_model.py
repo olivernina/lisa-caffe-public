@@ -11,6 +11,7 @@ from analyze_functions import *
 import pickle
 caffe.set_mode_gpu()
 import frankenNet
+caffe.set_device(4)
 home_dir = '/home/lisaanne/caffe-forward-backward/examples/analyze_weights/'
 
 def pickBestAccuracy(net, filts, layer):
@@ -42,6 +43,11 @@ class zippedModel(frankenNet.frankenNet):
   def concatWeights(self,convlayers, iplayers):
     nets = self.trained_nets
     #put conv parameters into zipNet   
+    for l in convlayers + iplayers:
+      self.netTEST.params[l][0].data[...] = 0
+      self.netTRAIN.params[l][0].data[...] = 0
+      self.netTEST.params[l][1].data[...] = 0
+      self.netTRAIN.params[l][1].data[...] = 0
     for i, net in enumerate(nets[0:self.num_models]):
       for l in convlayers: 
         f = net.params[l][0].data.shape[0]
@@ -58,17 +64,23 @@ class zippedModel(frankenNet.frankenNet):
           self.netTRAIN.params[l][1].data[i*f:i*f+f] = copy.deepcopy(net.params[l][1].data)
 
     #put ip parameters into zipNet   
-    for l in iplayers:
-      self.netTEST.params[l][1].data[...] = 0
-      self.netTRAIN.params[l][1].data[...] = 0
     for i, net in enumerate(nets[0:self.num_models]):
       for l in iplayers:
-        f = net.params[l][0].data.shape[1] 
-        self.netTEST.params[l][0].data[:,i*f:i*f+f,...] = net.params[l][0].data
-        self.netTEST.params[l][1].data[...] += net.params[l][1].data
-        self.netTRAIN.params[l][0].data[:,i*f:i*f+f,...] = net.params[l][0].data
-        self.netTRAIN.params[l][1].data[...] += net.params[l][1].data
-  
+        if l == iplayers[-1]: #the output will be equal to the sum of all nets concatenated together
+          f = net.params[l][0].data.shape[1] 
+          self.netTEST.params[l][0].data[:,i*f:i*f+f,...] = copy.deepcopy(net.params[l][0].data)
+          self.netTEST.params[l][1].data[...] += copy.deepcopy(net.params[l][1].data)
+          self.netTRAIN.params[l][0].data[:,i*f:i*f+f,...] = copy.deepcopy(net.params[l][0].data)
+          self.netTRAIN.params[l][1].data[...] += copy.deepcopy(net.params[l][1].data)
+        else:
+          f1 = net.params[l][0].data.shape[0] 
+          f2 = net.params[l][0].data.shape[1] 
+          self.netTEST.params[l][0].data[i*f1:i*f1+f1,i*f2:i*f2+f2,...] = copy.deepcopy(net.params[l][0].data)
+          self.netTEST.params[l][1].data[i*f1:i*f1+f1] = copy.deepcopy(net.params[l][1].data)
+          self.netTRAIN.params[l][0].data[i*f1:i*f1+f1,i*f2:i*f2+f2,...] = copy.deepcopy(net.params[l][0].data)
+          self.netTRAIN.params[l][1].data[i*f1:i*f1+f1] = copy.deepcopy(net.params[l][1].data)
+    print 'Done concatenating model!'
+ 
   def initModel(self, proto, trainProto, replace_dict, tmp_save_proto):
 
     for p in [proto, trainProto]:
@@ -225,13 +237,36 @@ class zippedModel(frankenNet.frankenNet):
       out = self.netTEST.forward()
       probs = out['probs']
       labels = out['label-out']
-      num_labels = labels.shape[1]
+      num_labels = probs.shape[1]
       labels_pred_conv1 = np.argmax(probs[:,0:num_labels],1)
       num_correct += len(np.where(labels_pred_conv1 == labels)[0])
 
-      num_videos += 100
+      num_videos += probs.shape[0]
     return float(num_correct)/num_videos
 
+  def netOutputs(self, iterations=100):
+    num_videos = 0
+    num_correct = 0
+    
+    for i in range(0,iterations):
+      if i % 100 == 0:
+        print 'On iteration ', i 
+      out = self.netTEST.forward()
+      probs = out['probs']
+      labels = out['label-out']
+      num_labels = probs.shape[1]
+      if i == 0:
+        labels_cat = labels
+        probs_cat = probs
+      else:
+        labels_cat = np.concatenate((labels_cat, labels))
+        probs_cat = np.concatenate((probs_cat, probs))
+      labels_pred_conv1 = np.argmax(probs,1)
+      num_correct += len(np.where(labels_pred_conv1 == labels)[0])
+
+      num_videos += probs.shape[0]
+    accuracy = float(num_correct)/num_videos
+    return accuracy, labels_cat, probs_cat
                      
   def modelZip(self, layer, protoLayer, tmp_save_proto):
     #create and return a new zippedModel which is zipped at indicated layer

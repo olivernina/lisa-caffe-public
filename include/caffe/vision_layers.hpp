@@ -329,6 +329,8 @@ class LRNLayer : public Layer<Dtype> {
       const vector<Blob<Dtype>*>& top);
   virtual void CrossChannelForward_gpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
+  virtual void PartialChannelForward_gpu(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
   virtual void WithinChannelForward(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   virtual void CrossChannelBackward_cpu(const vector<Blob<Dtype>*>& top,

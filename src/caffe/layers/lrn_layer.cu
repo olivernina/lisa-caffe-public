@@ -63,6 +63,9 @@ void LRNLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   case LRNParameter_NormRegion_WITHIN_CHANNEL:
     WithinChannelForward(bottom, top);
     break;
+  case LRNParameter_NormRegion_PARTIAL_CHANNEL:
+    PartialChannelForward_gpu(bottom, top);
+    break;
   default:
     LOG(FATAL) << "Unknown normalization region.";
   }
@@ -101,6 +104,32 @@ void LRNLayer<Dtype>::CrossChannelForward_gpu(
 template void LRNLayer<float>::CrossChannelForward_gpu(
     const vector<Blob<float>*>& bottom, const vector<Blob<float>*>& top);
 template void LRNLayer<double>::CrossChannelForward_gpu(
+    const vector<Blob<double>*>& bottom, const vector<Blob<double>*>& top);
+
+template <typename Dtype>
+void LRNLayer<Dtype>::PartialChannelForward_gpu(
+    const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+  // First, compute scale
+  const Dtype* bottom_data = bottom[0]->gpu_data();
+  Dtype* top_data = top[0]->mutable_gpu_data();
+  Dtype* scale_data = scale_.mutable_gpu_data();
+  // We will launch one kernel for each pixel location, and have the kernel
+  // go through all the channels.
+  int n_threads = num_ * height_ * width_;
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  LRNFillScale<<<CAFFE_GET_BLOCKS(n_threads), CAFFE_CUDA_NUM_THREADS>>>(
+      n_threads, bottom_data, num_, channels_, height_, width_, size_,
+      alpha_ / size_, k_, scale_data);
+  CUDA_POST_KERNEL_CHECK;
+  n_threads = bottom[0]->count();
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  LRNComputeOutput<<<CAFFE_GET_BLOCKS(n_threads), CAFFE_CUDA_NUM_THREADS>>>(
+      n_threads, bottom_data, scale_data, -beta_, top_data);
+  CUDA_POST_KERNEL_CHECK;
+}
+template void LRNLayer<float>::PartialChannelForward_gpu(
+    const vector<Blob<float>*>& bottom, const vector<Blob<float>*>& top);
+template void LRNLayer<double>::PartialChannelForward_gpu(
     const vector<Blob<double>*>& bottom, const vector<Blob<double>*>& top);
 
 
