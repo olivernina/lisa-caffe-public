@@ -45,6 +45,7 @@ void caffe_cpu_gemv<double>(const CBLAS_TRANSPOSE TransA, const int M,
   cblas_dgemv(CblasRowMajor, TransA, M, N, alpha, A, N, x, 1, beta, y, 1);
 }
 
+//number of elements in vector, scaling factor for x, input x, input y 
 template <>
 void caffe_axpy<float>(const int N, const float alpha, const float* X,
     float* Y) { cblas_saxpy(N, alpha, X, 1, Y, 1); }

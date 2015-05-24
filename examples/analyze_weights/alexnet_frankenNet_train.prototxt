@@ -10,10 +10,10 @@ layer {
   transform_param {
     mirror: true
     crop_size: 227
-    mean_file: "/home/lisaanne/caffe-forward-backward/data/ilsvrc12/imagenet_mean.binaryproto"
+    mean_file: "imagenet_mean.binaryproto"
   }
   data_param {
-    source: "/mnt/x/caffe-train-lmdb"
+    source: "caffe-train-lmdb"
     batch_size: 256
     backend: LMDB
   }
@@ -29,10 +29,10 @@ layer {
   transform_param {
     mirror: false
     crop_size: 227
-    mean_file: "/home/lisaanne/caffe-forward-backward/data/ilsvrc12/imagenet_mean.binaryproto"
+    mean_file: "imagenet_mean.binaryproto"
   }
   data_param {
-    source: "/mnt/x/caffe-model-lmdb"
+    source: "caffe-val-lmdb"
     batch_size: 100
     backend: LMDB
   }
@@ -79,6 +79,8 @@ layer {
     local_size: 5
     alpha: 0.0001
     beta: 0.75
+    #norm_region: PARTIAL_CHANNELS
+    #num_divisor: NUM_D
   }
 }
 layer {
@@ -109,7 +111,7 @@ layer {
     num_output: FILTERS_CONV2
     pad: 2
     kernel_size: 5
-    group: 2
+    group: 1
     weight_filler {
       type: "constant"
       value: 0
@@ -127,15 +129,44 @@ layer {
   top: "conv2"
 }
 layer {
-  name: "norm2"
-  type: "LRN"
+  name: "slice2"
+  type: "Slice"
   bottom: "conv2"
-  top: "norm2"
+  top:"conv2-firstHalf"
+  top:"conv2-secondHalf"
+}
+layer {
+  name: "norm2-1"
+  type: "LRN"
+  bottom: "conv2-firstHalf"
+  top: "norm2-firstHalf"
   lrn_param {
     local_size: 5
     alpha: 0.0001
     beta: 0.75
+    #norm_region: PARTIAL_CHANNELS
+    #num_divisor: NUM_D
   }
+}
+layer {
+  name: "norm2-2"
+  type: "LRN"
+  bottom: "conv2-secondHalf"
+  top: "norm2-secondHalf"
+  lrn_param {
+    local_size: 5
+    alpha: 0.0001
+    beta: 0.75
+    #norm_region: PARTIAL_CHANNELS
+    #num_divisor: NUM_D
+  }
+}
+layer {
+  name: "concat2"
+  type: "Concat"
+  bottom: "norm2-firstHalf"
+  bottom: "norm2-secondHalf"
+  top: "norm2"
 }
 layer {
   name: "pool2"
@@ -198,7 +229,7 @@ layer {
     num_output: FILTERS_CONV4
     pad: 1
     kernel_size: 3
-    group: 2
+    group: 1
     weight_filler {
       type: "constant"
       value: 0
@@ -232,14 +263,12 @@ layer {
     num_output: FILTERS_CONV5
     pad: 1
     kernel_size: 3
-    group: 2
+    group: 1
     weight_filler {
       type: "constant"
-      value: 0
     }
     bias_filler {
       type: "constant"
-      value: 0
     }
   }
 }
@@ -281,7 +310,7 @@ layer {
     }
     bias_filler {
       type: "constant"
-      value: 0.1
+      value: 0
     }
   }
 }
@@ -364,6 +393,13 @@ layer {
       value: 0
     }
   }
+}
+layer {
+  name: "split-label"
+  type: "Split"
+  bottom: "label"
+  top: "label-comp"
+  top: "label-out"
 }
 layer {
   name: "accuracy"

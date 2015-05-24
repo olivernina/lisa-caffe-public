@@ -63,8 +63,8 @@ void LRNLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   case LRNParameter_NormRegion_WITHIN_CHANNEL:
     WithinChannelForward(bottom, top);
     break;
-  case LRNParameter_NormRegion_PARTIAL_CHANNEL:
-    PartialChannelForward_gpu(bottom, top);
+  case LRNParameter_NormRegion_PARTIAL_CHANNELS:
+    PartialChannelForward_cpu(bottom, top);
     break;
   default:
     LOG(FATAL) << "Unknown normalization region.";
@@ -115,17 +115,23 @@ void LRNLayer<Dtype>::PartialChannelForward_gpu(
   Dtype* scale_data = scale_.mutable_gpu_data();
   // We will launch one kernel for each pixel location, and have the kernel
   // go through all the channels.
-  int n_threads = num_ * height_ * width_;
-  // NOLINT_NEXT_LINE(whitespace/operators)
-  LRNFillScale<<<CAFFE_GET_BLOCKS(n_threads), CAFFE_CUDA_NUM_THREADS>>>(
-      n_threads, bottom_data, num_, channels_, height_, width_, size_,
-      alpha_ / size_, k_, scale_data);
-  CUDA_POST_KERNEL_CHECK;
-  n_threads = bottom[0]->count();
-  // NOLINT_NEXT_LINE(whitespace/operators)
-  LRNComputeOutput<<<CAFFE_GET_BLOCKS(n_threads), CAFFE_CUDA_NUM_THREADS>>>(
-      n_threads, bottom_data, scale_data, -beta_, top_data);
-  CUDA_POST_KERNEL_CHECK;
+  int num_divisor = this->layer_param_.lrn_param().num_divisor();
+  CHECK_EQ(0, num_ % num_divisor) << "Number of items in batch must be divisible by num_divisor.";
+
+  int pseudo_num = num_;
+  for (int nd = 0; nd < num_; nd = nd + num_divisor){
+    int n_threads =  num_ * height_ * width_;
+    // NOLINT_NEXT_LINE(whitespace/operators)
+    LRNFillScale<<<CAFFE_GET_BLOCKS(n_threads), CAFFE_CUDA_NUM_THREADS>>>(
+        n_threads, bottom_data + bottom[0]->offset(nd), pseudo_num, channels_, height_, width_, size_,
+        alpha_ / size_, k_, scale_data);
+    CUDA_POST_KERNEL_CHECK;
+    n_threads = bottom[0]->count()/num_divisor;
+    // NOLINT_NEXT_LINE(whitespace/operators)
+    LRNComputeOutput<<<CAFFE_GET_BLOCKS(n_threads), CAFFE_CUDA_NUM_THREADS>>>(
+        n_threads, bottom_data + bottom[0]->offset(nd), scale_data, -beta_, top_data + top[0]->offset(nd));
+    CUDA_POST_KERNEL_CHECK;
+  }
 }
 template void LRNLayer<float>::PartialChannelForward_gpu(
     const vector<Blob<float>*>& bottom, const vector<Blob<float>*>& top);
@@ -142,6 +148,9 @@ void LRNLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     break;
   case LRNParameter_NormRegion_WITHIN_CHANNEL:
     WithinChannelBackward(top, propagate_down, bottom);
+    break;
+  case LRNParameter_NormRegion_PARTIAL_CHANNELS:
+    PartialChannelBackward_cpu(top, propagate_down, bottom);
     break;
   default:
     LOG(FATAL) << "Unknown normalization region.";
@@ -210,6 +219,25 @@ __global__ void LRNComputeDiff(const int nthreads, const Dtype* bottom_data,
 }
 
 template <typename Dtype>
+void LRNLayer<Dtype>::PartialChannelBackward_gpu(
+    const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down,
+    const vector<Blob<Dtype>*>& bottom) {
+  int n_threads = num_ * height_ * width_;
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  LRNComputeDiff<<<CAFFE_GET_BLOCKS(n_threads), CAFFE_CUDA_NUM_THREADS>>>(
+      n_threads, bottom[0]->gpu_data(), top[0]->gpu_data(),
+      scale_.gpu_data(), top[0]->gpu_diff(), num_, channels_, height_, width_,
+      size_, -beta_, Dtype(2. * alpha_ * beta_ / size_),
+      bottom[0]->mutable_gpu_diff());
+}
+template void LRNLayer<float>::PartialChannelBackward_gpu(
+    const vector<Blob<float>*>& top, const vector<bool>& propagate_down,
+    const vector<Blob<float>*>& bottom);
+template void LRNLayer<double>::PartialChannelBackward_gpu(
+    const vector<Blob<double>*>& top, const vector<bool>& propagate_down,
+    const vector<Blob<double>*>& bottom);
+
+template <typename Dtype>
 void LRNLayer<Dtype>::CrossChannelBackward_gpu(
     const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
@@ -227,7 +255,6 @@ template void LRNLayer<float>::CrossChannelBackward_gpu(
 template void LRNLayer<double>::CrossChannelBackward_gpu(
     const vector<Blob<double>*>& top, const vector<bool>& propagate_down,
     const vector<Blob<double>*>& bottom);
-
 
 
 INSTANTIATE_LAYER_GPU_FUNCS(LRNLayer);

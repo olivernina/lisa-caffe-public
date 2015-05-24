@@ -10,7 +10,7 @@ layer {
   transform_param {
     mirror: true
     crop_size: 227
-    mean_file: "/home/lisaanne/caffe-forward-backward/data/ilsvrc12/imagenet_mean.binaryproto"
+    mean_file: "imagenet_mean.binaryproto"
   }
   data_param {
     source: "/mnt/x/caffe-train-lmdb"
@@ -29,10 +29,10 @@ layer {
   transform_param {
     mirror: false
     crop_size: 227
-    mean_file: "/home/lisaanne/caffe-forward-backward/data/ilsvrc12/imagenet_mean.binaryproto"
+    mean_file: "imagenet_mean.binaryproto"
   }
   data_param {
-    source: "/mnt/x/caffe-val-lmdb"
+    source: "caffe-val-lmdb"
     batch_size: 100
     backend: LMDB
   }
@@ -234,12 +234,11 @@ layer {
     kernel_size: 3
     group: 2
     weight_filler {
-      type: "gaussian"
-      std: 0.01
+      type: "constant"
     }
     bias_filler {
       type: "constant"
-      value: 0.1
+      value: 0
     }
   }
 }
@@ -276,12 +275,11 @@ layer {
   inner_product_param {
     num_output: 4096
     weight_filler {
-      type: "gaussian"
-      std: 0.005
+      type: "constant"
     }
     bias_filler {
       type: "constant"
-      value: 0.1
+      value: 0
     }
   }
 }
@@ -321,7 +319,7 @@ layer {
     }
     bias_filler {
       type: "constant"
-      value: 0.1
+      value: 0
     }
   }
 }

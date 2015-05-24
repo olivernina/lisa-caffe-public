@@ -630,10 +630,11 @@ message LRNParameter {
   enum NormRegion {
     ACROSS_CHANNELS = 0;
     WITHIN_CHANNEL = 1;
-    PARTIAL_CHANNEL = 2;
+    PARTIAL_CHANNELS = 2;
   }
   optional NormRegion norm_region = 4 [default = ACROSS_CHANNELS];
   optional float k = 5 [default = 1.];
+  optional uint32 num_divisor = 6 [default = 1];
 }
 
 // Message that stores parameters used by MemoryDataLayer

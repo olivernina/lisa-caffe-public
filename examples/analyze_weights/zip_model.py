@@ -1,5 +1,5 @@
 import numpy as np
-caffe_root = '/home/lisaanne/caffe-dev/'
+caffe_root = '/home/lisa/caffe-LSTM-video/'
 import sys
 sys.path.insert(0, caffe_root + 'python')
 import os
@@ -11,8 +11,9 @@ from analyze_functions import *
 import pickle
 caffe.set_mode_gpu()
 import frankenNet
-caffe.set_device(4)
-home_dir = '/home/lisaanne/caffe-forward-backward/examples/analyze_weights/'
+from multiprocessing import Pool
+home_dir = '/home/lisa/caffe-LSTM-video/examples/analyze_weights/'
+from timeit import default_timer as timer
 
 def pickBestAccuracy(net, filts, layer):
   acc = 0
@@ -25,12 +26,22 @@ def pickBestAccuracy(net, filts, layer):
     fNet.initNetParams()
   return r, acc
 
+def corrManyFunctions(Mats):
+  return normxcorrNFastVector(Mats[0],Mats[1][0,...])
+
+class corrMany(object):
+  def __init__(self, A):
+    self.A = A
+  def __call__(B):
+    return normxcorrNFastVector(self.A, B) 
+
 class zippedModel(frankenNet.frankenNet):
   
-  def __init__(self, num_models, MODEL, PRETRAINED):
-
+  def __init__(self, num_models, MODEL, PRETRAINED, device_id=0):
+     # init initializes attributes; most importantly the nets which will be combined
     self.num_models = num_models
-
+    self.device_id = device_id
+    caffe.set_device(device_id)
     self.home_dir = home_dir
     nets = []
     for model in PRETRAINED[0:self.num_models]:
@@ -40,7 +51,16 @@ class zippedModel(frankenNet.frankenNet):
     self.MODEL = MODEL
     self.PRETRAINED = PRETRAINED
 
+    self.grouping = {}
+    self.grouping['conv1'] = 1
+    self.grouping['conv2'] = 2
+    self.grouping['conv3'] = 1
+    self.grouping['conv4'] = 2
+    self.grouping['conv5'] = 2
+    
+
   def concatWeights(self,convlayers, iplayers):
+    grouping = self.grouping
     nets = self.trained_nets
     #put conv parameters into zipNet   
     for l in convlayers + iplayers:
@@ -58,10 +78,14 @@ class zippedModel(frankenNet.frankenNet):
           self.netTRAIN.params[l][0].data[i*f:i*f+f,...] = copy.deepcopy(net.params[l][0].data)
           self.netTRAIN.params[l][1].data[i*f:i*f+f] = copy.deepcopy(net.params[l][1].data)
         else:
-          self.netTEST.params[l][0].data[i*f:i*f+f,i*c:i*c+c,...] = copy.deepcopy(net.params[l][0].data)
-          self.netTEST.params[l][1].data[i*f:i*f+f] = copy.deepcopy(net.params[l][1].data)
-          self.netTRAIN.params[l][0].data[i*f:i*f+f,i*c:i*c+c,...] = copy.deepcopy(net.params[l][0].data)
-          self.netTRAIN.params[l][1].data[i*f:i*f+f] = copy.deepcopy(net.params[l][1].data)
+          for g in range(grouping[l]):
+            gf = f/grouping[l] 
+            gc = c
+            c2 = self.netTEST.params[l][0].data.shape[1]/self.num_models 
+            self.netTEST.params[l][0].data[i*f+g*gf:i*f+g*gf+gf,i*c2+g*gc:i*c2+g*gc+gc,...] = copy.deepcopy(net.params[l][0].data[g*gf:gf+g*gf,...])
+            self.netTEST.params[l][1].data[i*f+g*gf:i*f+g*gf+gf] = copy.deepcopy(net.params[l][1].data[g*gf:gf+g*gf])
+            self.netTRAIN.params[l][0].data[i*f+g*gf:i*f+g*gf+gf,i*c2+g*gc:i*c2+g*gc+gc,...] = copy.deepcopy(net.params[l][0].data[g*gf:gf+g*gf,...])
+            self.netTRAIN.params[l][1].data[i*f+g*gf:i*f+g*gf+gf] = copy.deepcopy(net.params[l][1].data[g*gf:gf+g*gf])
 
     #put ip parameters into zipNet   
     for i, net in enumerate(nets[0:self.num_models]):
@@ -79,10 +103,54 @@ class zippedModel(frankenNet.frankenNet):
           self.netTEST.params[l][1].data[i*f1:i*f1+f1] = copy.deepcopy(net.params[l][1].data)
           self.netTRAIN.params[l][0].data[i*f1:i*f1+f1,i*f2:i*f2+f2,...] = copy.deepcopy(net.params[l][0].data)
           self.netTRAIN.params[l][1].data[i*f1:i*f1+f1] = copy.deepcopy(net.params[l][1].data)
+#    o_net0 = nets[0].forward()
+#    o_net1 = nets[1].forward()
+#    o_netC = self.netTEST.forward()
+#    for l in nets[0].blobs.keys():
+#      if not ((l == 'data') | (l == 'label') | (l=='fc8')):
+#        f = nets[0].blobs[l].data.shape[1]
+#        dif_net0 = nets[0].blobs[l].data - self.netTEST.blobs[l].data[:,0:f,...]
+#        dif_net1 = nets[1].blobs[l].data - self.netTEST.blobs[l].data[:,f:,...]
+#        print 'For layer %s, min/max difference from net0 is %f/%f.' %(l, np.min(dif_net0), np.max(dif_net0))
+#        print 'For layer %s, min/max difference from net1 is %f/%f.' %(l, np.min(dif_net1), np.max(dif_net1))
+    
+      
     print 'Done concatenating model!'
+  
+  def initModelPartialNets(self, proto, replace_dict, tmp_save_proto):
+    #proto is the template proto for the zipModel
+
+    # write prototxts, load zip models, and sort out conv versus ip layers.
+    fNetProto = open(home_dir + proto, 'rb')
+    protoLines = fNetProto.readlines()
+    fNetProto.close()
+    for key in replace_dict.keys():
+      protoLines = [x.replace(key,replace_dict[key]) for x in protoLines]
+
+    fNetTmp = open(home_dir+tmp_save_proto, 'wb')
+    for line in protoLines:
+      fNetTmp.write(line)
+    fNetTmp.close()
+
+    self.netTEST = caffe.Net(home_dir + tmp_save_proto, caffe.TEST)
+    self.netTRAIN = caffe.Net(home_dir + tmp_save_proto, caffe.TRAIN)
+    self.convlayers = []
+    self.iplayers = [] 
+    for l in self.netTEST.params.keys():
+      if len(self.netTEST.params[l][0].data.shape) == 2:
+        self.iplayers.append(l)
+      else:
+        self.convlayers.append(l)
+    self.layers = self.convlayers
+    self.layers.extend(self.iplayers)
+    self.similarity = {}
+    self.graft_dict = {}
+    self.template_proto = proto
+    self.save_proto = tmp_save_proto
+    self.replace_dict = replace_dict
  
   def initModel(self, proto, trainProto, replace_dict, tmp_save_proto):
-
+    # write prototxts, load zip models, and sort out conv versus ip layers.
     for p in [proto, trainProto]:
       fNetProto = open(home_dir + p, 'rb')
       protoLines = fNetProto.readlines()
@@ -149,6 +217,66 @@ class zippedModel(frankenNet.frankenNet):
         loadFile = pickle.load(open(similarityFile,'rb'))
         self.similarity[layer][i] = loadFile['simMeasure']
 
+  def findSimilar_indNets(self, refNet, compNet, layer, activation, f):
+    #Find filter in compNet most similar to refNet.
+
+    p = Pool(16)
+    corr = []
+    b_list = []
+    for im in range(0,100):
+      mats = [refNet.blobs[activation].data[im:im+1,f,...], compNet.blobs[activation].data[im:im+1,...]]
+      b_list.append(mats)
+
+    corrManyFunctions(b_list[0])
+    res = np.array(p.map(corrManyFunctions, b_list))
+    p.close()
+    p.join()
+  
+    for im in range(0,100):
+      maxes = res[im][:,int((res[im].shape[1]/2)+0.5), int((res[im].shape[2]/2)+0.5)]
+      corr.append(maxes) 
+    
+    sums = np.zeros(corr[0].shape)
+    for s in corr:
+      sums += s
+    sim_filter = np.argmax(sums)
+    sim_measure = sums/100
+    return sim_filter, sim_measure 
+  
+  def determineSimilarity_partialNet(self, layer, activation_in, activation_out, similarityFiles=None) :
+    self.similarity[layer] = {}
+    #determine similarity for a certain layer and save to similarityFiles
+    numFilters = self.trained_nets[0].params[layer][0].data.shape[0]
+    o_C = self.netTRAIN.forward()
+    net_input = self.netTRAIN.blobs[activation_in].data
+ 
+    #initialize net inputs as input activations from zipModel 
+    for net in self.trained_nets:
+      net.blobs['data'].data[...] = copy.deepcopy(net_input[0:100,...])
+      net.forward()
+
+    #check that similarityFiles are equal in number to models
+    if similarityFiles:
+      if not len(similarityFiles) == self.num_models:
+        print 'Number of save files must be equal to number of models!'
+
+    for n in range(0,self.num_models):
+      from_net = self.trained_nets[n]
+      simMeasure_all = []
+      for f in range(0,numFilters):
+        print 'Computing similarity for filter %d, net %d.' %(f, n)
+        simMeasure_nets = []
+        for nn in range(0,self.num_models):
+          onto_net = self.trained_nets[nn]
+          similarFilter, simMeasure = self.findSimilar_indNets(from_net, onto_net, layer, activation_out, f)
+          simMeasure_nets.append(simMeasure)
+        simMeasure_all.append(simMeasure_nets)
+      if similarityFiles:
+        save_data = {}
+        save_data['simMeasure'] = simMeasure_all
+        pickle.dump(save_data, open(similarityFiles[n],'wb'))
+      self.similarity[layer][n] = simMeasure_all 
+
   def determineSimilarity(self, layer, activation, similarityFiles=None) :
     self.similarity[layer] = {}
   #determine similarity for a certain layer and save to similarityFiles
@@ -167,13 +295,10 @@ class zippedModel(frankenNet.frankenNet):
         print 'Computing similarity for filter %d, net %d.' %(f, n)
         simMeasure_nets = []
         for nn in range(0,self.num_models):
-          if n == nn:
-            pass
-          else:
-            onto_net = nn
-            origFilter = f+from_net*32
-            similarFilter, simMeasure = self.findSimilar(from_net, onto_net, layer, activation, f)
-            simMeasure_nets.append(simMeasure)
+          onto_net = nn
+          origFilter = f+from_net*numFilters
+          similarFilter, simMeasure = self.findSimilar(from_net, onto_net, layer, activation, f)
+          simMeasure_nets.append(simMeasure)
         simMeasure_all.append(simMeasure_nets)
       if similarityFiles:
         save_data['simMeasure'] = simMeasure_all
@@ -230,10 +355,12 @@ class zippedModel(frankenNet.frankenNet):
     print 'Accuracy for graft dict on layer %s is %f.' %(layer, self.testNet())
     fNet.concatWeights(['conv1','conv2','conv3'],['ip1'])
   
-  def testZipNet(self, iterations=100):
+  def testZipNet(self, iterations=100, display_iter = 10):
     num_videos = 0
     num_correct = 0
     for i in range(0,iterations):
+      if i % display_iter == 0:
+        print 'On iteration ', i
       out = self.netTEST.forward()
       probs = out['probs']
       labels = out['label-out']

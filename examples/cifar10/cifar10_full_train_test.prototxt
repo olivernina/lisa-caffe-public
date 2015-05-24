@@ -8,10 +8,10 @@ layer {
     phase: TRAIN
   }
   transform_param {
-    mean_file: "examples/cifar10/mean.binaryproto"
+    mean_file: "mean.binaryproto"
   }
   data_param {
-    source: "examples/cifar10/cifar10_train_lmdb"
+    source: "cifar10_train_lmdb"
     batch_size: 100
     backend: LMDB
   }
@@ -25,10 +25,10 @@ layer {
     phase: TEST
   }
   transform_param {
-    mean_file: "examples/cifar10/mean.binaryproto"
+    mean_file: "mean.binaryproto"
   }
   data_param {
-    source: "examples/cifar10/cifar10_test_lmdb"
+    source: "cifar10_test_lmdb"
     batch_size: 100
     backend: LMDB
   }
@@ -84,7 +84,8 @@ layer {
     local_size: 3
     alpha: 5e-05
     beta: 0.75
-    norm_region: WITHIN_CHANNEL
+    norm_region: PARTIAL_CHANNELS
+    num_divisor: 2
   }
 }
 layer {
@@ -138,7 +139,8 @@ layer {
     local_size: 3
     alpha: 5e-05
     beta: 0.75
-    norm_region: WITHIN_CHANNEL
+    norm_region: PARTIAL_CHANNELS
+    num_divisor: 1
   }
 }
 layer {

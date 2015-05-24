@@ -74,11 +74,11 @@ class frankenNet(object):
       self.net.params['ip1'][0].data[:,i*1024:i*1024+1024,...] = net.params['ip1'][0].data
       self.net.params['ip1'][1].data[...] += net.params['ip1'][1].data
 
-  def testNet(self, iterations=100):
+  def testNet(self, iterations=100, print_iter = 100):
     num_videos = 0
     num_correct = 0
     for i in range(0,iterations):
-      if i % 100 == 0:
+      if i % print_iter == 0:
         print 'On iteration ', i
       out = self.netTEST.forward()
       probs = out['probs']
