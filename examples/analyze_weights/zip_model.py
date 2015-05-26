@@ -308,7 +308,7 @@ class zippedModel(frankenNet.frankenNet):
 
   def determineGraftDictV1(self, layer):
     #greedy search of filters    
-    filters_per_model = self.netTRAIN.params[layer][0].data.shape[0]/self.num_models
+    filters_per_model = self.trained_nets[0].params[layer][0].data.shape[0]
     #sim0 = self.similarity  #similarity of model1 to other models to save time.
     filters_to_be_matched = range(filters_per_model*self.num_models)
     graft_dict = {}
@@ -318,11 +318,11 @@ class zippedModel(frankenNet.frankenNet):
     for n in range(self.num_models):
       sim = self.similarity[layer][n]
       for f in range(filters_per_model):
-        base_filter = n*32+f
+        base_filter = n*filters_per_model+f
         if base_filter in filters_to_be_matched:
           similar_filters = [base_filter]                        
-          for n2 in range(n,self.num_models-1):
-            s = (n2+1)*32+np.argmax(sim[f][n2])
+          for n2 in range(n+1,self.num_models):
+            s = (n2)*filters_per_model+np.argmax(sim[f][n2])
             if s in filters_to_be_matched:  #what if a later filter has better similarity?
               similar_filters.append(s)
               filters_to_be_matched.remove(s) 
@@ -395,15 +395,12 @@ class zippedModel(frankenNet.frankenNet):
     accuracy = float(num_correct)/num_videos
     return accuracy, labels_cat, probs_cat
                      
-  def modelZip(self, layer, protoLayer, tmp_save_proto):
-    #create and return a new zippedModel which is zipped at indicated layer
+  def modelZipPartial(self, layer, proto, replace_dict_key, save_proto, trained_model):
+    #Reminder: zipped model only has up to current layer.  So if input 'layer' is conv3, zipped model will have up to conv3.  Trained models have only the filter above that we will be zippin next, so in this case it would only have conv4 
 
+
+    #create and return a new zippedModel which is zipped at indicated layer
     graft_dict = self.graft_dict[layer]
-    zipNet = zippedModel(self.num_models, self.MODEL, self.PRETRAINED) 
-    layer_index = self.layers.index(layer)
-    next_layer = self.layers[layer_index+ 1] 
-    layers_below = self.layers[:layer_index]
-    layers_above = self.layers[layer_index+2:]
     
     #organize layer filters
     layer_filters = np.unique(np.array(graft_dict.values()))
@@ -411,33 +408,46 @@ class zippedModel(frankenNet.frankenNet):
     for key in graft_dict.keys():
       layer_filters_dict[key] = np.where(layer_filters == graft_dict[key])[0][0]
     num_filters = len(layer_filters)
-    origNumFilters = self.netTEST.params[layer][0].data.shape[0]/self.num_models
+    origNumFilters = self.trained_nets[0].params[layer][0].data.shape[0]
 
     #create new zipnet
+    zipNet = zippedModel(self.num_models, trained_model, '', self.device_id) 
     replace_dict = self.replace_dict 
-    replace_dict[protoLayer] = str(num_filters)
-    zipNet.initModel(self.template_proto, self.template_train_proto, replace_dict, tmp_save_proto)
+    replace_dict[replace_dict_key] = str(num_filters)
+    zipNet.initModelPartialNets(proto, replace_dict, save_proto)
 
-    #Copy parameters into zip layer
+    layer_index = zipNet.layers.index(layer)
+    next_layer = zipNet.trained_nets[0].params.keys()[-1]
+    layers_below = zipNet.layers[:layer_index]
+    
+    #Copy parameters UP TILL CURRENT LAYER into zip layer
     for i, lf in enumerate(layer_filters):
-      zipNet.netTEST.params[layer][0].data[i,...] = copy.deepcopy(self.netTEST.params[layer][0].data[lf,...])
-      zipNet.netTEST.params[layer][1].data[i] = copy.deepcopy(self.netTEST.params[layer][1].data[lf])
-      zipNet.netTRAIN.params[layer][0].data[i,...] = copy.deepcopy(self.netTRAIN.params[layer][0].data[lf,...])
-      zipNet.netTRAIN.params[layer][1].data[i] = copy.deepcopy(self.netTRAIN.params[layer][1].data[lf])
+      fromFilter = lf % origNumFilters
+      fromNet = fromFilter/origNumFilters
+      zipNet.netTEST.params[layer][0].data[i,...] = copy.deepcopy(self.trained_nets[fromNet].params[layer][0].data[fromFilter,...])
+      zipNet.netTEST.params[layer][1].data[i] = copy.deepcopy(self.trained_nets[fromNet].params[layer][1].data[fromFilter])
+      zipNet.netTRAIN.params[layer][0].data[i,...] = copy.deepcopy(self.trained_nets[fromNet].params[layer][0].data[fromFilter,...])
+      zipNet.netTRAIN.params[layer][1].data[i] = copy.deepcopy(self.trained_nets[fromNet].params[layer][1].data[fromFilter])
+    
+    #There should never be any layers above...
+    for l in layers_below:
+      zipNet.netTEST.params[l][0].data[...] = copy.deepcopy(self.netTEST.params[l][0].data[...])
+      zipNet.netTEST.params[l][1].data[...] = copy.deepcopy(self.netTEST.params[l][1].data[...])
+      zipNet.netTRAIN.params[l][0].data[...] = copy.deepcopy(self.netTRAIN.params[l][0].data[...])
+      zipNet.netTRAIN.params[l][1].data[...] = copy.deepcopy(self.netTRAIN.params[l][1].data[...])
 
     #shuffle channels from layer up to correspond to zipped layers if next layer is a conv layer
-    if next_layer in self.convlayers:
+    if next_layer in zipNet.convlayers:
       for key in layer_filters_dict.keys():
-        origNet = key/origNumFilters
-        filterRange = range(origNet*origNumFilters,origNet*origNumFilters+origNumFilters)
-        zipNet.netTEST.params[next_layer][0].data[filterRange,layer_filters_dict[key],...] = copy.deepcopy(self.netTEST.params[next_layer][0].data[filterRange, key,...])
-        zipNet.netTRAIN.params[next_layer][0].data[filterRange,layer_filters_dict[key],...] = copy.deepcopy(self.netTEST.params[next_layer][0].data[filterRange, key,...])
-      for i,b in enumerate(self.netTEST.params[next_layer][1].data):
-        zipNet.netTEST.params[next_layer][1].data[i] = copy.deepcopy(b)
-      for i,b in enumerate(self.netTRAIN.params[next_layer][1].data):
-        zipNet.netTRAIN.params[next_layer][1].data[i] = copy.deepcopy(b)
-    else:
-      dim_filter = zipNet.netTest.params[layer][0].data.shape
+        g = self.grouping[next_layer]
+        fromFilter = layer_filters_dict[key] % origNumFilters
+        toFilter = key % origNumFilters
+        fromNet = fromFilter/origNumFilters
+        toNet = toFilter/origNumFilters
+        group_range = range((fromFilter/g)*(origNumFilters/g),(fromFilter/g)*(origNumFilters/g) + (origNumFilters/g))
+        zipNet.trained_nets[toNet][next_layer][0].data[group_range,toFilter,...] = copy.deepcopy(self.trained_nets[fromNet][next_layer][0].data[group_range,fromFilter,...])
+    else:  #need to figure out lots of iplayer stuff :(
+      dim_filter = zipNet.netTEST.params[layer][0].data.shape
       size_filter = dim_filter[1]*dim_filter[2]*dim_filter[3]
       for key in layer_filters_dict.keys():
         filterRangeFrom = range(key*size_filter, key*size_filter + size_filter)
@@ -447,13 +457,5 @@ class zippedModel(frankenNet.frankenNet):
       zipNet.netTEST.params[next_layer][1].data[...] = copy.deepcopy(self.netTEST.params[next_layer][1].data)
       zipNet.netTRAIN.params[next_layer][1].data[...] = copy.deepcopy(self.netTRAIN.params[next_layer][1].data)
    
-    other_layers = layers_below + layers_above
-    for l in other_layers:
-      zipNet.netTEST.params[l][0].data[...] = copy.deepcopy(self.netTEST.params[l][0].data[...])
-      zipNet.netTEST.params[l][1].data[...] = copy.deepcopy(self.netTEST.params[l][1].data[...])
-      zipNet.netTRAIN.params[l][0].data[...] = copy.deepcopy(self.netTRAIN.params[l][0].data[...])
-      zipNet.netTRAIN.params[l][1].data[...] = copy.deepcopy(self.netTRAIN.params[l][1].data[...])
-
-
     return zipNet
 
