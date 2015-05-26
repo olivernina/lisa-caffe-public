@@ -26,7 +26,7 @@ layer {
   transform_param {
     mirror: true
     crop_size: 227
-    mean_file: "halfnatmanA_imagenet_mean.binaryproto"
+    mean_file: "imagenet_mean.binaryproto"
   }
   data_param {
     source: "caffe-val-lmdb"
@@ -55,7 +55,7 @@ layer {
     kernel_size: 11
     stride: 4
     weight_filler {
-      type: "xavier"
+      type: "msra"
     }
     bias_filler {
       type: "constant"
@@ -99,7 +99,7 @@ layer {
     kernel_size: 5
     group: 2
     weight_filler {
-      type: "xavier"
+      type: "msra"
     }
     bias_filler {
       type: "constant"
@@ -142,7 +142,7 @@ layer {
     pad: 1
     kernel_size: 3
     weight_filler {
-      type: "xavier"
+      type: "msra"
     }
     bias_filler {
       type: "constant"
@@ -175,7 +175,7 @@ layer {
     kernel_size: 3
     group: 2
     weight_filler {
-      type: "xavier"
+      type: "msra"
     }
     bias_filler {
       type: "constant"
@@ -208,7 +208,7 @@ layer {
     kernel_size: 3
     group: 2
     weight_filler {
-      type: "xavier"
+      type: "msra"
     }
     bias_filler {
       type: "constant"
@@ -249,7 +249,8 @@ layer {
   inner_product_param {
     num_output: 4096
     weight_filler {
-      type: "xavier"
+      type: "gaussian"
+      std: 0.01
     }
     bias_filler {
       type: "constant"
@@ -288,7 +289,9 @@ layer {
   inner_product_param {
     num_output: 4096
     weight_filler {
-      type: "xavier"
+      type: "gaussian"
+      std: 0.01
+      #type: "msra"
     }
     bias_filler {
       type: "constant"
@@ -327,7 +330,9 @@ layer {
   inner_product_param {
     num_output: 1000
     weight_filler {
-      type: "xavier"
+      type: "gaussian"
+      std: 0.01
+      #type: "msra"
     }
     bias_filler {
       type: "constant"
