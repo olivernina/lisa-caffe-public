@@ -1,11 +1,11 @@
 name: "Hyb2Net-LSTM"
 input: "data"
-input_dim: 160
+input_dim: 10
 input_dim: 3
 input_dim: 227
 input_dim: 227
 input: "clip_markers"
-input_dim: 160
+input_dim: 10
 input_dim: 1
 input_dim: 1
 input_dim: 1
@@ -231,7 +231,7 @@ layer{
   top: "fc6-reshape"
   reshape_param{
     shape{
-      dim: 16
+      dim: 1
       dim: 10
       dim: 4096
     }
@@ -245,7 +245,7 @@ layer{
   top: "reshape-cm"
   reshape_param{
     shape{
-      dim: 16
+      dim: 1
       dim: 10
     }
   }

@@ -1,7 +1,0 @@
-/home/ninaoa1/Projects/temp/lstm/lstm7/lisa-caffe-public/tools/cuda_flow/release/CMakeFiles/display.dir
-/home/ninaoa1/Projects/temp/lstm/lstm7/lisa-caffe-public/tools/cuda_flow/release/CMakeFiles/TAGS.dir
-/home/ninaoa1/Projects/temp/lstm/lstm7/lisa-caffe-public/tools/cuda_flow/release/CMakeFiles/lk_flow.dir
-/home/ninaoa1/Projects/temp/lstm/lstm7/lisa-caffe-public/tools/cuda_flow/release/CMakeFiles/farneback_flow.dir
-/home/ninaoa1/Projects/temp/lstm/lstm7/lisa-caffe-public/tools/cuda_flow/release/CMakeFiles/optical_flow_frames.dir
-/home/ninaoa1/Projects/temp/lstm/lstm7/lisa-caffe-public/tools/cuda_flow/release/CMakeFiles/brox_flow.dir
-/home/ninaoa1/Projects/temp/lstm/lstm7/lisa-caffe-public/tools/cuda_flow/release/CMakeFiles/optical_flow.dir
