@@ -1,0 +1,58 @@
+the CMakeList.txt
+has the main configuration for building the code. 
+You can keep adding other targets or what not by editing and extending this file. 
+The main program are optical_flow and optical_flow_frames which use Brox. If you want to copy this to a different directory make sure you copy the other Brox executable as well. The computer needs to have tbb module loaded (libtbb) in order for the GPU to work. 
+
+For the program to work with activity recognition copy the optical_flow_frames and Brox executables to the examples/LRCN_activity_recognition
+
+
+
+CUDA_FLOW
+***************************************************************************************************************************
+***************************************************************************************************************************
+
+This code shows several examples for using the dense optical flow methods from the GPU module of the OpenCV Library.
+The version of the OpenCV library should be equal or higher than 2.4.
+You should have a NVIDA graphic card and the OpenCV library compiled with CUDA support to run the examples.
+
+***************************************************************************************************************************
+***************************************************************************************************************************
+
+Compiling the program
+---------------------------------------------------------------------------------------------------------------------------
+In the program folder please type:
+mkdir release
+cd release
+cmake ..
+make
+
+After compiling and linking you should have executables such as:
+brox_flox
+farneback_flow
+lk_flow (this method seems to have some bugs in OpenCV 2.4.3)
+
+***************************************************************************************************************************
+***************************************************************************************************************************
+
+Running the program
+---------------------------------------------------------------------------------------------------------------------------
+The program accepts command line arguments.
+To run each of the methods you should pass the path of a video file.
+Examples:
+
+./brox_flow video.avi
+./farneback_flow video.avi
+./lk_flow video.avi
+
+***************************************************************************************************************************
+***************************************************************************************************************************
+
+More Info
+---------------------------------------------------------------------------------------------------------------------------
+Name: cuda_flow
+Author: Pablo F. Alcantarilla modified by Oliver Nina
+
+For further questions, please contact me at:
+Contact: pablofdezalc@gmail.com
+
+Thanks to my colleague Alireza Fathi for choosing the parameters of Brox method.
